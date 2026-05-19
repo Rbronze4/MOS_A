@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MOS 店員側プロトタイプ</title>
+  <style>
+    :root {
+      --bg: #b68f59;
+      --panel: #ffffff;
+      --text: #111111;
+      --muted: #666666;
+      --line: #dedede;
+      --primary: #000000;
+      --danger: #ff6b7a;
+      --purple: #8f6bff;
+      --nav: #fff7ff;
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #eeeeee;
+      color: var(--text);
+    }
+
+    .app {
+      width: 100%;
+      max-width: 430px;
+      min-height: 100vh;
+      margin: 0 auto;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .screen {
+      display: none;
+      min-height: 100vh;
+      padding: 14px 14px 80px;
+      background: var(--bg);
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .status-space {
+      height: 10px;
+    }
+
+    .page-title {
+      margin: 10px 0 20px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .header {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      margin-bottom: 8px;
+    }
+
+    .header-label {
+      background: #f1f1f1;
+      border-radius: 9px;
+      padding: 8px 38px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .back-btn,
+    .small-btn {
+      border: 0;
+      background: #ffffff;
+      color: #111111;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .header .back-btn {
+      position: absolute;
+      left: 0;
+    }
+
+    .table-logo-placeholder {
+      width: 120px;
+      height: 120px;
+      margin: 30px auto 20px;
+      border: 2px dashed rgba(255,255,255,0.7);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      font-weight: 700;
+      background: rgba(255,255,255,0.16);
+    }
+
+    .description {
+      text-align: center;
+      line-height: 1.5;
+      margin: 0 0 18px;
+      font-size: 15px;
+    }
+
+    .table-input {
+      display: block;
+      width: 110px;
+      height: 44px;
+      margin: 0 auto 16px;
+      border: 0;
+      background: #ffffff;
+      text-align: center;
+      font-size: 24px;
+      outline: none;
+    }
+
+    .primary-btn {
+      display: block;
+      border: 0;
+      background: var(--primary);
+      color: #ffffff;
+      border-radius: 6px;
+      padding: 12px 28px;
+      font-size: 20px;
+      font-weight: 700;
+      cursor: pointer;
+      margin: 0 auto;
+    }
+
+    .plan-banner {
+      width: 100%;
+      height: 104px;
+      border: 0;
+      padding: 0;
+      margin: 0 0 16px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.25);
+      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      font-size: 20px;
+      font-weight: 800;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+    }
+
+    .plan-banner::before {
+      content: "画像枠";
+      position: absolute;
+      inset: 8px;
+      border: 2px dashed rgba(255,255,255,0.65);
+      border-radius: 2px;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      color: rgba(255,255,255,0.9);
+      text-shadow: none;
+    }
+
+    .plan-banner span {
+      position: relative;
+      z-index: 1;
+      transform: translateY(-16px);
+    }
+
+    .single-order-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 240px;
+      margin: 26px auto 0;
+      padding: 16px 18px;
+      border: 0;
+      border-radius: 6px;
+      background: #000000;
+      color: #ffffff;
+      font-size: 28px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .icon-placeholder {
+      width: 42px;
+      height: 42px;
+      border: 2px solid #ffffff;
+      border-radius: 8px;
+      display: inline-grid;
+      place-items: center;
+      font-size: 11px;
+      color: #ffffff;
+    }
+
+    .menu-tabs {
+      display: flex;
+      gap: 0;
+      background: #fff4df;
+      border-radius: 999px;
+      padding: 2px;
+      overflow-x: auto;
+      white-space: nowrap;
+      margin: 0 0 14px;
+    }
+
+    .menu-tab {
+      border: 0;
+      background: transparent;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 14px;
+      cursor: pointer;
+      color: #111111;
+      flex: 0 0 auto;
+    }
+
+    .menu-tab.active {
+      background: #ffffff;
+      color: #e60012;
+      font-weight: 700;
+    }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      padding-bottom: 12px;
+    }
+
+    .menu-card {
+      background: #ffffff;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 0;
+      text-align: left;
+      cursor: pointer;
+      min-height: 170px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+
+    .image-placeholder {
+      width: 100%;
+      height: 105px;
+      background: #e8e8e8;
+      border: 2px dashed #c7c7c7;
+      display: grid;
+      place-items: center;
+      color: #888888;
+      font-size: 12px;
+    }
+
+    .menu-card-body {
+      padding: 8px;
+      font-size: 12px;
+    }
+
+    .menu-name {
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #201261;
+    }
+
+    .menu-price {
+      font-weight: 700;
+      color: #201261;
+    }
+
+    .bottom-nav {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 58px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--nav);
+      border-top: 1px solid #eadfec;
+    }
+
+    .bottom-nav button {
+      border: 0;
+      border-right: 1px solid #e1d4e2;
+      background: transparent;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .cart-page {
+      background: #eeeeee;
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    .cart-page .header {
+      background: var(--bg);
+      margin: -14px 0 0;
+      padding: 0 14px;
+      height: 70px;
+    }
+
+    .sub-back {
+      height: 30px;
+      border-top: 1px solid #777777;
+      border-bottom: 1px solid #777777;
+      background: #f7f7f7;
+      padding-left: 10px;
+      line-height: 28px;
+      cursor: pointer;
+    }
+
+    .cart-summary {
+      width: 78%;
+      margin: 10px auto;
+      font-size: 12px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      padding: 6px 0;
+    }
+
+    .total-price {
+      font-size: 22px;
+    }
+
+    .cart-list {
+      width: 78%;
+      margin: 0 auto;
+    }
+
+    .cart-row {
+      display: grid;
+      grid-template-columns: 1fr 28px 56px auto auto;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    .pill-btn {
+      border: 0;
+      color: #ffffff;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .pill-change {
+      background: var(--purple);
+    }
+
+    .pill-delete {
+      background: var(--danger);
+    }
+
+    .cart-confirm-area {
+      position: absolute;
+      bottom: 26px;
+      left: 0;
+      right: 0;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      top: 150px;
+      transform: translateX(-50%);
+      min-width: 230px;
+      max-width: 320px;
+      padding: 28px 20px;
+      background: #ffffff;
+      border-radius: 4px;
+      text-align: center;
+      font-size: 20px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      z-index: 20;
+      display: none;
+    }
+
+    .toast.show {
+      display: block;
+    }
+
+    .modal-layer {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 15;
+      padding: 16px;
+    }
+
+    .modal-layer.show {
+      display: flex;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 340px;
+      background: #ffffff;
+      border-radius: 6px;
+      padding: 12px 16px 22px;
+    }
+
+    .modal-back {
+      font-size: 22px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+
+    .modal-title {
+      font-size: 15px;
+      margin-bottom: 14px;
+      font-weight: 700;
+    }
+
+    .modal-total {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      padding: 8px 0;
+      margin-bottom: 14px;
+    }
+
+    .modal-total strong {
+      font-size: 20px;
+    }
+
+    .plan-detail-title {
+      font-weight: 700;
+      margin: 8px 0 6px;
+    }
+
+    .plan-detail-list {
+      margin: 0 0 20px;
+      padding-left: 18px;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .order-modal-list {
+      margin: 8px 0 18px;
+    }
+
+    .order-modal-row {
+      display: grid;
+      grid-template-columns: 1fr 32px 70px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 15px;
+      align-items: center;
+    }
+
+    .quantity-box {
+      width: 118px;
+      height: 54px;
+      margin: 22px auto;
+      background: #ffffff;
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+      border: 0;
+      text-align: center;
+      outline: none;
+    }
+
+    .stepper {
+      width: 290px;
+      height: 34px;
+      margin: 0 auto 26px;
+      background: #f5f5f5;
+      border-radius: 999px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      overflow: hidden;
+    }
+
+    .stepper button {
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .product-panel {
+      width: 230px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .product-panel .image-placeholder {
+      height: 150px;
+    }
+
+    .product-info {
+      padding: 10px;
+      color: #201261;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .product-info .price {
+      text-align: right;
+      margin-top: 26px;
+      font-size: 16px;
+    }
+
+    .history-row {
+      width: 84%;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 78px 1fr 28px 58px 54px;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    .history-status {
+      font-size: 12px;
+    }
+
+    .reorder-btn {
+      border: 0;
+      background: #000000;
+      color: #ffffff;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .error-text {
+      color: #b00020;
+      text-align: center;
+      min-height: 22px;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section id="tableScreen" class="screen active">
+      <div class="status-space"></div>
+      <div class="table-logo-placeholder">ロゴ枠</div>
+      <p class="description">従業員から配られた卓番号を<br>入力してください</p>
+      <input id="tableNumberInput" class="table-input" type="text" inputmode="numeric" maxlength="3" value="1" />
+      <button id="tableSubmitBtn" class="primary-btn">確定</button>
+      <div id="tableError" class="error-text"></div>
+    </section>
+
+    <section id="planScreen" class="screen">
+      <div class="status-space"></div>
+      <h1 class="page-title">プランを選択してください</h1>
+      <button class="plan-banner" data-plan="standard"><span>飲み放題プラン<br>スタンダード</span></button>
+      <button class="plan-banner" data-plan="premium"><span>プレミアムプラン</span></button>
+      <button id="singleOrderBtn" class="single-order-btn"><span class="icon-placeholder">icon</span>単品注文</button>
+    </section>
+
+    <section id="menuScreen" class="screen">
+      <div class="status-space"></div>
+      <div class="menu-tabs" id="menuTabs"></div>
+      <div class="menu-grid" id="menuGrid"></div>
+      <nav class="bottom-nav">
+        <button id="historyNavBtn">注文履歴</button>
+        <button id="cartNavBtn">カート</button>
+      </nav>
+    </section>
+
+    <section id="productScreen" class="screen">
+      <div class="status-space"></div>
+      <button id="productBackBtn" class="small-btn">戻る</button>
+      <div class="product-panel">
+        <div class="image-placeholder">商品画像枠</div>
+        <div class="product-info">
+          <div id="productName">ビール</div>
+          <div id="productPrice" class="price">¥200</div>
+        </div>
+      </div>
+      <input id="qtyInput" class="quantity-box" type="text" inputmode="numeric" value="1" />
+      <div class="stepper">
+        <button id="minusBtn">-</button>
+        <button id="plusBtn">+</button>
+      </div>
+      <button id="addCartBtn" class="primary-btn">確定</button>
+    </section>
+
+    <section id="cartScreen" class="screen cart-page">
+      <div class="header">
+        <div class="header-label">カート</div>
+      </div>
+      <div id="cartBackBtn" class="sub-back">&lt;</div>
+      <div class="cart-summary">
+        <div class="total-row"><span>合計金額</span><span id="cartTotal" class="total-price">¥0</span></div>
+      </div>
+      <div id="cartList" class="cart-list"></div>
+      <div class="cart-confirm-area">
+        <button id="cartConfirmBtn" class="primary-btn">注文確認</button>
+      </div>
+    </section>
+
+    <section id="historyScreen" class="screen cart-page">
+      <div class="header">
+        <div class="header-label">注文履歴</div>
+      </div>
+      <div id="historyBackBtn" class="sub-back">&lt;</div>
+      <div class="cart-summary">
+        <div class="total-row"><span>現在の合計金額</span><span id="historyTotal" class="total-price">¥0</span></div>
+      </div>
+      <div id="historyList"></div>
+    </section>
+
+    <div id="toast" class="toast"></div>
+
+    <div id="planModal" class="modal-layer">
+      <div class="modal-card">
+        <div id="closePlanModal" class="modal-back">&lt;</div>
+        <div class="modal-title">このプランでよろしいでしょうか？</div>
+        <div class="modal-total"><span>合計金額</span><strong id="planModalPrice">¥0</strong></div>
+        <div id="planDetailTitle" class="plan-detail-title"></div>
+        <ul id="planDetailList" class="plan-detail-list"></ul>
+        <button id="planConfirmBtn" class="primary-btn">確定</button>
+      </div>
+    </div>
+
+    <div id="orderModal" class="modal-layer">
+      <div class="modal-card">
+        <div id="closeOrderModal" class="modal-back">&lt;</div>
+        <div class="modal-title">この内容で注文を確定しますか？</div>
+        <div class="modal-total"><span>合計金額</span><strong id="orderModalTotal">¥0</strong></div>
+        <div id="orderModalList" class="order-modal-list"></div>
+        <button id="orderSubmitBtn" class="primary-btn">注文</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      tableNumber: '',
+      selectedPlan: null,
+      activeCategory: 'ご飯もの',
+      selectedProduct: null,
+      cart: [],
+      history: []
+    };
+
+    const plans = {
+      standard: {
+        name: 'スタンダードプラン',
+        price: 5000,
+        details: ['飲み放題20品', '¥2,500/人', '大人2人']
+      },
+      premium: {
+        name: 'プレミアムプラン',
+        price: 6000,
+        details: ['飲み放題40品', '¥3,000/人', '大人2人']
+      },
+      none: {
+        name: '飲み放題なし',
+        price: 0,
+        details: ['単品注文のみ', '飲み放題は付きません', '※ドリンクは個別注文・精算となります']
+      }
+    };
+
+    const categories = ['ご飯もの', '串', '一品', '揚げ物', 'ドリンク'];
+
+    const products = [
+      { id: 'beer', category: 'ドリンク', name: 'ビール', price: 200 },
+      { id: 'highball', category: 'ドリンク', name: 'ハイボール', price: 200 },
+      { id: 'shochu', category: 'ドリンク', name: '焼酎', price: 200 },
+      { id: 'lemon', category: 'ドリンク', name: 'レモンサワー', price: 200 },
+      { id: 'cocktail', category: 'ドリンク', name: 'カクテル', price: 200 },
+      { id: 'oolong', category: 'ドリンク', name: 'ウーロン茶', price: 100 },
+      { id: 'rice', category: 'ご飯もの', name: '白ごはん', price: 150 },
+      { id: 'yakitori', category: '串', name: '鳥皮たれ', price: 100 },
+      { id: 'momo', category: '串', name: 'もも串しお', price: 100 },
+      { id: 'edamame', category: '一品', name: '枝豆', price: 250 },
+      { id: 'karaage', category: '揚げ物', name: '唐揚げ', price: 400 }
+    ];
+
+    const yen = (value) => `¥${Number(value || 0).toLocaleString('ja-JP')}`;
+    const screens = ['tableScreen', 'planScreen', 'menuScreen', 'productScreen', 'cartScreen', 'historyScreen'];
+
+    function showScreen(id) {
+      screens.forEach(screenId => document.getElementById(screenId).classList.toggle('active', screenId === id));
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1100);
+    }
+
+    function openPlanModal(planKey) {
+      const plan = plans[planKey];
+      document.getElementById('planModalPrice').textContent = yen(plan.price);
+      document.getElementById('planDetailTitle').textContent = plan.name;
+      document.getElementById('planDetailList').innerHTML = plan.details.map(item => `<li>${item}</li>`).join('');
+      document.getElementById('planConfirmBtn').dataset.plan = planKey;
+      document.getElementById('planModal').classList.add('show');
+    }
+
+    function closePlanModal() {
+      document.getElementById('planModal').classList.remove('show');
+    }
+
+    function renderTabs() {
+      const tabs = document.getElementById('menuTabs');
+      tabs.innerHTML = categories.map(category => `
+        <button class="menu-tab ${category === state.activeCategory ? 'active' : ''}" data-category="${category}">${category}</button>
+      `).join('');
+
+      tabs.querySelectorAll('.menu-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.activeCategory = btn.dataset.category;
+          renderMenu();
+        });
+      });
+    }
+
+    function renderMenu() {
+      renderTabs();
+      const grid = document.getElementById('menuGrid');
+      const list = products.filter(product => product.category === state.activeCategory);
+      grid.innerHTML = list.map(product => `
+        <button class="menu-card" data-product-id="${product.id}">
+          <div class="image-placeholder">画像枠</div>
+          <div class="menu-card-body">
+            <div class="menu-name">${product.name}</div>
+            <div class="menu-price">${yen(product.price)}</div>
+          </div>
+        </button>
+      `).join('');
+
+      grid.querySelectorAll('.menu-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const product = products.find(item => item.id === card.dataset.productId);
+          state.selectedProduct = product;
+          document.getElementById('productName').textContent = product.name;
+          document.getElementById('productPrice').textContent = yen(product.price);
+          document.getElementById('qtyInput').value = '1';
+          showScreen('productScreen');
+        });
+      });
+    }
+
+    function addToCart(product, qty) {
+      const existing = state.cart.find(item => item.id === product.id);
+      if (existing) {
+        existing.qty += qty;
+      } else {
+        state.cart.push({ ...product, qty });
+      }
+      renderCart();
+    }
+
+    function cartTotal() {
+      return state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+    }
+
+    function historyTotal() {
+      return state.history.reduce((sum, item) => sum + item.price * item.qty, 0);
+    }
+
+    function renderCart() {
+      document.getElementById('cartTotal').textContent = yen(cartTotal());
+      const list = document.getElementById('cartList');
+
+      if (state.cart.length === 0) {
+        list.innerHTML = '<p style="text-align:center;color:#666;">カートは空です</p>';
+        return;
+      }
+
+      list.innerHTML = state.cart.map(item => `
+        <div class="cart-row">
+          <span>${item.name}</span>
+          <span>${item.qty}</span>
+          <span>${yen(item.price)}</span>
+          <button class="pill-btn pill-change" data-action="change" data-id="${item.id}">変更</button>
+          <button class="pill-btn pill-delete" data-action="delete" data-id="${item.id}">削除</button>
+        </div>
+      `).join('');
+
+      list.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.id;
+          const item = state.cart.find(cartItem => cartItem.id === id);
+          if (btn.dataset.action === 'delete') {
+            state.cart = state.cart.filter(cartItem => cartItem.id !== id);
+            renderCart();
+            showToast(`${item.name}を削除しました`);
+            return;
+          }
+
+          state.selectedProduct = products.find(product => product.id === id);
+          document.getElementById('productName').textContent = state.selectedProduct.name;
+          document.getElementById('productPrice').textContent = yen(state.selectedProduct.price);
+          document.getElementById('qtyInput').value = String(item.qty);
+          state.cart = state.cart.filter(cartItem => cartItem.id !== id);
+          showScreen('productScreen');
+        });
+      });
+    }
+
+    function openOrderModal() {
+      if (state.cart.length === 0) {
+        showToast('商品が選択されていません');
+        return;
+      }
+      document.getElementById('orderModalTotal').textContent = yen(cartTotal());
+      document.getElementById('orderModalList').innerHTML = state.cart.map(item => `
+        <div class="order-modal-row">
+          <span>${item.name}</span>
+          <span>${item.qty}</span>
+          <span>${yen(item.price)}</span>
+        </div>
+      `).join('');
+      document.getElementById('orderModal').classList.add('show');
+    }
+
+    function closeOrderModal() {
+      document.getElementById('orderModal').classList.remove('show');
+    }
+
+    function renderHistory() {
+      document.getElementById('historyTotal').textContent = yen(historyTotal());
+      const list = document.getElementById('historyList');
+
+      if (state.history.length === 0) {
+        list.innerHTML = '<p style="text-align:center;color:#666;">注文履歴はありません</p>';
+        return;
+      }
+
+      list.innerHTML = state.history.map(item => `
+        <div class="history-row">
+          <span class="history-status">[提供済み]</span>
+          <span>${item.name}</span>
+          <span>${item.qty}</span>
+          <span>${yen(item.price)}</span>
+          <button class="reorder-btn" data-id="${item.id}">再注文</button>
+        </div>
+      `).join('');
+
+      list.querySelectorAll('.reorder-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const item = state.history.find(historyItem => historyItem.id === btn.dataset.id);
+          addToCart(item, item.qty);
+          showToast(`${item.name}をカートに追加しました`);
+        });
+      });
+    }
+
+    document.getElementById('tableSubmitBtn').addEventListener('click', () => {
+      const value = document.getElementById('tableNumberInput').value.trim();
+      if (!/^\d{1,3}$/.test(value)) {
+        document.getElementById('tableError').textContent = '卓番号を数字で入力してください';
+        return;
+      }
+      state.tableNumber = value;
+      document.getElementById('tableError').textContent = '';
+      showScreen('planScreen');
+    });
+
+    document.querySelectorAll('.plan-banner').forEach(btn => {
+      btn.addEventListener('click', () => openPlanModal(btn.dataset.plan));
+    });
+
+    document.getElementById('singleOrderBtn').addEventListener('click', () => openPlanModal('none'));
+    document.getElementById('closePlanModal').addEventListener('click', closePlanModal);
+
+    document.getElementById('planConfirmBtn').addEventListener('click', (event) => {
+      const planKey = event.currentTarget.dataset.plan;
+      state.selectedPlan = plans[planKey];
+      closePlanModal();
+      state.activeCategory = planKey === 'none' ? 'ドリンク' : 'ご飯もの';
+      renderMenu();
+      showScreen('menuScreen');
+    });
+
+    document.getElementById('productBackBtn').addEventListener('click', () => showScreen('menuScreen'));
+
+    document.getElementById('minusBtn').addEventListener('click', () => {
+      const input = document.getElementById('qtyInput');
+      input.value = String(Math.max(1, Number(input.value || 1) - 1));
+    });
+
+    document.getElementById('plusBtn').addEventListener('click', () => {
+      const input = document.getElementById('qtyInput');
+      input.value = String(Math.min(99, Number(input.value || 1) + 1));
+    });
+
+    document.getElementById('addCartBtn').addEventListener('click', () => {
+      const qty = Math.max(1, Math.min(99, Number(document.getElementById('qtyInput').value || 1)));
+      addToCart(state.selectedProduct, qty);
+      showToast(`${state.selectedProduct.name}を追加しました`);
+      showScreen('menuScreen');
+    });
+
+    document.getElementById('cartNavBtn').addEventListener('click', () => {
+      renderCart();
+      showScreen('cartScreen');
+    });
+
+    document.getElementById('historyNavBtn').addEventListener('click', () => {
+      renderHistory();
+      showScreen('historyScreen');
+    });
+
+    document.getElementById('cartBackBtn').addEventListener('click', () => showScreen('menuScreen'));
+    document.getElementById('historyBackBtn').addEventListener('click', () => showScreen('menuScreen'));
+    document.getElementById('cartConfirmBtn').addEventListener('click', openOrderModal);
+    document.getElementById('closeOrderModal').addEventListener('click', closeOrderModal);
+
+    document.getElementById('orderSubmitBtn').addEventListener('click', () => {
+      state.history.push(...state.cart.map(item => ({ ...item })));
+      state.cart = [];
+      closeOrderModal();
+      renderCart();
+      showToast('注文を送信しました');
+      showScreen('menuScreen');
+    });
+
+    renderMenu();
+    renderCart();
+    renderHistory();
+  </script>
+</body>
+</html>
