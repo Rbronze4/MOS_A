@@ -121,7 +121,7 @@ final class CustomerController
         $title = 'MOS 客側画面';
         $cssFile = '/MOS_A/public/assets/css/customer.css';
         $jsFile = '/MOS_A/public/assets/js/customer.js';
-        $view = dirname(__DIR__) . '/Views/customer/top.php';
+        $view = dirname(__DIR__) . '/Views/customer/customer_app.php';
 
         require dirname(__DIR__) . '/Views/layouts/app.php';
     }

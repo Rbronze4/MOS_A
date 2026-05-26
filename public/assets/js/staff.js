@@ -1,9 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('staff.js loaded');
+
     const state = {
         orders: window.STAFF_DATA.orders.map(order => ({ ...order })),
         products: window.STAFF_DATA.products.map(product => ({ ...product })),
         orderMode: 'waiting',
-        selectedProductId: null
+        selectedProductId: null,
+        selectedOrderDetailId: null,
+        selectedCustomerIndex: null,
     };
 
     const screens = [
@@ -16,16 +20,41 @@ document.addEventListener('DOMContentLoaded', () => {
         'qrScreen'
     ];
 
+    const screenHistory = [];
+
     const modalLayer = document.getElementById('modalLayer');
     const modalCard = document.getElementById('modalCard');
+    const sideMenuLayer = document.getElementById('sideMenuLayer');
+    const closeMenuButton = document.getElementById('closeMenuButton');
 
-    function showScreen(screenId) {
+    function showScreen(screenId, saveHistory = true) {
+        const currentScreen = document.querySelector('.screen.active');
+
+        if (
+            saveHistory &&
+            currentScreen &&
+            currentScreen.id !== screenId
+        ) {
+            screenHistory.push(currentScreen.id);
+        }
+
         screens.forEach(id => {
             const screen = document.getElementById(id);
             if (screen) {
                 screen.classList.toggle('active', id === screenId);
             }
         });
+    }
+
+    function goBackScreen() {
+        const previousScreenId = screenHistory.pop();
+
+        if (!previousScreenId) {
+            showScreen('homeScreen', false);
+            return;
+        }
+
+        showScreen(previousScreenId, false);
     }
 
     function openModal(html) {
@@ -67,9 +96,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderOrders() {
-        document.getElementById('orderListTitle').textContent = statusTitle();
-
+        const title = document.getElementById('orderListTitle');
         const body = document.getElementById('orderTableBody');
+
+        if (!title || !body) return;
+
+        title.textContent = statusTitle();
+
         const orders = state.orders.filter(order => order.status === state.orderMode);
 
         body.innerHTML = orders.map(order => {
@@ -96,8 +129,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return `
                 <tr>
-                    <td class="${order.table_no === '12番' || order.table_no === '3番' ? 'table-red' : ''}">${order.table_no}</td>
-                    <td class="${getProductColor(order.name)}">${order.name}</td>
+                    <td class="${order.table_no === '12番' || order.table_no === '3番' ? 'table-red' : ''}">
+                        ${order.table_no}
+                    </td>
+                    <td class="${getProductColor(order.name)}">
+                        ${order.name}
+                    </td>
                     <td>${order.qty}</td>
                     <td>${actionButtons}</td>
                 </tr>
@@ -132,33 +169,106 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderOrderDetail() {
         const body = document.getElementById('orderDetailBody');
+        if (!body) return;
+
         const orders = state.orders.filter(order => order.status !== 'canceled');
 
         body.innerHTML = orders.map(order => {
+            const selectedClass = String(order.id) === String(state.selectedOrderDetailId)
+                ? 'selected-row'
+                : '';
+
+            const checked = String(order.id) === String(state.selectedOrderDetailId)
+                ? 'checked'
+                : '';
+
             return `
-                <tr>
-                    <td></td>
+                <tr class="${selectedClass}" data-order-id="${order.id}">
+                    <td>
+                        <input
+                            type="radio"
+                            name="selectedOrderDetail"
+                            class="order-detail-radio"
+                            value="${order.id}"
+                            ${checked}
+                        >
+                    </td>
                     <td>${order.name}</td>
                     <td>${order.qty}</td>
                     <td>${order.time}</td>
                 </tr>
             `;
         }).join('');
+
+        body.querySelectorAll('tr').forEach(row => {
+            row.addEventListener('click', () => {
+                state.selectedOrderDetailId = Number(row.dataset.orderId);
+                renderOrderDetail();
+            });
+        });
+
+        body.querySelectorAll('.order-detail-radio').forEach(radio => {
+            radio.addEventListener('click', event => {
+                event.stopPropagation();
+                state.selectedOrderDetailId = Number(radio.value);
+                renderOrderDetail();
+            });
+        });
+    }
+
+    function setupCustomerSelection() {
+        const rows = document.querySelectorAll('#customerListScreen tbody tr');
+
+        rows.forEach(row => {
+            const radio = row.querySelector('input[name="selectedCustomer"]');
+
+            if (!radio) return;
+
+            const updateSelectedRow = () => {
+                rows.forEach(targetRow => {
+                    targetRow.classList.remove('selected-row');
+                });
+
+                row.classList.add('selected-row');
+                radio.checked = true;
+                state.selectedCustomerIndex = radio.value;
+            };
+
+            row.addEventListener('click', () => {
+                updateSelectedRow();
+            });
+
+            radio.addEventListener('click', event => {
+                event.stopPropagation();
+                updateSelectedRow();
+            });
+        });
     }
 
     function renderProducts() {
         const body = document.getElementById('productTableBody');
+        if (!body) return;
 
         body.innerHTML = state.products.map(product => {
             const selectedClass = String(product.id) === String(state.selectedProductId) ? 'selected-row' : '';
+            const checked = String(product.id) === String(state.selectedProductId) ? 'checked' : '';
 
             return `
                 <tr class="${selectedClass}" data-product-id="${product.id}">
+                    <td>
+                        <input
+                            type="radio"
+                            name="selectedProduct"
+                            class="product-radio"
+                            value="${product.id}"
+                            ${checked}
+                        >
+                    </td>
                     <td>${product.name}</td>
                     <td>${product.category}</td>
                     <td>${product.stock}</td>
                     <td>${product.price}</td>
-                    <td><button class="row-button">ここをクリック</button></td>
+                    <td><button class="row-button" type="button">ここをクリック</button></td>
                 </tr>
             `;
         }).join('');
@@ -169,10 +279,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderProducts();
             });
         });
+
+        body.querySelectorAll('.product-radio').forEach(radio => {
+            radio.addEventListener('click', event => {
+                event.stopPropagation();
+                state.selectedProductId = Number(radio.value);
+                renderProducts();
+            });
+        });
     }
 
     function selectedProduct() {
         return state.products.find(product => Number(product.id) === Number(state.selectedProductId));
+    }
+
+    function openCompleteModal(message) {
+        openModal(`
+            <h2>${message}</h2>
+            <button class="white-button" id="closeModalButton">閉じる</button>
+        `);
+
+        document.getElementById('closeModalButton').addEventListener('click', closeModal);
     }
 
     function openProductForm(mode) {
@@ -181,11 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
             : { name: '', category: '串', stock: '', price: '' };
 
         if (mode === 'edit' && !product) {
-            openModal(`
-                <h2>編集する商品を選択してください</h2>
-                <button class="white-button" id="closeModalButton">閉じる</button>
-            `);
-            document.getElementById('closeModalButton').addEventListener('click', closeModal);
+            openCompleteModal('編集する商品を選択してください');
             return;
         }
 
@@ -242,7 +365,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (mode === 'add') {
-                const nextId = Math.max(...state.products.map(item => item.id)) + 1;
+                const ids = state.products.map(item => Number(item.id));
+                const nextId = ids.length > 0 ? Math.max(...ids) + 1 : 1;
 
                 state.products.push({
                     id: nextId,
@@ -252,27 +376,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     price
                 });
 
+                renderProducts();
                 openCompleteModal('商品を追加しました');
-            } else {
-                product.name = name;
-                product.category = category;
-                product.stock = stock;
-                product.price = price;
-
-                openCompleteModal('商品を編集しました');
+                return;
             }
 
+            product.name = name;
+            product.category = category;
+            product.stock = stock;
+            product.price = price;
+
             renderProducts();
+            openCompleteModal('商品を編集しました');
         });
-    }
-
-    function openCompleteModal(message) {
-        openModal(`
-            <h2>${message}</h2>
-            <button class="white-button" id="closeModalButton">閉じる</button>
-        `);
-
-        document.getElementById('closeModalButton').addEventListener('click', closeModal);
     }
 
     function openOrderEditModal() {
@@ -332,108 +448,218 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('closeModalButton').addEventListener('click', closeModal);
     }
 
-    document.getElementById('loginButton').addEventListener('click', () => {
-        const loginId = document.getElementById('loginId').value.trim();
-        const password = document.getElementById('loginPassword').value.trim();
-
-        if (!loginId || !password) {
-            document.getElementById('loginError').textContent = '店舗IDとパスワードを入力してください';
-            return;
+    function prepareScreen(target) {
+        if (target === 'orderListScreen') {
+            state.orderMode = 'waiting';
+            renderOrders();
         }
 
-        document.getElementById('loginError').textContent = '';
-        showScreen('homeScreen');
-    });
+        if (target === 'productScreen') {
+            renderProducts();
+        }
+
+        if (target === 'orderDetailScreen') {
+            renderOrderDetail();
+        }
+    }
+
+    const loginButton = document.getElementById('loginButton');
+
+    if (loginButton) {
+        loginButton.addEventListener('click', () => {
+            const loginId = document.getElementById('loginId').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+            const loginError = document.getElementById('loginError');
+
+            if (!loginId || !password) {
+                loginError.textContent = '店舗IDとパスワードを入力してください';
+                return;
+            }
+
+            loginError.textContent = '';
+            screenHistory.length = 0;
+
+            showScreen('homeScreen', false);
+        });
+    } else {
+        console.error('loginButton が見つかりません');
+    }
 
     document.querySelectorAll('[data-move]').forEach(button => {
         button.addEventListener('click', () => {
             const target = button.dataset.move;
 
-            if (target === 'orderListScreen') {
-                state.orderMode = 'waiting';
-                renderOrders();
-            }
-
-            if (target === 'productScreen') {
-                renderProducts();
-            }
-
-            if (target === 'orderDetailScreen') {
-                renderOrderDetail();
-            }
-
+            prepareScreen(target);
             showScreen(target);
         });
     });
 
-    document.getElementById('showWaitingOrders').addEventListener('click', () => {
-        state.orderMode = 'waiting';
-        renderOrders();
+    document.querySelectorAll('.back-button').forEach(button => {
+        button.addEventListener('click', () => {
+            goBackScreen();
+        });
     });
 
-    document.getElementById('showServedOrders').addEventListener('click', () => {
-        state.orderMode = 'served';
-        renderOrders();
+    document.querySelectorAll('.hamburger-button').forEach(button => {
+        button.addEventListener('click', () => {
+            sideMenuLayer.classList.add('show');
+        });
     });
 
-    document.getElementById('showCanceledOrders').addEventListener('click', () => {
-        state.orderMode = 'canceled';
-        renderOrders();
+    if (closeMenuButton) {
+        closeMenuButton.addEventListener('click', () => {
+            sideMenuLayer.classList.remove('show');
+        });
+    }
+
+    if (sideMenuLayer) {
+        sideMenuLayer.addEventListener('click', event => {
+            if (event.target === sideMenuLayer) {
+                sideMenuLayer.classList.remove('show');
+            }
+        });
+    }
+
+    document.querySelectorAll('[data-menu-move]').forEach(button => {
+        button.addEventListener('click', () => {
+            const target = button.dataset.menuMove;
+
+            sideMenuLayer.classList.remove('show');
+
+            if (target === 'loginScreen') {
+                screenHistory.length = 0;
+                showScreen('loginScreen', false);
+                return;
+            }
+
+            prepareScreen(target);
+            showScreen(target);
+        });
     });
 
-    document.getElementById('customerOrderDetailButton').addEventListener('click', () => {
-        renderOrderDetail();
-        showScreen('orderDetailScreen');
-    });
+    const showWaitingOrders = document.getElementById('showWaitingOrders');
+    if (showWaitingOrders) {
+        showWaitingOrders.addEventListener('click', () => {
+            state.orderMode = 'waiting';
+            renderOrders();
+        });
+    }
 
-    document.getElementById('qrReissueButton').addEventListener('click', () => {
-        openQrCompleteModal('QR再発行が完了しました');
-    });
+    const showServedOrders = document.getElementById('showServedOrders');
+    if (showServedOrders) {
+        showServedOrders.addEventListener('click', () => {
+            state.orderMode = 'served';
+            renderOrders();
+        });
+    }
 
-    document.getElementById('orderEditButton').addEventListener('click', () => {
-        openOrderEditModal();
-    });
+    const showCanceledOrders = document.getElementById('showCanceledOrders');
+    if (showCanceledOrders) {
+        showCanceledOrders.addEventListener('click', () => {
+            state.orderMode = 'canceled';
+            renderOrders();
+        });
+    }
 
-    document.getElementById('addProductButton').addEventListener('click', () => {
-        openProductForm('add');
-    });
+    const customerOrderDetailButton = document.getElementById('customerOrderDetailButton');
+    if (customerOrderDetailButton) {
+        customerOrderDetailButton.addEventListener('click', () => {
+            const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
 
-    document.getElementById('editProductButton').addEventListener('click', () => {
-        openProductForm('edit');
-    });
+            if (!selectedCustomer) {
+                openCompleteModal('顧客を選択してください');
+                return;
+            }
 
-    document.getElementById('deleteProductButton').addEventListener('click', () => {
-        const product = selectedProduct();
+            renderOrderDetail();
+            showScreen('orderDetailScreen');
+        });
+    }
 
-        if (!product) {
-            openCompleteModal('削除する商品を選択してください');
-            return;
-        }
+    const qrReissueButton = document.getElementById('qrReissueButton');
+    if (qrReissueButton) {
+        qrReissueButton.addEventListener('click', () => {
+            const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
 
-        state.products = state.products.filter(item => Number(item.id) !== Number(product.id));
-        state.selectedProductId = null;
-        renderProducts();
-        openCompleteModal('商品を削除しました');
-    });
+            if (!selectedCustomer) {
+                openCompleteModal('顧客を選択してください');
+                return;
+            }
 
-    document.getElementById('issueQrButton').addEventListener('click', () => {
-        const people = Number(document.getElementById('peopleInput').value || 0);
+            openQrCompleteModal('QR再発行が完了しました');
+        });
+    }
 
-        if (people <= 0) {
-            openCompleteModal('人数を入力してください');
-            return;
-        }
+    const orderEditButton = document.getElementById('orderEditButton');
+    if (orderEditButton) {
+        orderEditButton.addEventListener('click', () => {
+            const selectedOrder = document.querySelector('input[name="selectedOrderDetail"]:checked');
 
-        openQrCompleteModal('QR発行が完了しました');
-    });
+            if (!selectedOrder) {
+                openCompleteModal('注文を選択してください');
+                return;
+            }
 
-    modalLayer.addEventListener('click', event => {
-        if (event.target === modalLayer) {
-            closeModal();
-        }
-    });
+            openOrderEditModal();
+        });
+    }
+
+    const addProductButton = document.getElementById('addProductButton');
+    if (addProductButton) {
+        addProductButton.addEventListener('click', () => {
+            openProductForm('add');
+        });
+    }
+
+    const editProductButton = document.getElementById('editProductButton');
+    if (editProductButton) {
+        editProductButton.addEventListener('click', () => {
+            openProductForm('edit');
+        });
+    }
+
+    const deleteProductButton = document.getElementById('deleteProductButton');
+    if (deleteProductButton) {
+        deleteProductButton.addEventListener('click', () => {
+            const product = selectedProduct();
+
+            if (!product) {
+                openCompleteModal('削除する商品を選択してください');
+                return;
+            }
+
+            state.products = state.products.filter(item => Number(item.id) !== Number(product.id));
+            state.selectedProductId = null;
+
+            renderProducts();
+            openCompleteModal('商品を削除しました');
+        });
+    }
+
+    const issueQrButton = document.getElementById('issueQrButton');
+    if (issueQrButton) {
+        issueQrButton.addEventListener('click', () => {
+            const people = Number(document.getElementById('peopleInput').value || 0);
+
+            if (people <= 0) {
+                openCompleteModal('人数を入力してください');
+                return;
+            }
+
+            openQrCompleteModal('QR発行が完了しました');
+        });
+    }
+
+    if (modalLayer) {
+        modalLayer.addEventListener('click', event => {
+            if (event.target === modalLayer) {
+                closeModal();
+            }
+        });
+    }
 
     renderOrders();
     renderProducts();
     renderOrderDetail();
+    setupCustomerSelection();
 });
