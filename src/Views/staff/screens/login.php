@@ -3,7 +3,7 @@
 
     <div class="login-form">
         <label>
-            <span>店舗ID</span>
+            <span>店舗選択</span>
             <input id="loginId" type="text">
         </label>
 

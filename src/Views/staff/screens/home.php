@@ -1,8 +1,6 @@
 <section id="homeScreen" class="screen">
     <div class="top-bar">
         <div class="top-info">
-            <strong>【営業中】</strong>
-            <span>19:00</span>
         </div>
 
         <button class="hamburger-button" type="button">☰</button>
@@ -18,5 +16,8 @@
         <button data-move="customerListScreen" type="button">顧客詳細</button>
         <button data-move="productScreen" type="button">商品管理</button>
         <button data-move="qrScreen" type="button">QR発行</button>
+        <button data-move="qrScreen" type="button">ログアウト</button>
+        <button data-move="qrScreen" type="button">スタッフ注文</button>
+
     </div>
 </section>
