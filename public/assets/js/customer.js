@@ -125,7 +125,9 @@ document.addEventListener('DOMContentLoaded', () => {
         menuGrid.innerHTML = filteredMenus.map(menu => {
             return `
                 <button class="menu-card" data-menu-id="${menu.id}">
-                    <div class="menu-image-frame">画像枠</div>
+                    <div class="menu-image-frame">
+                        ${menu.image ? `<img src="${menu.image}" alt="${menu.name}">` : '画像枠'}
+                    </div>
 
                     <div class="menu-card-body">
                         <div class="menu-name">${menu.name}</div>
