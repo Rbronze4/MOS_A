@@ -13,6 +13,11 @@
             <input id="peopleInput" type="number" min="1" max="99">
         </label>
 
+        <label>
+            <span>枚数</span>
+            <input id="countInput" type="number" min="1" max="99">
+        </label>
+
         <button id="issueQrButton" class="issue-button">発行</button>
     </div>
 </section>
