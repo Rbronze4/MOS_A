@@ -48,11 +48,9 @@ body {
     font-weight: bold;
     background: rgba(255, 255, 255, 0.14);
     
-    /* 👇【重要1】これがないと、はみ出た大きな画像が丸く切り取られません */
     overflow: hidden; 
 }
 
-/* 👇【重要2】この記述がcssファイルにあるか、一字一句間違っていないか確認してください */
 .logo-image {
     width: 100%;
     height: 100%;
