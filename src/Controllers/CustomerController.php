@@ -42,11 +42,13 @@ final class CustomerController
         ];
 
         $categories = [
-            'ご飯もの',
+            'ドリンク',
             '串',
             '一品',
             '揚げ物',
-            'ドリンク',
+            'ご飯もの',
+            '期間限定',
+            '店舗限定'
         ];
 
         $menus = [

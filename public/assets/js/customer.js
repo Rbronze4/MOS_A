@@ -103,14 +103,17 @@ document.addEventListener('DOMContentLoaded', () => {
         categoryTabs.querySelectorAll('.category-tab').forEach(button => {
             button.addEventListener('click', () => {
                 state.activeCategory = button.dataset.category;
-                renderMenu();
+                
+                // ★ここがポイント：メニューの再描画と、タブ自体の再描画の両方を行う
+                renderMenu(); 
+                renderCategoryTabs(); 
             });
         });
     }
 
     function renderMenu() {
-        renderCategoryTabs();
-
+        // ※以前あった renderCategoryTabs(); はここから削除しました
+        
         const menuGrid = document.getElementById('menuGrid');
 
         const filteredMenus = menus.filter(menu => {
@@ -123,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         menuGrid.innerHTML = filteredMenus.map(menu => {
-            // パスが正しいか確認用（consoleで確認してください）
             const imageSrc = menu.image_path || 'assets/images/common/img.jpg';
 
             return `
@@ -144,28 +146,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
 
         // イベントリスナーの追加
-       menuGrid.querySelectorAll('.menu-card').forEach(card => {
-    card.addEventListener('click', () => {
-        const menu = findMenu(card.dataset.menuId);
+        menuGrid.querySelectorAll('.menu-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const menu = findMenu(card.dataset.menuId);
 
-        if (!menu) return;
+                if (!menu) return;
 
-        state.selectedMenu = menu;
+                state.selectedMenu = menu;
 
-        // ★ここで画像詳細画面の枠に画像を入れる
-        const imageFrame = document.getElementById('productImageFrame');
-        const imageSrc = menu.image_path || '/assets/images/no-image.png';
-        
-        // 画像を挿入（CSSで既に指定した枠に合わせる形にしています）
-        imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                const imageFrame = document.getElementById('productImageFrame');
+                const imageSrc = menu.image_path || '/assets/images/no-image.png';
+                
+                imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
 
-        document.getElementById('productName').textContent = menu.name;
-        document.getElementById('productPrice').textContent = formatYen(menu.price);
-        document.getElementById('quantityInput').value = '1';
+                document.getElementById('productName').textContent = menu.name;
+                document.getElementById('productPrice').textContent = formatYen(menu.price);
+                document.getElementById('quantityInput').value = '1';
 
-        showScreen('productScreen');
-    });
-});
+                showScreen('productScreen');
+            });
+        });
     }
     function addCart(menu, quantity) {
         const existing = state.cart.find(item => String(item.id) === String(menu.id));
@@ -432,6 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('menuScreen');
     });
 
+    renderCategoryTabs();
     renderMenu();
     renderCart();
     renderHistory();

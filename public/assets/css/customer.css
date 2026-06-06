@@ -188,7 +188,7 @@ body {
     position: relative;
     padding: 0 0 76px;
     min-height: 100vh;
-    overflow: hidden;
+    /* overflow: hidden; */
     /* 背景画像を削除し、色（#b68f59）のみにする */
     background: #b68f59;
 }
@@ -201,27 +201,36 @@ body {
     z-index: 0;
 }
 
+/* カテゴリタブのコンテナ */
 .category-tabs {
     position: relative;
     z-index: 1;
     display: flex;
     overflow-x: auto;
-    width: 100%;
+    
+    /* 強制的に幅を指定 */
+    width: 100vw; 
+    max-width: 430px;
+    
     height: 86px;
     margin: 0;
-    padding: 0;
+    padding: 0 10px;
     border-radius: 0;
     background: rgba(0, 0, 0, 0.15);
     white-space: nowrap;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
 }
 
+/* スクロールバー非表示 */
 .category-tabs::-webkit-scrollbar {
     display: none;
 }
 
+/* 個別のタブ */
 .category-tab {
-    flex: 0 0 120px;
+    flex: 0 0 120px;          /* 幅固定 */
     height: 86px;
     border: none;
     border-radius: 0;
@@ -235,8 +244,10 @@ body {
     text-align: center;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
     cursor: pointer;
+    box-sizing: border-box;
 }
 
+/* 選択中のタブ */
 .category-tab.active {
     background:
         linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05)),
