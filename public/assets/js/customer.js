@@ -87,6 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('planModal').classList.remove('show');
     }
 
+    function getDisplayPrice(menu) {
+    // スタンダード(standard)かプレミアム(premium)の場合は、
+    // 「ドリンク」カテゴリの商品なら0円にするロジック
+    if ((state.selectedPlanId === 'standard' || state.selectedPlanId === 'premium') 
+        && menu.category === 'ドリンク') {
+        return 0;
+    }
+    return menu.price;
+}
+
     function renderCategoryTabs() {
         const categoryTabs = document.getElementById('categoryTabs');
 
@@ -111,10 +121,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderMenu() {
-        // ※以前あった renderCategoryTabs(); はここから削除しました
-        
+   function renderMenu() {
         const menuGrid = document.getElementById('menuGrid');
+
+        // 表示用の価格を算出するヘルパー関数
+        function getDisplayPrice(menu) {
+            // スタンダードかプレミアムなら、ドリンクカテゴリは0円にする
+            if ((state.selectedPlanId === 'standard' || state.selectedPlanId === 'premium') 
+                && menu.category === 'ドリンク') {
+                return 0;
+            }
+            return menu.price;
+        }
 
         const filteredMenus = menus.filter(menu => {
             return menu.category === state.activeCategory;
@@ -127,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         menuGrid.innerHTML = filteredMenus.map(menu => {
             const imageSrc = menu.image_path || 'assets/images/common/img.jpg';
+            const displayPrice = getDisplayPrice(menu); // ここでプランを考慮した価格を取得
 
             return `
                 <button class="menu-card" data-menu-id="${menu.id}">
@@ -139,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <div class="menu-card-body">
                         <div class="menu-name">${menu.name}</div>
-                        <div class="menu-price">${formatYen(menu.price)}</div>
+                        <div class="menu-price">${formatYen(displayPrice)}</div>
                     </div>
                 </button>
             `;
@@ -160,7 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
 
                 document.getElementById('productName').textContent = menu.name;
-                document.getElementById('productPrice').textContent = formatYen(menu.price);
+                // ここも同様にプラン適用後の価格を表示
+                document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
                 document.getElementById('quantityInput').value = '1';
 
                 showScreen('productScreen');
@@ -176,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.cart.push({
                 id: menu.id,
                 name: menu.name,
-                price: Number(menu.price),
+                price: priceToApply,
                 quantity: quantity
             });
         }
