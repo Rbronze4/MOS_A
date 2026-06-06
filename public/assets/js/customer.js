@@ -123,9 +123,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         menuGrid.innerHTML = filteredMenus.map(menu => {
+            // パスが正しいか確認用（consoleで確認してください）
+            const imageSrc = menu.image_path || 'assets/images/common/img.jpg';
+
             return `
                 <button class="menu-card" data-menu-id="${menu.id}">
-                    <div class="menu-image-frame">画像枠</div>
+                    <div class="menu-image-frame" style="display: flex; align-items: center; justify-content: center; background: #eee;">
+                        <img src="${imageSrc}" 
+                             alt="${menu.name}" 
+                             style="width: 100%; height: 100%; object-fit: cover; display: block;" 
+                             onerror="this.parentElement.style.display='none'; console.error('画像読み込み失敗:', '${imageSrc}')">
+                    </div>
 
                     <div class="menu-card-body">
                         <div class="menu-name">${menu.name}</div>
@@ -135,25 +143,30 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
-        menuGrid.querySelectorAll('.menu-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const menu = findMenu(card.dataset.menuId);
+        // イベントリスナーの追加
+       menuGrid.querySelectorAll('.menu-card').forEach(card => {
+    card.addEventListener('click', () => {
+        const menu = findMenu(card.dataset.menuId);
 
-                if (!menu) {
-                    return;
-                }
+        if (!menu) return;
 
-                state.selectedMenu = menu;
+        state.selectedMenu = menu;
 
-                document.getElementById('productName').textContent = menu.name;
-                document.getElementById('productPrice').textContent = formatYen(menu.price);
-                document.getElementById('quantityInput').value = '1';
+        // ★ここで画像詳細画面の枠に画像を入れる
+        const imageFrame = document.getElementById('productImageFrame');
+        const imageSrc = menu.image_path || '/assets/images/no-image.png';
+        
+        // 画像を挿入（CSSで既に指定した枠に合わせる形にしています）
+        imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
 
-                showScreen('productScreen');
-            });
-        });
+        document.getElementById('productName').textContent = menu.name;
+        document.getElementById('productPrice').textContent = formatYen(menu.price);
+        document.getElementById('quantityInput').value = '1';
+
+        showScreen('productScreen');
+    });
+});
     }
-
     function addCart(menu, quantity) {
         const existing = state.cart.find(item => String(item.id) === String(menu.id));
 
