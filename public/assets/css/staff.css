@@ -225,14 +225,22 @@ body {
 }
 
 .qr-panel {
-    width: 330px;
-    height: 170px;
-    margin: 10px 0;
+    width: 80%;
+    max-width: 700px;
+    min-height: 300px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+
     background: #d0d0d0;
     border: 14px solid #a97f43;
-    text-align: center;
-    padding: 14px;
+    padding: 20px;
+    margin: 30px auto;
+
 }
+
 
 .qr-panel p {
     margin: 0 0 14px;
@@ -240,17 +248,17 @@ body {
 
 .qr-panel label {
     display: flex;
-    justify-content: center;
     align-items: center;
-    gap: 14px;
-    color: #ffffff;
+    gap: 20px;
+    color: white;
+    font-size: 24px;
+     margin-bottom: 25px;
 }
 
 .qr-panel input {
-    width: 58px;
-    height: 42px;
-    border: none;
-    font-size: 20px;
+    width: 100px;
+    height: 60px;
+    font-size: 28px;
     text-align: center;
 }
 
