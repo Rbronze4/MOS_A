@@ -87,6 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('planModal').classList.remove('show');
     }
 
+    function getDisplayPrice(menu) {
+    // スタンダード(standard)かプレミアム(premium)の場合は、
+    // 「ドリンク」カテゴリの商品なら0円にするロジック
+    if ((state.selectedPlanId === 'standard' || state.selectedPlanId === 'premium') 
+        && menu.category === 'ドリンク') {
+        return 0;
+    }
+    return menu.price;
+}
+
     function renderCategoryTabs() {
         const categoryTabs = document.getElementById('categoryTabs');
 
@@ -103,15 +113,26 @@ document.addEventListener('DOMContentLoaded', () => {
         categoryTabs.querySelectorAll('.category-tab').forEach(button => {
             button.addEventListener('click', () => {
                 state.activeCategory = button.dataset.category;
-                renderMenu();
+                
+                // ★ここがポイント：メニューの再描画と、タブ自体の再描画の両方を行う
+                renderMenu(); 
+                renderCategoryTabs(); 
             });
         });
     }
 
-    function renderMenu() {
-        renderCategoryTabs();
-
+   function renderMenu() {
         const menuGrid = document.getElementById('menuGrid');
+
+        // 表示用の価格を算出するヘルパー関数
+        function getDisplayPrice(menu) {
+            // スタンダードかプレミアムなら、ドリンクカテゴリは0円にする
+            if ((state.selectedPlanId === 'standard' || state.selectedPlanId === 'premium') 
+                && menu.category === 'ドリンク') {
+                return 0;
+            }
+            return menu.price;
+        }
 
         const filteredMenus = menus.filter(menu => {
             return menu.category === state.activeCategory;
@@ -123,8 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         menuGrid.innerHTML = filteredMenus.map(menu => {
-            // パスが正しいか確認用（consoleで確認してください）
             const imageSrc = menu.image_path || 'assets/images/common/img.jpg';
+            const displayPrice = getDisplayPrice(menu); // ここでプランを考慮した価格を取得
 
             return `
                 <button class="menu-card" data-menu-id="${menu.id}">
@@ -137,53 +158,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <div class="menu-card-body">
                         <div class="menu-name">${menu.name}</div>
-                        <div class="menu-price">${formatYen(menu.price)}</div>
+                        <div class="menu-price">${formatYen(displayPrice)}</div>
                     </div>
                 </button>
             `;
         }).join('');
 
         // イベントリスナーの追加
-       menuGrid.querySelectorAll('.menu-card').forEach(card => {
-    card.addEventListener('click', () => {
-        const menu = findMenu(card.dataset.menuId);
+        menuGrid.querySelectorAll('.menu-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const menu = findMenu(card.dataset.menuId);
 
-        if (!menu) return;
+                if (!menu) return;
 
-        state.selectedMenu = menu;
+                state.selectedMenu = menu;
 
-        // ★ここで画像詳細画面の枠に画像を入れる
-        const imageFrame = document.getElementById('productImageFrame');
-        const imageSrc = menu.image_path || '/assets/images/no-image.png';
-        
-        // 画像を挿入（CSSで既に指定した枠に合わせる形にしています）
-        imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                const imageFrame = document.getElementById('productImageFrame');
+                const imageSrc = menu.image_path || '/assets/images/no-image.png';
+                
+                imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
 
-        document.getElementById('productName').textContent = menu.name;
-        document.getElementById('productPrice').textContent = formatYen(menu.price);
-        document.getElementById('quantityInput').value = '1';
+                document.getElementById('productName').textContent = menu.name;
+                // ここも同様にプラン適用後の価格を表示
+                document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
+                document.getElementById('quantityInput').value = '1';
 
-        showScreen('productScreen');
-    });
-});
-    }
-    function addCart(menu, quantity) {
-        const existing = state.cart.find(item => String(item.id) === String(menu.id));
-
-        if (existing) {
-            existing.quantity += quantity;
-        } else {
-            state.cart.push({
-                id: menu.id,
-                name: menu.name,
-                price: Number(menu.price),
-                quantity: quantity
+                showScreen('productScreen');
             });
-        }
+        });
+    }
+    // 引数を menu, quantity, price の3つにする
+function addCart(menu, quantity, price) {
+    console.log("addCartが呼び出されました:", { menu, quantity, price }); // ← これを追加
 
-        renderCart();
+    const existing = state.cart.find(item => String(item.id) === String(menu.id));
+
+    if (existing) {
+        existing.quantity += quantity;
+    } else {
+        // もしここでまだ「price is not defined」が出るなら、
+        // 上の引数で price を受け取れていません
+        state.cart.push({
+            id: menu.id,
+            name: menu.name,
+            price: price, 
+            quantity: quantity
+        });
     }
 
+    renderCart();
+}
     function renderCart() {
         document.getElementById('cartTotal').textContent = formatYen(cartTotal());
 
@@ -378,20 +402,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('addCartButton').addEventListener('click', () => {
-        if (!state.selectedMenu) {
-            showToast('商品が選択されていません');
-            return;
-        }
+    console.log("確定ボタンクリック！"); // ← 追加
 
-        const quantity = Math.max(
-            1,
-            Math.min(99, Number(document.getElementById('quantityInput').value || 1))
-        );
+    if (!state.selectedMenu) {
+        showToast('商品が選択されていません');
+        return;
+    }
 
-        addCart(state.selectedMenu, quantity);
+    const quantity = Math.max(1, Math.min(99, Number(document.getElementById('quantityInput').value || 1)));
+    const priceToApply = getDisplayPrice(state.selectedMenu);
 
-        showToast(`${state.selectedMenu.name}を追加しました`);
-        showScreen('menuScreen');
+    console.log("価格計算結果:", priceToApply); // ← 追加
+
+    addCart(state.selectedMenu, quantity, priceToApply);
+
+    showToast(`${state.selectedMenu.name}を追加しました`);
+    showScreen('menuScreen');
     });
 
     document.getElementById('cartButton').addEventListener('click', () => {
@@ -432,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('menuScreen');
     });
 
+    renderCategoryTabs();
     renderMenu();
     renderCart();
     renderHistory();
