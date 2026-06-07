@@ -18,8 +18,7 @@
     </table>
 
     <div class="bottom-right">
-        <button id="orderEditButton" class="white-button" type="button">
-            注文編集
-        </button>
+        <button id="orderEditButton" class="white-button" type="button">注文編集</button>
+        <button id="staffOrderFromDetailButton" class="white-button" type="button">スタッフ注文</button>
     </div>
 </section>
