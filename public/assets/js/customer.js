@@ -187,23 +187,27 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-    function addCart(menu, quantity) {
-        const existing = state.cart.find(item => String(item.id) === String(menu.id));
+    // 引数を menu, quantity, price の3つにする
+function addCart(menu, quantity, price) {
+    console.log("addCartが呼び出されました:", { menu, quantity, price }); // ← これを追加
 
-        if (existing) {
-            existing.quantity += quantity;
-        } else {
-            state.cart.push({
-                id: menu.id,
-                name: menu.name,
-                price: priceToApply,
-                quantity: quantity
-            });
-        }
+    const existing = state.cart.find(item => String(item.id) === String(menu.id));
 
-        renderCart();
+    if (existing) {
+        existing.quantity += quantity;
+    } else {
+        // もしここでまだ「price is not defined」が出るなら、
+        // 上の引数で price を受け取れていません
+        state.cart.push({
+            id: menu.id,
+            name: menu.name,
+            price: price, 
+            quantity: quantity
+        });
     }
 
+    renderCart();
+}
     function renderCart() {
         document.getElementById('cartTotal').textContent = formatYen(cartTotal());
 
@@ -398,20 +402,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('addCartButton').addEventListener('click', () => {
-        if (!state.selectedMenu) {
-            showToast('商品が選択されていません');
-            return;
-        }
+    console.log("確定ボタンクリック！"); // ← 追加
 
-        const quantity = Math.max(
-            1,
-            Math.min(99, Number(document.getElementById('quantityInput').value || 1))
-        );
+    if (!state.selectedMenu) {
+        showToast('商品が選択されていません');
+        return;
+    }
 
-        addCart(state.selectedMenu, quantity);
+    const quantity = Math.max(1, Math.min(99, Number(document.getElementById('quantityInput').value || 1)));
+    const priceToApply = getDisplayPrice(state.selectedMenu);
 
-        showToast(`${state.selectedMenu.name}を追加しました`);
-        showScreen('menuScreen');
+    console.log("価格計算結果:", priceToApply); // ← 追加
+
+    addCart(state.selectedMenu, quantity, priceToApply);
+
+    showToast(`${state.selectedMenu.name}を追加しました`);
+    showScreen('menuScreen');
     });
 
     document.getElementById('cartButton').addEventListener('click', () => {
