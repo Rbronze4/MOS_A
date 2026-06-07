@@ -527,8 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sideMenuLayer.classList.remove('show');
 
             if (target === 'loginScreen') {
-                screenHistory.length = 0;
-                showScreen('loginScreen', false);
+                window.location.href = 'login.php';
                 return;
             }
 
