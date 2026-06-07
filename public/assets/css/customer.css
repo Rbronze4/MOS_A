@@ -673,3 +673,80 @@ body {
 .toast.show {
     display: block;
 }
+
+.category-tabs-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.category-tabs {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    white-space: nowrap;
+    width: 100%;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.category-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.category-tabs button {
+    flex: 0 0 auto;
+    min-width: 110px;
+    height: 88px;
+    border: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.18);
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.category-tabs button.active {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.category-scroll-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 38px;
+    height: 64px;
+    border: none;
+    background: rgba(0, 0, 0, 0.35);
+    color: #ffffff;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.category-scroll-button.left {
+    left: 0;
+}
+
+.category-scroll-button.right {
+    right: 0;
+}
+
+.category-scroll-button.hidden {
+    display: none;
+}
+
+/* タブの左右にボタン分の余白を確保 */
+.category-tabs {
+    padding: 0 38px;
+}

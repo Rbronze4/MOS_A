@@ -53,7 +53,11 @@ $jsFile = $jsFile ?? '';
     </script>
 <?php endif; ?>
 
-<?php if ($jsFile !== ''): ?>
+<?php if (!empty($jsFiles) && is_array($jsFiles)): ?>
+    <?php foreach ($jsFiles as $file): ?>
+        <script src="<?= h($file) ?>"></script>
+    <?php endforeach; ?>
+<?php elseif ($jsFile !== ''): ?>
     <script src="<?= h($jsFile) ?>"></script>
 <?php endif; ?>
 

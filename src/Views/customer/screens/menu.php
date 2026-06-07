@@ -1,5 +1,9 @@
 <section id="menuScreen" class="screen menu-screen">
-    <div id="categoryTabs" class="category-tabs"></div>
+    <div class="category-tabs-wrapper">
+        <button id="categoryScrollLeft" class="category-scroll-button left" type="button">‹</button>
+        <div id="categoryTabs" class="category-tabs"></div>
+        <button id="categoryScrollRight" class="category-scroll-button right" type="button">›</button>
+    </div>
 
     <main class="menu-panel">
         <div id="menuGrid" class="menu-grid"></div>

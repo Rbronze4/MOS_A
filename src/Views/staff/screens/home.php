@@ -17,7 +17,7 @@
         <button data-move="productScreen" type="button">商品管理</button>
         <button data-move="qrScreen" type="button">QR発行</button>
         <button data-move="loginScreen" type="button">ログアウト</button>
-        <button data-move="qrScreen" type="button">スタッフ注文</button>
+        <button type="button" onclick="location.href='/MOS_A/public/staff/order-entry'">スタッフ注文</button>
 
     </div>
 </section>

@@ -2,7 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('staff.js loaded');
 
     const state = {
-        orders: window.STAFF_DATA.orders.map(order => ({ ...order })),
+        orders: window.STAFF_DATA.orders.map(order => ({
+            ...order,
+            servedQty: order.servedQty ?? 0
+        })),
         products: window.STAFF_DATA.products.map(product => ({ ...product })),
         orderMode: 'waiting',
         selectedProductId: null,
@@ -110,8 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (state.orderMode === 'waiting') {
                 actionButtons = `
-                    <button class="row-button green-button" data-action="serve" data-id="${order.id}">提供完了</button>
-                    <button class="row-button red-button" data-action="cancel" data-id="${order.id}">注文取消</button>
+                    <button class="row-button green-button" data-action="serveOne" data-id="${order.id}">1つ提供</button>
+                    <button class="row-button green-button" data-action="serveAll" data-id="${order.id}">全て提供</button>
+                    <button class="row-button red-button" data-action="minusOne" data-id="${order.id}">1つ減らす</button>
                 `;
             }
 
@@ -129,13 +133,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return `
                 <tr>
+                    <td>
+                        <input type="checkbox" disabled>
+                    </td>
+
                     <td class="${order.table_no === '12番' || order.table_no === '3番' ? 'table-red' : ''}">
                         ${order.table_no}
                     </td>
+
                     <td class="${getProductColor(order.name)}">
                         ${order.name}
                     </td>
+
                     <td>${order.qty}</td>
+
+                    <td>${order.servedQty}/${order.qty}</td>
+
                     <td>${actionButtons}</td>
                 </tr>
             `;
@@ -146,24 +159,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 const order = state.orders.find(item => String(item.id) === String(button.dataset.id));
                 if (!order) return;
 
-                if (button.dataset.action === 'serve') {
+                if (button.dataset.action === 'serveOne') {
+                    order.servedQty = Math.min(order.qty, order.servedQty + 1);
+
+                    if (order.servedQty >= order.qty) {
+                        order.status = 'served';
+                    }
+                }
+
+                if (button.dataset.action === 'serveAll') {
+                    order.servedQty = order.qty;
                     order.status = 'served';
                 }
 
-                if (button.dataset.action === 'cancel') {
-                    order.status = 'canceled';
+                if (button.dataset.action === 'minusOne') {
+                    order.servedQty = Math.max(0, order.servedQty - 1);
                 }
 
                 if (button.dataset.action === 'undoServe') {
                     order.status = 'waiting';
+                    order.servedQty = 0;
                 }
 
                 if (button.dataset.action === 'undoCancel') {
                     order.status = 'waiting';
+
+                    if (order.qty <= 0) {
+                        order.qty = 1;
+                    }
+
+                    order.servedQty = 0;
                 }
 
                 renderOrders();
             });
+        });
+    }
+
+    function setOrderTabActive(activeButtonId) {
+        const tabIds = [
+            'showWaitingOrders',
+            'showServedOrders',
+            'showCanceledOrders'
+        ];
+
+        tabIds.forEach(id => {
+            const button = document.getElementById(id);
+            if (!button) return;
+
+            button.classList.toggle('active', id === activeButtonId);
         });
     }
 
@@ -345,8 +389,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </label>
 
                 <div class="form-buttons">
-                    <button id="saveProductButton" class="white-button">OK</button>
-                    <button id="cancelProductButton" class="white-button">cancel</button>
+                    <button id="saveProductButton" class="white-button">決定</button>
+                    <button id="cancelProductButton" class="white-button">取消</button>
                 </div>
             </div>
         `);
@@ -467,17 +511,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (loginButton) {
         loginButton.addEventListener('click', () => {
-            const loginId = document.getElementById('loginId').value.trim();
-            const password = document.getElementById('loginPassword').value.trim();
+            const storeSelect = document.getElementById('storeId');
+            const passwordInput = document.getElementById('loginPassword');
             const loginError = document.getElementById('loginError');
 
-            if (!loginId || !password) {
-                loginError.textContent = '店舗IDとパスワードを入力してください';
+            const storeId = storeSelect ? storeSelect.value : '';
+            const password = passwordInput ? passwordInput.value.trim() : '';
+
+            if (!storeId) {
+                loginError.textContent = '店舗を選択してください';
+                return;
+            }
+
+            if (!password) {
+                loginError.textContent = 'パスワードを入力してください';
                 return;
             }
 
             loginError.textContent = '';
             screenHistory.length = 0;
+
+            const selectedOption = storeSelect.options[storeSelect.selectedIndex];
+            const selectedStoreName = selectedOption ? selectedOption.textContent : '';
+
+            const storeNameElement = document.querySelector('.store-name');
+            if (storeNameElement) {
+                storeNameElement.textContent = `居酒屋みどり亭 ${selectedStoreName}`;
+            }
 
             showScreen('homeScreen', false);
         });
@@ -527,7 +587,20 @@ document.addEventListener('DOMContentLoaded', () => {
             sideMenuLayer.classList.remove('show');
 
             if (target === 'loginScreen') {
-                window.location.href = 'login.php';
+                screenHistory.length = 0;
+
+                const passwordInput = document.getElementById('loginPassword');
+                const loginError = document.getElementById('loginError');
+
+                if (passwordInput) {
+                    passwordInput.value = '';
+                }
+
+                if (loginError) {
+                    loginError.textContent = '';
+                }
+
+                showScreen('loginScreen', false);
                 return;
             }
 
@@ -540,6 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (showWaitingOrders) {
         showWaitingOrders.addEventListener('click', () => {
             state.orderMode = 'waiting';
+            setOrderTabActive('showWaitingOrders');
             renderOrders();
         });
     }
@@ -548,6 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (showServedOrders) {
         showServedOrders.addEventListener('click', () => {
             state.orderMode = 'served';
+            setOrderTabActive('showServedOrders');
             renderOrders();
         });
     }
@@ -556,6 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (showCanceledOrders) {
         showCanceledOrders.addEventListener('click', () => {
             state.orderMode = 'canceled';
+            setOrderTabActive('showCanceledOrders');
             renderOrders();
         });
     }
@@ -586,6 +662,54 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             openQrCompleteModal('QR再発行が完了しました');
+        });
+    }
+    
+    const staffOrderFromDetailButton = document.getElementById('staffOrderFromDetailButton');
+
+    if (staffOrderFromDetailButton) {
+        staffOrderFromDetailButton.addEventListener('click', () => {
+            let tableNo = '';
+
+            const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
+
+            if (selectedCustomer) {
+                const customerRow = selectedCustomer.closest('tr');
+
+                if (customerRow) {
+                    const cells = customerRow.querySelectorAll('td');
+
+                    if (cells.length > 1) {
+                        tableNo = cells[1].textContent.trim();
+                    }
+                }
+            }
+
+            if (!tableNo) {
+                const selectedOrder = document.querySelector('input[name="selectedOrderDetail"]:checked');
+
+                if (selectedOrder) {
+                    const order = state.orders.find(item => String(item.id) === String(selectedOrder.value));
+
+                    if (order) {
+                        tableNo = order.table_no;
+                    }
+                }
+            }
+
+            if (!tableNo) {
+                location.href = '/MOS_A/public/staff/order-entry';
+                return;
+            }
+
+            tableNo = String(tableNo).replace('番', '').trim();
+
+            const plan = 'single';
+
+            const cartStorageKey = `staffOrderCart_${tableNo}_${plan}`;
+            sessionStorage.removeItem(cartStorageKey);
+
+            location.href = `/MOS_A/public/staff/order-menu?tableNo=${encodeURIComponent(tableNo)}&plan=${encodeURIComponent(plan)}&mode=add`;
         });
     }
 
@@ -657,6 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    setOrderTabActive('showWaitingOrders');
     renderOrders();
     renderProducts();
     renderOrderDetail();

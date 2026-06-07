@@ -21,6 +21,16 @@ switch ($path) {
         $controller->index();
         break;
 
+    case '/staff/order-entry':
+        $controller = new StaffController();
+        $controller->orderEntry();
+        break;
+
+    case '/staff/order-menu':
+        $controller = new StaffController();
+        $controller->orderMenu();
+        break;
+
     case '/customer':
         $controller = new CustomerController();
         $controller->index();

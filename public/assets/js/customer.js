@@ -383,6 +383,45 @@ function addCart(menu, quantity, price) {
         showScreen('menuScreen');
     });
 
+    const categoryTabs = document.getElementById('categoryTabs');
+    const categoryScrollLeft = document.getElementById('categoryScrollLeft');
+    const categoryScrollRight = document.getElementById('categoryScrollRight');
+
+    function updateCategoryScrollButtons() {
+        if (!categoryTabs || !categoryScrollLeft || !categoryScrollRight) return;
+
+        const maxScrollLeft = categoryTabs.scrollWidth - categoryTabs.clientWidth;
+
+        if (categoryTabs.scrollLeft <= 0) {
+            categoryScrollLeft.classList.add('hidden');
+        } else {
+            categoryScrollLeft.classList.remove('hidden');
+        }
+
+        if (categoryTabs.scrollLeft >= maxScrollLeft - 1) {
+            categoryScrollRight.classList.add('hidden');
+        } else {
+            categoryScrollRight.classList.remove('hidden');
+        }
+    }
+
+    if (categoryScrollLeft) {
+        categoryScrollLeft.addEventListener('click', () => {
+            categoryTabs.scrollBy({ left: -220, behavior: 'smooth' });
+        });
+    }
+
+    if (categoryScrollRight) {
+        categoryScrollRight.addEventListener('click', () => {
+            categoryTabs.scrollBy({ left: 220, behavior: 'smooth' });
+        });
+    }
+
+    if (categoryTabs) {
+        categoryTabs.addEventListener('scroll', updateCategoryScrollButtons);
+        window.addEventListener('resize', updateCategoryScrollButtons);
+    }
+
     document.getElementById('productBackButton').addEventListener('click', () => {
         showScreen('menuScreen');
     });

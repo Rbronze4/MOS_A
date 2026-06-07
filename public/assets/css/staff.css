@@ -519,3 +519,167 @@ body {
     height: 18px;
     cursor: pointer;
 }
+
+#storeId {
+    width: 270px;
+    height: 24px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+/* =========================
+   注文一覧 1枚目風レイアウト
+========================= */
+
+.order-list-screen {
+    padding: 26px 36px 90px;
+}
+
+/* 注意文＋タブ */
+.order-list-top {
+    width: 100%;
+    max-width: 840px;
+    margin: 0 auto 6px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.order-list-top .note {
+    margin: 0;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+/* タブ */
+.order-list-top .order-switch-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.order-list-top .order-switch-buttons button {
+    min-width: 126px;
+    height: 42px;
+    border: 1px solid #777777;
+    border-right: none;
+    background: #ffffff;
+    color: #000000;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.order-list-top .order-switch-buttons button:last-child {
+    border-right: 1px solid #777777;
+}
+
+.order-list-top .order-switch-buttons button.active {
+    background: #fff08a;
+}
+
+/* 表スクロール枠 */
+.order-table-scroll {
+    width: 100%;
+    max-width: 900px;
+    height: 600px;
+    margin: 0 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #eeeeee;
+    border: 1px solid #555555;
+}
+
+/* 表本体 */
+.order-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    background: #eeeeee;
+}
+
+/* ヘッダー固定 */
+.order-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #eeeeee;
+}
+
+/* セル */
+.order-table th,
+.order-table td {
+    border: 1px solid #555555;
+    height: 29px;
+    padding: 2px 8px;
+    text-align: center;
+    font-size: 16px;
+    background: rgba(255, 255, 255, 0.45);
+}
+
+/* チェック欄 */
+.order-table th:first-child,
+.order-table td:first-child {
+    width: 34px;
+}
+
+/* 卓 */
+.order-table th:nth-child(2),
+.order-table td:nth-child(2) {
+    width: 80px;
+}
+
+/* 商品名 */
+.order-table th:nth-child(3),
+.order-table td:nth-child(3) {
+    width: 220px;
+}
+
+/* 注文個数・提供数 */
+.order-table th:nth-child(4),
+.order-table td:nth-child(4),
+.order-table th:nth-child(5),
+.order-table td:nth-child(5) {
+    width: 90px;
+}
+
+/* 操作 */
+.order-table th:nth-child(6),
+.order-table td:nth-child(6) {
+    width: 280px;
+}
+
+/* 操作ボタン */
+.order-table .row-button {
+    min-width: 76px;
+    height: 20px;
+    border: 1px solid #777777;
+    padding: 0 8px;
+    margin: 0;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.order-table .green-button {
+    background: #b9f57a;
+}
+
+.order-table .red-button {
+    background: #f58ab7;
+}
+
+.order-detail-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 66px;
+    margin-top: 50px;
+}
+
+.order-detail-buttons .white-button {
+    width: 120px;
+    height: 44px;
+}
