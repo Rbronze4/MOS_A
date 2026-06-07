@@ -16,7 +16,6 @@ body {
     margin: 0 auto;
     background: #b68f59;
     position: relative;
-    overflow: hidden;
 }
 
 .screen {
@@ -255,17 +254,18 @@ body {
     color: #ffffff;
 }
 
-.menu-panel {
+    .menu-panel {
     position: relative;
     z-index: 1;
     width: calc(100% - 44px);
-    height: calc(100vh - 86px - 76px - 24px);
+    /* 画面全体ではなく、親のmenu-screenの中で収まるように調整 */
+    height: calc(100% - 86px - 76px - 24px); 
     margin: 14px auto 10px;
     padding: 24px 18px;
     border-radius: 22px 22px 0 0;
     background: rgba(255, 226, 137, 0.68);
-    overflow-y: auto;
-    scrollbar-width: thin;
+    overflow-y: auto; /* ここだけスクロールさせる */
+    -webkit-overflow-scrolling: touch;
 }
 
 .menu-grid {
