@@ -47,6 +47,14 @@ body {
     color: #ffffff;
     font-weight: bold;
     background: rgba(255, 255, 255, 0.14);
+    
+    overflow: hidden; 
+}
+
+.logo-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .screen-message {
