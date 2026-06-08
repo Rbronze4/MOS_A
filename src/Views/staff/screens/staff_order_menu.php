@@ -24,7 +24,7 @@ $menus = [
         'category' => 'ドリンク',
         'name' => 'ハイボール',
         'price' => 200,
-        'image_path' => '/MOS_A/public/assets/images/menu/beer.png',
+        'image_path' => '/MOS_A/public/assets/images/menu/highball.png',
     ],
     [
         'id' => 3,
