@@ -342,7 +342,7 @@ function addCart(menu, quantity, price) {
                     return;
                 }
 
-                addCart(historyItem, historyItem.quantity);
+                addCart(historyItem, historyItem.quantity,historyItem.price);
                 showToast(`${historyItem.name}をカートに追加しました`);
             });
         });
