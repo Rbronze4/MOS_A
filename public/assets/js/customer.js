@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
         activeCategory: categories[0] ?? '',
         selectedMenu: null,
         cart: [],
-        history: []
+        history: [],
+        editingItem: null
     };
 
     const screenIds = [
@@ -260,12 +261,21 @@ function addCart(menu, quantity, price) {
                         return;
                     }
 
+                    // 編集対象のカート内データを退避する
+                    state.editingItem = cartItem;
                     state.selectedMenu = menu;
 
+                    // 画像更新処理
+                    const imageFrame = document.getElementById('productImageFrame');
+                    const imageSrc = menu.image_path || '/assets/images/common/img.jpg';
+                    imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+
+                    // 画面の各値を設定
                     document.getElementById('productName').textContent = menu.name;
                     document.getElementById('productPrice').textContent = formatYen(menu.price);
                     document.getElementById('quantityInput').value = String(cartItem.quantity);
 
+                    // カートから一時的に削除（確定時や戻る時に再投入するため）
                     state.cart = state.cart.filter(item => String(item.id) !== String(menuId));
 
                     showScreen('productScreen');
@@ -332,7 +342,7 @@ function addCart(menu, quantity, price) {
                     return;
                 }
 
-                addCart(historyItem, historyItem.quantity);
+                addCart(historyItem, historyItem.quantity,historyItem.price);
                 showToast(`${historyItem.name}をカートに追加しました`);
             });
         });
@@ -423,6 +433,13 @@ function addCart(menu, quantity, price) {
     }
 
     document.getElementById('productBackButton').addEventListener('click', () => {
+
+        if (state.editingItem) {
+            state.cart.push(state.editingItem);
+            state.editingItem = null; // 編集モードを解除
+            renderCart(); // カート画面を再描画（戻った時に反映されるように）
+        }
+
         showScreen('menuScreen');
     });
 
@@ -452,6 +469,8 @@ function addCart(menu, quantity, price) {
     const priceToApply = getDisplayPrice(state.selectedMenu);
 
     console.log("価格計算結果:", priceToApply); // ← 追加
+
+    state.editingItem = null;
 
     addCart(state.selectedMenu, quantity, priceToApply);
 
