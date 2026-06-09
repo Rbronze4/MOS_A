@@ -531,8 +531,46 @@ body {
    注文一覧 1枚目風レイアウト
 ========================= */
 
-.order-list-screen {
-    padding: 26px 36px 90px;
+.order-list-screen .order-table-scroll {
+    position: relative; /* ボタンを絶対配置(absolute)するための基準点 */
+    /* テーブルの最後の行がボタンの下に隠れてしまわないよう、スクロール内の一番下に余白を作ります */
+    padding-bottom: 70px; 
+}
+
+.order-list-screen .table-action-area {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    z-index: 10; /* テーブルの文字などの上に来るように設定 */
+}
+
+.order-list-screen .bulk-cancel-btn {
+    min-width: 110px;
+    height: 40px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    /* 操作ボタンの「1つ減らす(.red-button)」の色（#f58ab7）に統一感を持たせたピンク赤 */
+    background: #f58ab7; 
+    border: 1px solid #777777;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16); /* 画面から少し浮き上がって見える影 */
+    transition: background 0.2s, opacity 0.2s;
+}
+
+.order-list-screen .bulk-cancel-btn:hover {
+    background: #e074a1;
+}
+
+/* 4. 【重要】チェックが1つも入っていない時の「押せない」状態のスタイル */
+.order-list-screen .bulk-cancel-btn:disabled {
+    background: #cccccc;   /* グレーアウト */
+    color: #888888;
+    border: 1px solid #999999;
+    cursor: not-allowed;   /* マウスカーソルを禁止マークに */
+    box-shadow: none;      /* 影を消す */
+    opacity: 0.7;
 }
 
 /* 注意文＋タブ */

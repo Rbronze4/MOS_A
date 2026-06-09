@@ -27,7 +27,12 @@
                     <th>操作</th>
                 </tr>
             </thead>
-            <tbody id="orderTableBody"></tbody>
+            <tbody id="orderTableBody">
+                </tbody>
         </table>
+        
+        <div class="table-action-area">
+            <button id="bulkCancelButton" class="bulk-cancel-btn" type="button" disabled>キャンセル</button>
+        </div>
     </div>
 </section>

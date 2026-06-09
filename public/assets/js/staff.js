@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('staff.js loaded');
-
     const state = {
         orders: window.STAFF_DATA.orders.map(order => ({
             ...order,
@@ -134,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr>
                     <td>
-                        <input type="checkbox" disabled>
+                        <input type="checkbox" class="order-checkbox" data-id="${order.id}">
                     </td>
 
                     <td class="${order.table_no === '12番' || order.table_no === '3番' ? 'table-red' : ''}">
@@ -154,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
+        // 各行のボタンのイベント設定
         body.querySelectorAll('button').forEach(button => {
             button.addEventListener('click', () => {
                 const order = state.orders.find(item => String(item.id) === String(button.dataset.id));
@@ -194,8 +194,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderOrders();
             });
         });
-    }
 
+        // ★★★ ここから下を確実でシンプルなロジックに修正しました ★★★
+        const bulkCancelButton = document.getElementById('bulkCancelButton');
+        if (bulkCancelButton) {
+            // テーブル内のチェックボックスを取得
+            const checkboxes = body.querySelectorAll('.order-checkbox');
+
+            // チェックボックスがクリックされるたびに、ボタンの活性・非活性を切り替える
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const checkedCount = body.querySelectorAll('.order-checkbox:checked').length;
+                    
+                    if (checkedCount > 0) {
+                        bulkCancelButton.removeAttribute('disabled'); // disabled属性を完全に消し去る
+                    } else {
+                        bulkCancelButton.setAttribute('disabled', 'true'); // 0個なら付与する
+                    }
+                });
+            });
+        }
+    }
     function setOrderTabActive(activeButtonId) {
         const tabIds = [
             'showWaitingOrders',
@@ -473,6 +492,82 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('saveOrderEditButton').addEventListener('click', () => {
             openCompleteModal('注文の変更が完了しました');
         });
+    }function openOrderEditModal() {
+        // 現在選択されている注文データを特定する
+        const orderId = state.selectedOrderDetailId;
+        const order = state.orders.find(item => String(item.id) === String(orderId));
+
+        if (!order) {
+            openCompleteModal('注文データが見つかりません');
+            return;
+        }
+
+        // モーダルを開いたときの初期値として、現在の注文個数をセット
+        let qty = order.qty;
+
+        openModal(`
+            <div class="edit-modal">
+                <div class="edit-row">
+                    <span>個数変更</span>
+                    <div class="qty-control">
+                        <button id="minusQtyButton">−</button>
+                        <span id="editQtyValue">${qty}</span>
+                        <button id="plusQtyButton">＋</button>
+                    </div>
+                </div>
+
+                <div class="edit-row">
+                    <span>注文削除</span>
+                    <input id="deleteOrderCheck" class="delete-check" type="checkbox">
+                </div>
+
+                <div class="form-buttons">
+                    <button id="saveOrderEditButton" class="white-button">決定</button>
+                </div>
+            </div>
+        `);
+
+        document.getElementById('minusQtyButton').addEventListener('click', () => {
+            qty = Math.max(1, qty - 1);
+            document.getElementById('editQtyValue').textContent = qty;
+        });
+
+        document.getElementById('plusQtyButton').addEventListener('click', () => {
+            qty += 1;
+            document.getElementById('editQtyValue').textContent = qty;
+        });
+
+        document.getElementById('saveOrderEditButton').addEventListener('click', () => {
+            const deleteCheck = document.getElementById('deleteOrderCheck');
+            
+            // 1. 注文削除にチェックが入っている場合
+            if (deleteCheck && deleteCheck.checked) {
+                if (confirm('この注文を削除（キャンセル）してもよろしいですか？')) {
+                    order.status = 'canceled'; // ステータスをキャンセルに変更
+                    
+                    // 画面を再描画してデータを最新にする
+                    renderOrderDetail(); 
+                    renderOrders(); // 裏側の注文一覧画面も同期
+                    
+                    openCompleteModal('注文を削除しました');
+                }
+                return;
+            }
+
+            // 2. 個数変更のみの場合
+            order.qty = qty; // 実際のデータを書き換える
+
+            // 提供数が変更後の注文数を上回ってしまわないように調整
+            if (order.servedQty > order.qty) {
+                order.servedQty = order.qty;
+            }
+
+            // 画面を再描画してデータを最新にする
+            renderOrderDetail();
+            renderOrders(); // 裏側の注文一覧画面も同期
+
+            openCompleteModal('注文の変更が完了しました');
+        });
     }
 
     function issueCustomerNumber() {
@@ -615,6 +710,9 @@ document.addEventListener('DOMContentLoaded', () => {
             state.orderMode = 'waiting';
             setOrderTabActive('showWaitingOrders');
             renderOrders();
+            // ★追加: タブ切り替え時にボタンを一回グレーに戻す
+            const bulkCancelButton = document.getElementById('bulkCancelButton');
+            if (bulkCancelButton) bulkCancelButton.disabled = true; 
         });
     }
 
@@ -624,6 +722,9 @@ document.addEventListener('DOMContentLoaded', () => {
             state.orderMode = 'served';
             setOrderTabActive('showServedOrders');
             renderOrders();
+            // ★追加: タブ切り替え時にボタンを一回グレーに戻す
+            const bulkCancelButton = document.getElementById('bulkCancelButton');
+            if (bulkCancelButton) bulkCancelButton.disabled = true;
         });
     }
 
@@ -633,6 +734,9 @@ document.addEventListener('DOMContentLoaded', () => {
             state.orderMode = 'canceled';
             setOrderTabActive('showCanceledOrders');
             renderOrders();
+            // ★追加: タブ切り替え時にボタンを一回グレーに戻す
+            const bulkCancelButton = document.getElementById('bulkCancelButton');
+            if (bulkCancelButton) bulkCancelButton.disabled = true;
         });
     }
 
@@ -777,6 +881,40 @@ document.addEventListener('DOMContentLoaded', () => {
         modalLayer.addEventListener('click', event => {
             if (event.target === modalLayer) {
                 closeModal();
+            }
+        });
+    }
+
+    // ==========================================
+    // ★追加：一括キャンセルボタンを押した時の処理
+    // ==========================================
+    const bulkCancelButtonElement = document.getElementById('bulkCancelButton');
+    if (bulkCancelButtonElement) {
+        bulkCancelButtonElement.addEventListener('click', () => {
+            const body = document.getElementById('orderTableBody');
+            if (!body) return;
+
+            // チェックされているチェックボックスをすべて取得
+            const checkedBoxes = body.querySelectorAll('.order-checkbox:checked');
+            if (checkedBoxes.length === 0) return;
+
+            // 確認アラートを表示
+            if (confirm(`選択された ${checkedBoxes.length} 件の注文をキャンセルしますか？`)) {
+                
+                // チェックされた行のデータIDを元に、stateのステータスを書き換える
+                checkedBoxes.forEach(cb => {
+                    const targetId = cb.dataset.id;
+                    const order = state.orders.find(item => String(item.id) === String(targetId));
+                    if (order) {
+                        order.status = 'canceled'; // ステータスを「キャンセル」に変更
+                    }
+                });
+
+                // 状態が更新されたので再描画（これで自動的に画面から消えます）
+                renderOrders();
+
+                // ボタンをグレーアウト（非活性）に戻す
+                bulkCancelButtonElement.setAttribute('disabled', 'true');
             }
         });
     }
