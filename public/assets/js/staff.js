@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('staff.js loaded');
-
     const state = {
         orders: window.STAFF_DATA.orders.map(order => ({
             ...order,
@@ -491,6 +490,82 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.getElementById('saveOrderEditButton').addEventListener('click', () => {
+            openCompleteModal('注文の変更が完了しました');
+        });
+    }function openOrderEditModal() {
+        // 現在選択されている注文データを特定する
+        const orderId = state.selectedOrderDetailId;
+        const order = state.orders.find(item => String(item.id) === String(orderId));
+
+        if (!order) {
+            openCompleteModal('注文データが見つかりません');
+            return;
+        }
+
+        // モーダルを開いたときの初期値として、現在の注文個数をセット
+        let qty = order.qty;
+
+        openModal(`
+            <div class="edit-modal">
+                <div class="edit-row">
+                    <span>個数変更</span>
+                    <div class="qty-control">
+                        <button id="minusQtyButton">−</button>
+                        <span id="editQtyValue">${qty}</span>
+                        <button id="plusQtyButton">＋</button>
+                    </div>
+                </div>
+
+                <div class="edit-row">
+                    <span>注文削除</span>
+                    <input id="deleteOrderCheck" class="delete-check" type="checkbox">
+                </div>
+
+                <div class="form-buttons">
+                    <button id="saveOrderEditButton" class="white-button">決定</button>
+                </div>
+            </div>
+        `);
+
+        document.getElementById('minusQtyButton').addEventListener('click', () => {
+            qty = Math.max(1, qty - 1);
+            document.getElementById('editQtyValue').textContent = qty;
+        });
+
+        document.getElementById('plusQtyButton').addEventListener('click', () => {
+            qty += 1;
+            document.getElementById('editQtyValue').textContent = qty;
+        });
+
+        document.getElementById('saveOrderEditButton').addEventListener('click', () => {
+            const deleteCheck = document.getElementById('deleteOrderCheck');
+            
+            // 1. 注文削除にチェックが入っている場合
+            if (deleteCheck && deleteCheck.checked) {
+                if (confirm('この注文を削除（キャンセル）してもよろしいですか？')) {
+                    order.status = 'canceled'; // ステータスをキャンセルに変更
+                    
+                    // 画面を再描画してデータを最新にする
+                    renderOrderDetail(); 
+                    renderOrders(); // 裏側の注文一覧画面も同期
+                    
+                    openCompleteModal('注文を削除しました');
+                }
+                return;
+            }
+
+            // 2. 個数変更のみの場合
+            order.qty = qty; // 実際のデータを書き換える
+
+            // 提供数が変更後の注文数を上回ってしまわないように調整
+            if (order.servedQty > order.qty) {
+                order.servedQty = order.qty;
+            }
+
+            // 画面を再描画してデータを最新にする
+            renderOrderDetail();
+            renderOrders(); // 裏側の注文一覧画面も同期
+
             openCompleteModal('注文の変更が完了しました');
         });
     }
