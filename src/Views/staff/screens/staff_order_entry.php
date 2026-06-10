@@ -1,6 +1,7 @@
 <section class="staff-order-entry-page">
     <div class="staff-order-entry-top">
-        <button id="staffOrderBackButton" class="back-button" type="button">← 戻る</button>
+        <button id="staffOrderBackButton" class="back-button" type="button">←</button>
+        <h1 class="staff-order-entry-heading">スタッフ注文</h1>
         <button class="hamburger-button" type="button">☰</button>
     </div>
 

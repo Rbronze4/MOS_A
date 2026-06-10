@@ -17,6 +17,7 @@ if (!function_exists('yen')) {
 
 $title = $title ?? 'MOS';
 $cssFile = $cssFile ?? '';
+$cssFiles = $cssFiles ?? [];
 $jsFile = $jsFile ?? '';
 ?>
 <!doctype html>
@@ -26,7 +27,11 @@ $jsFile = $jsFile ?? '';
     <title><?= h($title) ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <?php if ($cssFile !== ''): ?>
+    <?php if (!empty($cssFiles) && is_array($cssFiles)): ?>
+        <?php foreach ($cssFiles as $file): ?>
+            <link rel="stylesheet" href="<?= h($file) ?>">
+        <?php endforeach; ?>
+    <?php elseif ($cssFile !== ''): ?>
         <link rel="stylesheet" href="<?= h($cssFile) ?>">
     <?php endif; ?>
 </head>

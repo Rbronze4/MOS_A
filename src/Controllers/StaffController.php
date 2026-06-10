@@ -7,8 +7,22 @@ final class StaffController
     {
         $title = 'MOS 店員画面';
 
-        $cssFile = '/MOS_A/public/assets/css/staff.css';
-        $jsFile = '/MOS_A/public/assets/js/staff.js';
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css',
+            '/MOS_A/public/assets/css/staff/base.css',
+            '/MOS_A/public/assets/css/staff/orders.css',
+            '/MOS_A/public/assets/css/staff/modals-products.css',
+            '/MOS_A/public/assets/css/staff/navigation.css',
+            '/MOS_A/public/assets/css/staff/order-list.css',
+        ];
+        $jsFiles = [
+            '/MOS_A/public/assets/js/common/side-menu.js',
+            '/MOS_A/public/assets/js/staff/dashboard/orders.js',
+            '/MOS_A/public/assets/js/staff/dashboard/products.js',
+            '/MOS_A/public/assets/js/staff/dashboard/customers.js',
+            '/MOS_A/public/assets/js/staff/dashboard/qr.js',
+            '/MOS_A/public/assets/js/staff/dashboard.js',
+        ];
 
         $customers = $this->customers();
         $orders = $this->orders();
@@ -23,11 +37,25 @@ final class StaffController
     {
         $title = 'スタッフ注文';
 
-        $cssFile = '/MOS_A/public/assets/css/staff_order.css?v=' . time();
+        $assetVersion = time();
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/base.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/entry.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/menu.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/cart.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/navigation.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/responsive.css?v=' . $assetVersion,
+        ];
 
         $jsFiles = [
-            '/MOS_A/public/assets/js/staff.js?v=' . time(),
-            '/MOS_A/public/assets/js/staff_order.js?v=' . time(),
+            '/MOS_A/public/assets/js/common/side-menu.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/orders.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/products.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/customers.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/qr.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/order-menu.js?v=' . $assetVersion,
         ];
 
         $orders = $this->orders();
@@ -42,11 +70,25 @@ final class StaffController
     {
         $title = 'スタッフ注文';
 
-        $cssFile = '/MOS_A/public/assets/css/staff_order.css?v=' . time();
+        $assetVersion = time();
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/base.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/entry.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/menu.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/cart.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/navigation.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff-order/responsive.css?v=' . $assetVersion,
+        ];
 
         $jsFiles = [
-            '/MOS_A/public/assets/js/staff.js?v=' . time(),
-            '/MOS_A/public/assets/js/staff_order.js?v=' . time(),
+            '/MOS_A/public/assets/js/common/side-menu.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/orders.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/products.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/customers.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/qr.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/order-menu.js?v=' . $assetVersion,
         ];
 
         $orders = $this->orders();
@@ -69,7 +111,7 @@ final class StaffController
     private function orders(): array
     {
         return [
-            ['id' => 1, 'table_no' => '12番', 'name' => 'モモ串　しお', 'qty' => 3, 'time' => '19:05', 'status' => 'waiting'],
+            ['id' => 1, 'table_no' => '12番', 'name' => 'もも串 塩', 'qty' => 3, 'time' => '19:05', 'status' => 'waiting'],
             ['id' => 2, 'table_no' => '5番', 'name' => 'ビール', 'qty' => 5, 'time' => '19:25', 'status' => 'served'],
             ['id' => 3, 'table_no' => '3番', 'name' => 'コークハイ', 'qty' => 1, 'time' => '19:40', 'status' => 'canceled'],
         ];
@@ -78,8 +120,8 @@ final class StaffController
     private function products(): array
     {
         return [
-            ['id' => 1, 'name' => 'もも串　タレ', 'category' => '串', 'stock' => 30, 'price' => 200],
-            ['id' => 2, 'name' => 'もも串　しお', 'category' => '串', 'stock' => 100, 'price' => 200],
+            ['id' => 1, 'name' => 'もも串 タレ', 'category' => '串', 'stock' => 30, 'price' => 200],
+            ['id' => 2, 'name' => 'もも串 塩', 'category' => '串', 'stock' => 100, 'price' => 200],
             ['id' => 3, 'name' => 'ビール', 'category' => 'ドリンク', 'stock' => 200, 'price' => 200],
         ];
     }

@@ -101,7 +101,7 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
 <section class="staff-order-menu-page">
     <header class="staff-order-header">
 
-        <button id="staffOrderMenuBackButton" class="back-button" type="button">← 戻る</button>
+        <button id="staffOrderMenuBackButton" class="back-button" type="button">←</button>
 
         <div class="staff-order-title">スタッフ注文</div>
 

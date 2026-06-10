@@ -11,7 +11,7 @@
         <div class="order-switch-buttons">
             <button id="showWaitingOrders" class="active" type="button">注文一覧</button>
             <button id="showServedOrders" type="button">提供済み一覧</button>
-            <button id="showCanceledOrders" type="button">キャンセル済一覧</button>
+            <button id="showCanceledOrders" type="button">キャンセル済み一覧</button>
         </div>
     </div>
 
@@ -20,7 +20,7 @@
             <thead>
                 <tr>
                     <th></th>
-                    <th>卓</th>
+                    <th>席</th>
                     <th>商品名</th>
                     <th>注文個数</th>
                     <th>提供数</th>
@@ -28,9 +28,9 @@
                 </tr>
             </thead>
             <tbody id="orderTableBody">
-                </tbody>
+            </tbody>
         </table>
-        
+
         <div class="table-action-area">
             <button id="bulkCancelButton" class="bulk-cancel-btn" type="button" disabled>キャンセル</button>
         </div>

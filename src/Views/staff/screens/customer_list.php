@@ -9,8 +9,8 @@
         <thead>
             <tr>
                 <th>選択</th>
-                <th>卓番</th>
-                <th>客番号</th>
+                <th>席番号</th>
+                <th>顧客番号</th>
                 <th>人数</th>
             </tr>
         </thead>

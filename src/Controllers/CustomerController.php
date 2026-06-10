@@ -132,8 +132,15 @@ final class CustomerController
         ];
 
         $title = 'MOS 客側画面';
-        $cssFile = '/MOS_A/public/assets/css/customer.css';
-        $jsFile = '/MOS_A/public/assets/js/customer.js';
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css',
+            '/MOS_A/public/assets/css/customer/base.css',
+            '/MOS_A/public/assets/css/customer/plans.css',
+            '/MOS_A/public/assets/css/customer/menu.css',
+            '/MOS_A/public/assets/css/customer/product-cart-history.css',
+            '/MOS_A/public/assets/css/customer/overlays.css',
+        ];
+        $jsFile = '/MOS_A/public/assets/js/customer/app.js';
         $view = dirname(__DIR__) . '/Views/customer/customer_app.php';
 
         require dirname(__DIR__) . '/Views/layouts/app.php';

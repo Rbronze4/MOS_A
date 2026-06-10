@@ -8,7 +8,7 @@
 
     <div class="store-name-box">
         <div class="store-name-label">店舗名</div>
-        <div class="store-name">居酒屋みどり亭 緑橋店</div>
+        <div class="store-name">居酒屋みどり亭 緑橋本店</div>
     </div>
 
     <div class="home-menu">
@@ -18,6 +18,5 @@
         <button data-move="qrScreen" type="button">QR発行</button>
         <button data-move="loginScreen" type="button">ログアウト</button>
         <button type="button" onclick="location.href='/MOS_A/public/staff/order-entry?ref=home'">スタッフ注文</button>
-
     </div>
 </section>

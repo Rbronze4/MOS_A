@@ -139,9 +139,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    const backButton = document.getElementById('staffOrderMenuBackButton');
-    if (backButton) {
-        backButton.addEventListener('click', () => {
+    const entryBackButton = document.getElementById('staffOrderBackButton');
+    if (entryBackButton) {
+        entryBackButton.addEventListener('click', () => {
+            location.href = '/MOS_A/public/staff?ref=home';
+        });
+    }
+
+    const menuBackButton = document.getElementById('staffOrderMenuBackButton');
+    if (menuBackButton) {
+        menuBackButton.addEventListener('click', () => {
             if (returnRef === 'detail') {
                 location.href = '/MOS_A/public/staff?ref=orderDetail';
                 return;
