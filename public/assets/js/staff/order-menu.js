@@ -1,4 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
+    if (window.MOS?.initSideMenu) {
+        window.MOS.initSideMenu();
+    }
+
     const cartList = document.getElementById('staffCartList');
     const cartTotal = document.getElementById('staffCartTotal');
     const submitButton = document.getElementById('staffOrderSubmitButton');
@@ -168,33 +172,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     renderCart();
-
-    document.addEventListener('DOMContentLoaded', () => {
-        const sideMenuLayer = document.getElementById('sideMenuLayer');
-        const closeMenuButton = document.getElementById('closeMenuButton');
-
-        document.querySelectorAll('.hamburger-button').forEach(button => {
-            button.addEventListener('click', () => {
-                if (sideMenuLayer) {
-                    sideMenuLayer.classList.add('show');
-                }
-            });
-        });
-
-        if (closeMenuButton) {
-            closeMenuButton.addEventListener('click', () => {
-                if (sideMenuLayer) {
-                    sideMenuLayer.classList.remove('show');
-                }
-            });
-        }
-
-        if (sideMenuLayer) {
-            sideMenuLayer.addEventListener('click', event => {
-                if (event.target === sideMenuLayer) {
-                    sideMenuLayer.classList.remove('show');
-                }
-            });
-        }
-    });
 });
