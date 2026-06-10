@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
         activeCategory: categories[0] ?? '',
         selectedMenu: null,
         cart: [],
-        history: []
+        history: [],
+        editingItem: null
     };
 
     const screenIds = [
@@ -87,6 +88,16 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('planModal').classList.remove('show');
     }
 
+    function getDisplayPrice(menu) {
+    // スタンダード(standard)かプレミアム(premium)の場合は、
+    // 「ドリンク」カテゴリの商品なら0円にするロジック
+    if ((state.selectedPlanId === 'standard' || state.selectedPlanId === 'premium') 
+        && menu.category === 'ドリンク') {
+        return 0;
+    }
+    return menu.price;
+}
+
     function renderCategoryTabs() {
         const categoryTabs = document.getElementById('categoryTabs');
 
@@ -103,15 +114,26 @@ document.addEventListener('DOMContentLoaded', () => {
         categoryTabs.querySelectorAll('.category-tab').forEach(button => {
             button.addEventListener('click', () => {
                 state.activeCategory = button.dataset.category;
-                renderMenu();
+                
+                // ★ここがポイント：メニューの再描画と、タブ自体の再描画の両方を行う
+                renderMenu(); 
+                renderCategoryTabs(); 
             });
         });
     }
 
-    function renderMenu() {
-        renderCategoryTabs();
-
+   function renderMenu() {
         const menuGrid = document.getElementById('menuGrid');
+
+        // 表示用の価格を算出するヘルパー関数
+        function getDisplayPrice(menu) {
+            // スタンダードかプレミアムなら、ドリンクカテゴリは0円にする
+            if ((state.selectedPlanId === 'standard' || state.selectedPlanId === 'premium') 
+                && menu.category === 'ドリンク') {
+                return 0;
+            }
+            return menu.price;
+        }
 
         const filteredMenus = menus.filter(menu => {
             return menu.category === state.activeCategory;
@@ -123,56 +145,75 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         menuGrid.innerHTML = filteredMenus.map(menu => {
+            const imageSrc = menu.image_path || 'assets/images/common/img.jpg';
+            const displayPrice = getDisplayPrice(menu); // ここでプランを考慮した価格を取得
+
             return `
                 <button class="menu-card" data-menu-id="${menu.id}">
+<<<<<<< HEAD
                     <div class="menu-image-frame">
                         ${menu.image ? `<img src="${menu.image}" alt="${menu.name}">` : '画像枠'}
+=======
+                    <div class="menu-image-frame" style="display: flex; align-items: center; justify-content: center; background: #eee;">
+                        <img src="${imageSrc}" 
+                             alt="${menu.name}" 
+                             style="width: 100%; height: 100%; object-fit: cover; display: block;" 
+                             onerror="this.parentElement.style.display='none'; console.error('画像読み込み失敗:', '${imageSrc}')">
+>>>>>>> main
                     </div>
 
                     <div class="menu-card-body">
                         <div class="menu-name">${menu.name}</div>
-                        <div class="menu-price">${formatYen(menu.price)}</div>
+                        <div class="menu-price">${formatYen(displayPrice)}</div>
                     </div>
                 </button>
             `;
         }).join('');
 
+        // イベントリスナーの追加
         menuGrid.querySelectorAll('.menu-card').forEach(card => {
             card.addEventListener('click', () => {
                 const menu = findMenu(card.dataset.menuId);
 
-                if (!menu) {
-                    return;
-                }
+                if (!menu) return;
 
                 state.selectedMenu = menu;
 
+                const imageFrame = document.getElementById('productImageFrame');
+                const imageSrc = menu.image_path || '/assets/images/no-image.png';
+                
+                imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+
                 document.getElementById('productName').textContent = menu.name;
-                document.getElementById('productPrice').textContent = formatYen(menu.price);
+                // ここも同様にプラン適用後の価格を表示
+                document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
                 document.getElementById('quantityInput').value = '1';
 
                 showScreen('productScreen');
             });
         });
     }
+    // 引数を menu, quantity, price の3つにする
+function addCart(menu, quantity, price) {
+    console.log("addCartが呼び出されました:", { menu, quantity, price }); // ← これを追加
 
-    function addCart(menu, quantity) {
-        const existing = state.cart.find(item => String(item.id) === String(menu.id));
+    const existing = state.cart.find(item => String(item.id) === String(menu.id));
 
-        if (existing) {
-            existing.quantity += quantity;
-        } else {
-            state.cart.push({
-                id: menu.id,
-                name: menu.name,
-                price: Number(menu.price),
-                quantity: quantity
-            });
-        }
-
-        renderCart();
+    if (existing) {
+        existing.quantity += quantity;
+    } else {
+        // もしここでまだ「price is not defined」が出るなら、
+        // 上の引数で price を受け取れていません
+        state.cart.push({
+            id: menu.id,
+            name: menu.name,
+            price: price, 
+            quantity: quantity
+        });
     }
 
+    renderCart();
+}
     function renderCart() {
         document.getElementById('cartTotal').textContent = formatYen(cartTotal());
 
@@ -225,12 +266,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
 
+                    // 編集対象のカート内データを退避する
+                    state.editingItem = cartItem;
                     state.selectedMenu = menu;
 
+                    // 画像更新処理
+                    const imageFrame = document.getElementById('productImageFrame');
+                    const imageSrc = menu.image_path || '/assets/images/common/img.jpg';
+                    imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+
+                    // 画面の各値を設定
                     document.getElementById('productName').textContent = menu.name;
                     document.getElementById('productPrice').textContent = formatYen(menu.price);
                     document.getElementById('quantityInput').value = String(cartItem.quantity);
 
+                    // カートから一時的に削除（確定時や戻る時に再投入するため）
                     state.cart = state.cart.filter(item => String(item.id) !== String(menuId));
 
                     showScreen('productScreen');
@@ -297,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                addCart(historyItem, historyItem.quantity);
+                addCart(historyItem, historyItem.quantity,historyItem.price);
                 showToast(`${historyItem.name}をカートに追加しました`);
             });
         });
@@ -348,7 +398,53 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('menuScreen');
     });
 
+    const categoryTabs = document.getElementById('categoryTabs');
+    const categoryScrollLeft = document.getElementById('categoryScrollLeft');
+    const categoryScrollRight = document.getElementById('categoryScrollRight');
+
+    function updateCategoryScrollButtons() {
+        if (!categoryTabs || !categoryScrollLeft || !categoryScrollRight) return;
+
+        const maxScrollLeft = categoryTabs.scrollWidth - categoryTabs.clientWidth;
+
+        if (categoryTabs.scrollLeft <= 0) {
+            categoryScrollLeft.classList.add('hidden');
+        } else {
+            categoryScrollLeft.classList.remove('hidden');
+        }
+
+        if (categoryTabs.scrollLeft >= maxScrollLeft - 1) {
+            categoryScrollRight.classList.add('hidden');
+        } else {
+            categoryScrollRight.classList.remove('hidden');
+        }
+    }
+
+    if (categoryScrollLeft) {
+        categoryScrollLeft.addEventListener('click', () => {
+            categoryTabs.scrollBy({ left: -220, behavior: 'smooth' });
+        });
+    }
+
+    if (categoryScrollRight) {
+        categoryScrollRight.addEventListener('click', () => {
+            categoryTabs.scrollBy({ left: 220, behavior: 'smooth' });
+        });
+    }
+
+    if (categoryTabs) {
+        categoryTabs.addEventListener('scroll', updateCategoryScrollButtons);
+        window.addEventListener('resize', updateCategoryScrollButtons);
+    }
+
     document.getElementById('productBackButton').addEventListener('click', () => {
+
+        if (state.editingItem) {
+            state.cart.push(state.editingItem);
+            state.editingItem = null; // 編集モードを解除
+            renderCart(); // カート画面を再描画（戻った時に反映されるように）
+        }
+
         showScreen('menuScreen');
     });
 
@@ -367,20 +463,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('addCartButton').addEventListener('click', () => {
-        if (!state.selectedMenu) {
-            showToast('商品が選択されていません');
-            return;
-        }
+    console.log("確定ボタンクリック！"); // ← 追加
 
-        const quantity = Math.max(
-            1,
-            Math.min(99, Number(document.getElementById('quantityInput').value || 1))
-        );
+    if (!state.selectedMenu) {
+        showToast('商品が選択されていません');
+        return;
+    }
 
-        addCart(state.selectedMenu, quantity);
+    const quantity = Math.max(1, Math.min(99, Number(document.getElementById('quantityInput').value || 1)));
+    const priceToApply = getDisplayPrice(state.selectedMenu);
 
-        showToast(`${state.selectedMenu.name}を追加しました`);
-        showScreen('menuScreen');
+    console.log("価格計算結果:", priceToApply); // ← 追加
+
+    state.editingItem = null;
+
+    addCart(state.selectedMenu, quantity, priceToApply);
+
+    showToast(`${state.selectedMenu.name}を追加しました`);
+    showScreen('menuScreen');
     });
 
     document.getElementById('cartButton').addEventListener('click', () => {
@@ -421,6 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('menuScreen');
     });
 
+    renderCategoryTabs();
     renderMenu();
     renderCart();
     renderHistory();

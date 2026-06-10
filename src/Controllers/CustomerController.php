@@ -42,11 +42,13 @@ final class CustomerController
         ];
 
         $categories = [
-            'ご飯もの',
+            'ドリンク',
             '串',
             '一品',
             '揚げ物',
-            'ドリンク',
+            'ご飯もの',
+            '期間限定',
+            '店舗限定'
         ];
 
         $menus = [
@@ -55,77 +57,121 @@ final class CustomerController
                 'category' => 'ドリンク',
                 'name' => 'ビール',
                 'price' => 200,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/img.jpg',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/beer.png',
+>>>>>>> main
             ],
             [
                 'id' => 2,
                 'category' => 'ドリンク',
                 'name' => 'ハイボール',
                 'price' => 200,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/highball.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/highball.png',
+>>>>>>> main
             ],
             [
                 'id' => 3,
                 'category' => 'ドリンク',
                 'name' => '焼酎',
                 'price' => 200,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/shochu.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/shochu.png',
+>>>>>>> main
             ],
             [
                 'id' => 4,
                 'category' => 'ドリンク',
                 'name' => 'レモンサワー',
                 'price' => 200,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/lemonsour.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/lemonsour.png',
+>>>>>>> main
             ],
             [
                 'id' => 5,
                 'category' => 'ドリンク',
                 'name' => 'カクテル',
                 'price' => 200,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/cocktail.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/cocktail.png',
+>>>>>>> main
             ],
             [
                 'id' => 6,
                 'category' => 'ドリンク',
                 'name' => 'ウーロン茶',
                 'price' => 100,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/oolong tea.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/oolongtea.png',
+>>>>>>> main
             ],
             [
                 'id' => 7,
                 'category' => '串',
                 'name' => 'もも串しお',
                 'price' => 100,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/Chicken thigh skewers with salt.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/Chicken_thigh.png',
+>>>>>>> main
             ],
             [
                 'id' => 8,
                 'category' => '串',
                 'name' => '鳥皮たれ',
                 'price' => 100,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/Chicken skin sauce.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/Chicken_skin.png',
+>>>>>>> main
             ],
             [
                 'id' => 9,
                 'category' => 'ご飯もの',
                 'name' => '白ごはん',
                 'price' => 150,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/rice.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/rice.png',
+>>>>>>> main
             ],
             [
                 'id' => 10,
                 'category' => '一品',
                 'name' => '枝豆',
                 'price' => 250,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/edamame.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/edamame.png',
+>>>>>>> main
             ],
             [
                 'id' => 11,
                 'category' => '揚げ物',
                 'name' => '唐揚げ',
                 'price' => 400,
+<<<<<<< HEAD
                 'image' => '/MOS_A/public/assets/images/menu/karage.png',
+=======
+                'image_path' => '/MOS_A/public/assets/images/menu/karage.png',
+>>>>>>> main
             ],
         ];
 

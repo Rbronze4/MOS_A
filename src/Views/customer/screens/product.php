@@ -4,7 +4,7 @@
     </button>
 
     <div class="product-card">
-        <div class="product-image-frame">商品画像枠</div>
+        <div class="product-image-frame" id="productImageFrame">商品画像</div>
 
         <div class="product-body">
             <p id="productName" class="product-name">商品名</p>

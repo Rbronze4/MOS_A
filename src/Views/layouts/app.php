@@ -53,25 +53,13 @@ $jsFile = $jsFile ?? '';
     </script>
 <?php endif; ?>
 
-<?php if ($jsFile !== ''): ?>
+<?php if (!empty($jsFiles) && is_array($jsFiles)): ?>
+    <?php foreach ($jsFiles as $file): ?>
+        <script src="<?= h($file) ?>"></script>
+    <?php endforeach; ?>
+<?php elseif ($jsFile !== ''): ?>
     <script src="<?= h($jsFile) ?>"></script>
 <?php endif; ?>
-
-<!-- 確認用：動作確認が終わったら削除してOK -->
-<div style="
-    position:fixed;
-    left:8px;
-    bottom:8px;
-    background:#fff;
-    color:#c00;
-    border:1px solid #c00;
-    padding:6px;
-    font-size:12px;
-    z-index:9999;
-">
-    CSS: <?= h($cssFile ?: '未設定') ?><br>
-    JS: <?= h($jsFile ?: '未設定') ?>
-</div>
 
 </body>
 </html>
