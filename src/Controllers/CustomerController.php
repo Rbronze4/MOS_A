@@ -140,7 +140,12 @@ final class CustomerController
             '/MOS_A/public/assets/css/customer/product-cart-history.css',
             '/MOS_A/public/assets/css/customer/overlays.css',
         ];
-        $jsFile = '/MOS_A/public/assets/js/customer/app.js';
+        $jsFiles = [
+            '/MOS_A/public/assets/js/customer/modules/plans.js',
+            '/MOS_A/public/assets/js/customer/modules/menu.js',
+            '/MOS_A/public/assets/js/customer/modules/cart-history.js',
+            '/MOS_A/public/assets/js/customer/app.js',
+        ];
         $view = dirname(__DIR__) . '/Views/customer/customer_app.php';
 
         require dirname(__DIR__) . '/Views/layouts/app.php';
