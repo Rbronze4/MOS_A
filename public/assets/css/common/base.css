@@ -1,0 +1,27 @@
+﻿:root {
+    --mos-body-bg: #eeeeee;
+    --mos-page-bg: #b68f59;
+    --mos-text: #111111;
+    --mos-panel-bg: #ffffff;
+    --mos-soft-bg: #eeeeee;
+    --mos-accent: #ffe98a;
+    --mos-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+}
+
+body {
+    background: var(--mos-body-bg);
+    color: var(--mos-text);
+    font-family: var(--mos-font);
+}

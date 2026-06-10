@@ -1,0 +1,99 @@
+﻿.staff-cart-panel {
+    width: 100%;
+    height: 388px;
+    background: #fffaf0;
+    padding: 18px 10px 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+.staff-cart-panel h2 {
+    flex: 0 0 auto;
+    margin: 0 0 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #777777;
+    font-size: clamp(16px, 2.8vw, 20px);
+    font-weight: 700;
+}
+
+.staff-cart-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.empty-cart-text {
+    margin: 10px 0;
+    color: #666666;
+    font-size: clamp(12px, 1.8vw, 13px);
+}
+
+.staff-cart-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    border-bottom: 1px solid #999999;
+    font-size: clamp(13px, 2vw, 16px);
+}
+
+.staff-cart-item-name {
+    font-size: clamp(13px, 2vw, 16px);
+    font-weight: 500;
+    word-break: keep-all;
+}
+
+.staff-cart-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: clamp(16px, 2.8vw, 20px);
+    white-space: nowrap;
+}
+
+.staff-cart-control button {
+    width: clamp(20px, 3.5vw, 24px);
+    height: clamp(20px, 3.5vw, 24px);
+    border: none;
+    background: transparent;
+    color: #000000;
+    font-size: clamp(16px, 2.8vw, 20px);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.staff-cart-total-row {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 10px;
+    border-top: 1px solid #333333;
+    font-size: clamp(17px, 3vw, 22px);
+}
+
+.staff-cart-total-row strong {
+    font-size: clamp(19px, 3.2vw, 24px);
+}
+
+.staff-order-submit-button {
+    flex: 0 0 auto;
+    width: min(100%, 210px);
+    height: clamp(40px, 6vw, 48px);
+    margin: 18px auto 0;
+    display: block;
+    border: none;
+    border-radius: 6px;
+    background: #ffd95a;
+    color: #000000;
+    font-size: clamp(13px, 2.2vw, 16px);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.staff-order-submit-button:hover {
+    opacity: 0.9;
+}
+

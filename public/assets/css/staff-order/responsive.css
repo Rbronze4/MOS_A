@@ -1,0 +1,81 @@
+﻿@media (max-width: 620px) {
+    .staff-order-entry-top {
+        height: 58px;
+        grid-template-columns: 48px 1fr 48px;
+        padding: 0 16px;
+    }
+
+    .staff-order-entry-top .back-button,
+    .staff-order-header .back-button {
+        font-size: 24px;
+    }
+
+    .staff-order-entry-heading {
+        font-size: 24px;
+    }
+
+    .staff-order-header {
+        height: auto;
+        min-height: 56px;
+        grid-template-columns: 48px 1fr 52px;
+        grid-template-areas:
+            "back title menu"
+            "table table table";
+        row-gap: 4px;
+        padding: 6px 12px;
+    }
+
+    .staff-order-header .back-button {
+        grid-area: back;
+        width: 40px;
+        height: 40px;
+    }
+
+    .staff-order-title {
+        grid-area: title;
+        justify-self: start;
+        font-size: 24px;
+    }
+
+    .staff-order-header-right {
+        display: contents;
+    }
+
+    .staff-table-box {
+        grid-area: table;
+        justify-self: center;
+        min-width: 0;
+        text-align: center;
+    }
+
+    .staff-order-header-right .hamburger-button {
+        grid-area: menu;
+        justify-self: end;
+    }
+
+    .staff-order-main {
+        grid-template-columns: 1fr;
+        padding: 12px;
+    }
+
+    .staff-menu-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .staff-cart-panel {
+        width: 100%;
+        height: 340px;
+        margin-top: 8px;
+    }
+
+    .staff-category-tabs {
+        width: 100%;
+        margin-left: 0;
+        overflow-x: auto;
+        display: flex;
+    }
+
+    .staff-category-tabs a {
+        min-width: 92px;
+    }
+}

@@ -1,0 +1,9 @@
+﻿.staff-order-entry-page,
+.staff-order-menu-page {
+    width: 100%;
+    max-width: 900px;
+    min-height: 100vh;
+    margin: 0 auto;
+    background: var(--mos-page-bg);
+}
+

@@ -1,0 +1,196 @@
+﻿/* =========================
+   商品詳細
+========================= */
+
+.product-card {
+    width: 230px;
+    margin: 20px auto 22px;
+    background: var(--mos-panel-bg);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.product-image-frame {
+    height: 200px; /* 少し大きさを調整 */
+    background: #e8e8e8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.product-image-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* coverだと画像が大きすぎて文字に被りやすいので */
+}
+
+.product-body {
+    padding: 15px;
+    background: var(--mos-panel-bg); /* 白背景を明示 */
+    text-align: center;   /* 中央寄せ */
+}
+
+.product-name {
+    margin: 0 0 10px 0;
+    font-size: 18px;      /* 少し大きくして見やすく */
+    color: var(--mos-text);
+}
+
+.product-price {
+    margin: 26px 0 0;
+    text-align: right;
+    font-size: 16px;
+}
+
+.quantity-buttons {
+    width: 290px;
+    height: 34px;
+    margin: 0 auto 26px;
+    background: #f5f5f5;
+    border-radius: 999px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+}
+
+.quantity-buttons button {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* =========================
+   共通ヘッダー・戻る
+========================= */
+
+.page-header {
+    height: 70px;
+    background: var(--mos-page-bg);
+    display: grid;
+    place-items: center;
+}
+
+.header-label {
+    background: #f1f1f1;
+    border-radius: 9px;
+    padding: 8px 38px;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.back-line {
+    display: block;
+    width: 100%;
+    height: 30px;
+    border: none;
+    border-top: 1px solid #777777;
+    border-bottom: 1px solid #777777;
+    background: #f7f7f7;
+    text-align: left;
+    padding-left: 10px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* =========================
+   カート
+========================= */
+
+.total-row {
+    width: 78%;
+    margin: 10px auto;
+    padding: 6px 0;
+    border-bottom: 1px solid #dddddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.total-row strong {
+    font-size: 22px;
+    font-weight: normal;
+}
+
+.cart-list {
+    width: 78%;
+    margin: 0 auto;
+}
+
+.cart-row {
+    display: grid;
+    grid-template-columns: 1fr 28px 56px auto auto;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    border-bottom: 1px solid #dddddd;
+    font-size: 14px;
+}
+
+.pill-button {
+    border: none;
+    color: var(--mos-panel-bg);
+    border-radius: 999px;
+    padding: 5px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.change-button {
+    background: #8f6bff;
+}
+
+.delete-button {
+    background: #ff6b7a;
+}
+
+.bottom-action {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 26px;
+}
+
+/* =========================
+   注文履歴
+========================= */
+
+.history-list {
+    margin-top: 8px;
+}
+
+.history-row {
+    width: 84%;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 78px 1fr 28px 58px 54px;
+    gap: 6px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #dddddd;
+    font-size: 14px;
+}
+
+.history-status {
+    font-size: 12px;
+}
+
+.reorder-button {
+    border: none;
+    background: #000000;
+    color: var(--mos-panel-bg);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.empty-message {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #5f4b2a;
+    font-weight: bold;
+}
+
