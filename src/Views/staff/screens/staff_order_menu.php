@@ -101,6 +101,8 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
 <section class="staff-order-menu-page">
     <header class="staff-order-header">
 
+        <button id="staffOrderMenuBackButton" class="back-button" type="button">← 戻る</button>
+
         <div class="staff-order-title">スタッフ注文</div>
 
         <div class="staff-order-header-right">
@@ -110,12 +112,12 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
 
             <button class="hamburger-button" type="button">☰</button>
         </div>
-    </header>>
+    </header>
 
     <nav class="staff-category-tabs">
         <?php foreach ($categories as $category): ?>
             <a
-                href="/MOS_A/public/staff/order-menu?tableNo=<?= urlencode((string)$tableNo) ?>&plan=<?= urlencode((string)$plan) ?>&category=<?= urlencode($category) ?>"
+                href="/MOS_A/public/staff/order-menu?tableNo=<?= urlencode((string)$tableNo) ?>&plan=<?= urlencode((string)$plan) ?>&category=<?= urlencode($category) ?>&ref=<?= urlencode($_GET['ref'] ?? 'home') ?>"
                 class="<?= $category === $currentCategory ? 'active' : '' ?>"
             >
                 <?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?>
@@ -174,6 +176,7 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
 <script>
     window.staffOrderInfo = {
         tableNo: <?= json_encode($tableNo, JSON_UNESCAPED_UNICODE) ?>,
-        plan: <?= json_encode($plan, JSON_UNESCAPED_UNICODE) ?>
+        plan: <?= json_encode($plan, JSON_UNESCAPED_UNICODE) ?>,
+        returnRef: <?= json_encode($_GET['ref'] ?? 'home', JSON_UNESCAPED_UNICODE) ?>
     };
 </script>

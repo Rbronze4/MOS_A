@@ -342,8 +342,22 @@ function addCart(menu, quantity, price) {
                     return;
                 }
 
-                addCart(historyItem, historyItem.quantity,historyItem.price);
-                showToast(`${historyItem.name}をカートに追加しました`);
+                const menu = findMenu(historyItem.id);
+                if (!menu) {
+                    return;
+                }
+
+                state.selectedMenu = menu;
+
+                const imageFrame = document.getElementById('productImageFrame');
+                const imageSrc = menu.image_path || '/assets/images/no-image.png';
+                imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+
+                document.getElementById('productName').textContent = menu.name;
+                document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
+                document.getElementById('quantityInput').value = String(historyItem.quantity || 1);
+
+                showScreen('productScreen');
             });
         });
     }
@@ -445,14 +459,16 @@ function addCart(menu, quantity, price) {
 
     document.getElementById('minusButton').addEventListener('click', () => {
         const input = document.getElementById('quantityInput');
-        const current = Number(input.value || 1);
+        let current = Number(input.value);
+        if (Number.isNaN(current)) current = 1;
 
         input.value = String(Math.max(1, current - 1));
     });
 
     document.getElementById('plusButton').addEventListener('click', () => {
         const input = document.getElementById('quantityInput');
-        const current = Number(input.value || 1);
+        let current = Number(input.value);
+        if (Number.isNaN(current)) current = 1;
 
         input.value = String(Math.min(99, current + 1));
     });
@@ -465,7 +481,14 @@ function addCart(menu, quantity, price) {
         return;
     }
 
-    const quantity = Math.max(1, Math.min(99, Number(document.getElementById('quantityInput').value || 1)));
+    const quantityInput = document.getElementById('quantityInput');
+    let quantityValue = Number(quantityInput.value);
+    if (Number.isNaN(quantityValue) || quantityValue < 1) {
+        quantityValue = 1;
+    }
+    quantityValue = Math.min(99, Math.max(1, Math.floor(quantityValue)));
+    quantityInput.value = String(quantityValue);
+    const quantity = quantityValue;
     const priceToApply = getDisplayPrice(state.selectedMenu);
 
     console.log("価格計算結果:", priceToApply); // ← 追加

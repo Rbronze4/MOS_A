@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const tableNo = window.staffOrderInfo?.tableNo ?? '';
     const plan = window.staffOrderInfo?.plan ?? '';
+    const returnRef = window.staffOrderInfo?.returnRef ?? 'home';
 
     // 卓番号・プランごとにカートを分けて保存
     const cartStorageKey = `staffOrderCart_${tableNo}_${plan}`;
@@ -133,6 +134,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     });
+
+    const backButton = document.getElementById('staffOrderMenuBackButton');
+    if (backButton) {
+        backButton.addEventListener('click', () => {
+            if (returnRef === 'detail') {
+                location.href = '/MOS_A/public/staff?ref=orderDetail';
+                return;
+            }
+
+            location.href = '/MOS_A/public/staff?ref=home';
+        });
+    }
 
     if (submitButton) {
         submitButton.addEventListener('click', () => {

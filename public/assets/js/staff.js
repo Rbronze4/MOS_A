@@ -667,6 +667,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const initialStaffRef = new URLSearchParams(window.location.search).get('ref');
+    if (initialStaffRef === 'orderDetail') {
+        renderOrderDetail();
+        showScreen('orderDetailScreen', false);
+    } else if (initialStaffRef === 'home') {
+        showScreen('homeScreen', false);
+    }
+
     if (sideMenuLayer) {
         sideMenuLayer.addEventListener('click', event => {
             if (event.target === sideMenuLayer) {
@@ -802,7 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!tableNo) {
-                location.href = '/MOS_A/public/staff/order-entry';
+                location.href = '/MOS_A/public/staff/order-entry?ref=detail';
                 return;
             }
 
@@ -813,7 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cartStorageKey = `staffOrderCart_${tableNo}_${plan}`;
             sessionStorage.removeItem(cartStorageKey);
 
-            location.href = `/MOS_A/public/staff/order-menu?tableNo=${encodeURIComponent(tableNo)}&plan=${encodeURIComponent(plan)}&mode=add`;
+            location.href = `/MOS_A/public/staff/order-menu?tableNo=${encodeURIComponent(tableNo)}&plan=${encodeURIComponent(plan)}&mode=add&ref=detail`;
         });
     }
 

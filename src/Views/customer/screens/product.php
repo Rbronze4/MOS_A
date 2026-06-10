@@ -15,7 +15,9 @@
     <input
         id="quantityInput"
         class="quantity-input"
-        type="text"
+        type="number"
+        min="1"
+        max="99"
         inputmode="numeric"
         value="1"
     >
