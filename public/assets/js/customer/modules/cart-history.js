@@ -9,7 +9,8 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         showScreen,
         showToast,
         getDisplayPrice,
-        openProduct
+        openProduct,
+        refreshCategoryScrollButtons
     } = context;
 
     function cartTotal() {
@@ -161,10 +162,12 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         document.getElementById('cartBackButton').addEventListener('click', () => {
             showScreen('menuScreen');
+            requestAnimationFrame(refreshCategoryScrollButtons);
         });
 
         document.getElementById('historyBackButton').addEventListener('click', () => {
             showScreen('menuScreen');
+            requestAnimationFrame(refreshCategoryScrollButtons);
         });
 
         document.getElementById('orderConfirmButton').addEventListener('click', () => {
@@ -185,6 +188,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
             showToast('注文を送信しました');
             showScreen('menuScreen');
+            requestAnimationFrame(refreshCategoryScrollButtons);
         });
     }
 

@@ -12,6 +12,8 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
         openProduct
     } = context;
 
+    let refreshCategoryScrollButtons = () => {};
+
     function renderCategoryTabs() {
         const categoryTabs = document.getElementById('categoryTabs');
 
@@ -32,6 +34,8 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
                 renderCategoryTabs();
             });
         });
+
+        requestAnimationFrame(refreshCategoryScrollButtons);
     }
 
     function renderMenu() {
@@ -79,14 +83,14 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
         const categoryScrollLeft = document.getElementById('categoryScrollLeft');
         const categoryScrollRight = document.getElementById('categoryScrollRight');
 
-        function updateCategoryScrollButtons() {
+        refreshCategoryScrollButtons = function updateCategoryScrollButtons() {
             if (!categoryTabs || !categoryScrollLeft || !categoryScrollRight) return;
 
             const maxScrollLeft = categoryTabs.scrollWidth - categoryTabs.clientWidth;
 
             categoryScrollLeft.classList.toggle('hidden', categoryTabs.scrollLeft <= 0);
-            categoryScrollRight.classList.toggle('hidden', categoryTabs.scrollLeft >= maxScrollLeft - 1);
-        }
+            categoryScrollRight.classList.toggle('hidden', maxScrollLeft <= 1 || categoryTabs.scrollLeft >= maxScrollLeft - 1);
+        };
 
         if (categoryScrollLeft) {
             categoryScrollLeft.addEventListener('click', () => {
@@ -101,15 +105,16 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
         }
 
         if (categoryTabs) {
-            categoryTabs.addEventListener('scroll', updateCategoryScrollButtons);
-            window.addEventListener('resize', updateCategoryScrollButtons);
-            updateCategoryScrollButtons();
+            categoryTabs.addEventListener('scroll', refreshCategoryScrollButtons);
+            window.addEventListener('resize', refreshCategoryScrollButtons);
+            refreshCategoryScrollButtons();
         }
     }
 
     return {
         renderCategoryTabs,
         renderMenu,
-        bindCategoryScroll
+        bindCategoryScroll,
+        refreshCategoryScrollButtons: () => refreshCategoryScrollButtons()
     };
 };

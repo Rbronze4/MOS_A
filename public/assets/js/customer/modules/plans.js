@@ -9,7 +9,8 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
         formatYen,
         findPlan,
         showScreen,
-        renderMenu
+        renderMenu,
+        refreshCategoryScrollButtons
     } = context;
 
     function openPlanModal(planId) {
@@ -60,6 +61,7 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
 
             renderMenu();
             showScreen('menuScreen');
+            requestAnimationFrame(refreshCategoryScrollButtons);
         });
     }
 

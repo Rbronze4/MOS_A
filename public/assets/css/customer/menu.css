@@ -20,24 +20,31 @@
 }
 
 /* カテゴリタブのコンテナ */
-.category-tabs {
+.category-tabs-wrapper {
     position: relative;
     z-index: 1;
     display: flex;
-    overflow-x: auto;
-    
-    /* 強制的に幅を指定 */
-    width: 100vw; 
+    align-items: center;
+    width: 100%;
     max-width: 430px;
-    
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.category-tabs {
+    position: relative;
+    display: flex;
+    overflow-x: auto;
+    width: 100%;
     height: 86px;
     margin: 0;
-    padding: 0 10px;
+    padding: 0 38px;
     border-radius: 0;
-    background: rgba(0, 0, 0, 0.15);
+    background: transparent;
     white-space: nowrap;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
     box-sizing: border-box;
 }
 
@@ -71,6 +78,36 @@
         linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05)),
         rgba(255, 255, 255, 0.35);
     color: var(--mos-panel-bg);
+}
+
+.category-scroll-button {
+    position: absolute;
+    top: 50%;
+    z-index: 3;
+    width: 38px;
+    height: 64px;
+    border: none;
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--mos-panel-bg);
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(-50%);
+}
+
+.category-scroll-button.left {
+    left: 0;
+}
+
+.category-scroll-button.right {
+    right: 0;
+}
+
+.category-scroll-button.hidden {
+    display: none;
 }
 
     .menu-panel {

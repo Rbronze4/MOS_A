@@ -106,7 +106,8 @@
         formatYen,
         findPlan,
         showScreen,
-        renderMenu: menuModule.renderMenu
+        renderMenu: menuModule.renderMenu,
+        refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons
     });
 
     cartHistoryModule = window.MOS.customer.createCartHistoryModule({
@@ -116,7 +117,8 @@
         showScreen,
         showToast,
         getDisplayPrice,
-        openProduct
+        openProduct,
+        refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons
     });
 
     document.getElementById('tableSubmitButton').addEventListener('click', () => {
@@ -143,6 +145,7 @@
         }
 
         showScreen('menuScreen');
+        requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
     });
 
     document.getElementById('minusButton').addEventListener('click', () => {
@@ -183,6 +186,7 @@
 
         showToast(`${state.selectedMenu.name}を追加しました`);
         showScreen('menuScreen');
+        requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
     });
 
     planModule.bindPlanEvents();
