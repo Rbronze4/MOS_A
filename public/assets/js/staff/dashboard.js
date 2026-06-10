@@ -158,7 +158,7 @@ if (loginButton) {
 
         const storeNameElement = document.querySelector('.store-name');
         if (storeNameElement) {
-            storeNameElement.textContent = `焼き鳥みどり亭 ${selectedStoreName}`;
+            storeNameElement.textContent = `居酒屋みどり亭 ${selectedStoreName}`;
         }
 
         showScreen('homeScreen', false);
