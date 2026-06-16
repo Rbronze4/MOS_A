@@ -1,4 +1,9 @@
-﻿.staff-order-entry-page,
+﻿/* スタッフ注文画面でも左右の余白(グレー帯)を出さないよう body 背景を合わせる */
+body {
+    background: var(--mos-page-bg);
+}
+
+.staff-order-entry-page,
 .staff-order-menu-page {
     width: 100%;
     max-width: 900px;

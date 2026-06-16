@@ -1,4 +1,9 @@
-﻿.staff-app {
+﻿/* スタッフ画面では左右の余白(グレー帯)を出さないよう body 背景も合わせる */
+body {
+    background: var(--mos-page-bg);
+}
+
+.staff-app {
     width: 100%;
     max-width: 900px;
     min-height: 100vh;
