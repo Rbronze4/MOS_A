@@ -2,6 +2,9 @@
 $tableNo = $_GET['tableNo'] ?? '';
 $plan = $_GET['plan'] ?? '';
 
+// 飲み放題プラン(standard/premium)のときは「ドリンク」カテゴリを0円にする
+$planFree = in_array($plan, ['standard', 'premium'], true);
+
 $categories = [
     'ドリンク',
     'ご飯もの',
@@ -128,12 +131,13 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
     <div class="staff-order-main">
         <div class="staff-menu-grid">
             <?php foreach ($filteredMenus as $menu): ?>
+                <?php $displayPrice = ($planFree && $menu['category'] === 'ドリンク') ? 0 : (int)$menu['price']; ?>
                 <button
                     type="button"
                     class="staff-menu-card"
                     data-menu-id="<?= htmlspecialchars((string)$menu['id'], ENT_QUOTES, 'UTF-8') ?>"
                     data-menu-name="<?= htmlspecialchars($menu['name'], ENT_QUOTES, 'UTF-8') ?>"
-                    data-menu-price="<?= htmlspecialchars((string)$menu['price'], ENT_QUOTES, 'UTF-8') ?>"
+                    data-menu-price="<?= htmlspecialchars((string)$displayPrice, ENT_QUOTES, 'UTF-8') ?>"
                 >
                     <img
                         src="<?= htmlspecialchars($menu['image_path'], ENT_QUOTES, 'UTF-8') ?>"
@@ -145,7 +149,7 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
                     </div>
 
                     <div class="staff-menu-price">
-                        ￥<?= number_format((int)$menu['price']) ?>
+                        ￥<?= number_format($displayPrice) ?>
                     </div>
                 </button>
             <?php endforeach; ?>
