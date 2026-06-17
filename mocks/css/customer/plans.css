@@ -1,0 +1,62 @@
+﻿.plan-list {
+    display: grid;
+    gap: 16px;
+}
+
+.plan-banner {
+    width: 100%;
+    height: 108px;
+    border: none;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.25);
+    color: var(--mos-panel-bg);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.plan-image-frame {
+    position: absolute;
+    inset: 8px;
+    border: 2px dashed rgba(255, 255, 255, 0.75);
+    display: grid;
+    place-items: center;
+    color: var(--mos-panel-bg);
+    font-size: 13px;
+}
+
+.plan-text {
+    position: relative;
+    z-index: 1;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.single-order-button {
+    width: 240px;
+    margin: 28px auto 0;
+    padding: 15px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #000000;
+    color: var(--mos-panel-bg);
+    font-size: 27px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.icon-frame {
+    width: 42px;
+    height: 42px;
+    border: 2px solid var(--mos-panel-bg);
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+}
+

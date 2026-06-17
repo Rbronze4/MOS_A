@@ -1,0 +1,130 @@
+﻿.order-table {
+    width: 820px;
+}
+
+.customer-table {
+    width: 360px;
+    margin-top: 8px;
+}
+
+.detail-table {
+    width: 440px;
+}
+
+.product-table {
+    width: 700px;
+}
+
+.product-table th,
+.product-table td {
+    font-size: 14px;
+}
+
+.action-col {
+    width: 260px;
+}
+
+.table-red {
+    color: #ff0000;
+}
+
+.table-blue {
+    color: #0058ff;
+    font-weight: 600;
+}
+
+.table-orange {
+    color: #ff8500;
+}
+
+.row-button {
+    border: none;
+    padding: 3px 10px;
+    margin: 0 3px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.green-button {
+    background: #9ded53;
+}
+
+.red-button {
+    background: #ff4d4d;
+}
+
+.bottom-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 70px;
+    margin-top: 50px;
+}
+
+.product-buttons {
+    gap: 18px;
+    justify-content: flex-end;
+    margin-right: 10px;
+}
+
+.product-buttons .white-button {
+    width: 138px;
+}
+
+.bottom-right {
+    position: absolute;
+    right: 120px;
+    bottom: 34px;
+}
+
+.qr-screen {
+    padding: 20px;
+}
+
+.qr-panel {
+    width: 80%;
+    max-width: 700px;
+    min-height: 300px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+
+    background: #d0d0d0;
+    border: 14px solid #a97f43;
+    padding: 20px;
+    margin: 30px auto;
+
+}
+
+
+.qr-panel p {
+    margin: 0 0 14px;
+}
+
+.qr-panel label {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    color: white;
+    font-size: 24px;
+     margin-bottom: 25px;
+}
+
+.qr-panel input {
+    width: 100px;
+    height: 60px;
+    font-size: 28px;
+    text-align: center;
+}
+
+.issue-button {
+    margin-top: 26px;
+    border: none;
+    background: var(--mos-panel-bg);
+    font-size: 28px;
+    font-weight: bold;
+    padding: 8px 32px;
+    cursor: pointer;
+}
+

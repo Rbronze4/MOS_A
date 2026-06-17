@@ -1,0 +1,131 @@
+﻿.staff-order-menu-page {
+    color: #000000;
+    overflow: hidden;
+}
+
+.staff-order-header {
+    height: 52px;
+    display: grid;
+    grid-template-columns: 64px 1fr 220px;
+    align-items: center;
+    background: var(--mos-page-bg);
+    padding: 0 16px;
+    column-gap: 12px;
+}
+
+.staff-order-title {
+    justify-self: start;
+    color: var(--mos-panel-bg);
+    font-size: 34px;
+    font-weight: 400;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.staff-order-header-right {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.staff-table-box {
+    min-width: 104px;
+    color: #000000;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* カテゴリタブ */
+.staff-category-tabs {
+    width: calc(100% - 32px);
+    height: clamp(46px, 7vw, 56px);
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    margin-left: 16px;
+}
+
+.staff-category-tabs a {
+    height: clamp(46px, 7vw, 56px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eee5d6;
+    color: #000000;
+    border-right: 1px solid #777777;
+    text-decoration: none;
+    font-size: clamp(13px, 2.2vw, 17px);
+    font-weight: 700;
+}
+
+.staff-category-tabs a:first-child {
+    border-radius: 6px 0 0 6px;
+}
+
+.staff-category-tabs a:last-child {
+    border-radius: 0 6px 6px 0;
+}
+
+.staff-category-tabs a.active {
+    background: #ffe98a;
+    color: var(--mos-panel-bg);
+}
+
+/* 画面本体 */
+.staff-order-main {
+    display: grid;
+    grid-template-columns: 1fr clamp(250px, 34vw, 288px);
+    gap: clamp(10px, 2vw, 16px);
+    padding: clamp(12px, 2.5vw, 18px) clamp(12px, 2vw, 20px) 0 clamp(12px, 3vw, 24px);
+}
+
+/* メニュー一覧 */
+.staff-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(12px, 2.5vw, 18px) clamp(12px, 3vw, 22px);
+    align-content: start;
+}
+
+.staff-menu-card {
+    width: 100%;
+    aspect-ratio: 132 / 170;
+    min-height: 130px;
+    max-height: 170px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: var(--mos-panel-bg);
+    overflow: hidden;
+    text-align: left;
+    cursor: pointer;
+}
+
+.staff-menu-card img {
+    width: 100%;
+    height: 48%;
+    display: block;
+    object-fit: cover;
+}
+
+.staff-menu-name {
+    padding: clamp(5px, 1.2vw, 8px) clamp(6px, 1.4vw, 10px) 0;
+    color: #1b1b47;
+    font-size: clamp(11px, 1.8vw, 13px);
+    font-weight: 700;
+}
+
+.staff-menu-price {
+    padding: 2px clamp(6px, 1.4vw, 10px);
+    color: #1b1b47;
+    font-size: clamp(10px, 1.6vw, 12px);
+    font-weight: 700;
+}
+
+.staff-menu-card:hover {
+    opacity: 0.9;
+}
+
