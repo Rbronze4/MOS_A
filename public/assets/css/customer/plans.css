@@ -1,6 +1,62 @@
-﻿.plan-list {
+﻿/* コース選択画面：タイトルは上部、コース群は残りスペースの中央に */
+#planScreen.active {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 18px;
+}
+
+/* タイトル：画面上部に。白文字＋ゴールドのアクセントラインで目立たせる */
+#planScreen .page-title {
+    /* 文字幅にラインを合わせるため、見出し自体を文字幅に収める */
+    position: relative;
+    width: fit-content;
+    margin: 28px auto 0;
+    padding-bottom: 14px;
+    color: var(--mos-panel-bg);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
+/* タイトル下の装飾ライン（テーマのゴールド）：文字の端まで伸ばす */
+#planScreen .page-title::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--mos-accent);
+}
+
+.plan-list {
     display: grid;
-    gap: 16px;
+    gap: 18px;
+}
+
+/* コース群を、タイトルと下端の間で上下中央に寄せる */
+#planScreen .plan-list {
+    margin-top: auto;
+}
+
+/* 画像の縦横比(2:1)に合わせた高さで、左右の切れを抑える＋影で立体感 */
+#planScreen .plan-banner {
+    height: 200px;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* 単品注文：少し大きめにして目立たせる */
+#planScreen .single-order-button {
+    width: 100%;
+    max-width: 280px;
+    margin-top: 32px;
+    /* コース群を中央に寄せるため、下側の余白を可変に */
+    margin-bottom: auto;
+    padding: 17px 18px;
+    font-size: 23px;
 }
 
 .plan-banner {
