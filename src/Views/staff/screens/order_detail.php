@@ -1,3 +1,8 @@
+<?php /**
+ * スタッフ：注文詳細画面。
+ * 選択した卓の注文明細を表示し、「注文編集」「スタッフ注文」へ進む。
+ * 明細は dashboard/orders.js が描画する。
+ */ ?>
 <section id="orderDetailScreen" class="screen">
     <div class="screen-header">
         <button class="back-button" type="button">←</button>

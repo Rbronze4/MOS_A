@@ -1,4 +1,16 @@
-﻿document.addEventListener('DOMContentLoaded', () => {
+﻿/**
+ * 客側アプリの中心スクリプト。
+ * window.MOS_DATA（plans/categories/menus）を読み込み、共有 state（卓番号・選択プラン・
+ * カート・履歴など）と共有関数（showScreen / formatYen / getDisplayPrice / openProduct 等）を定義。
+ * これらを context として各モジュール（plans / menu / cart-history）に渡して画面機能を生成する。
+ *
+ * 主な関数:
+ *   showScreen()        … .screen の active 切り替えで画面遷移
+ *   getDisplayPrice()   … プラン適用後の価格（飲み放題プランはドリンク0円）
+ *   isDrinkCategory()   … 「ドリンク」カテゴリ判定
+ *   openProduct()       … 商品詳細画面を開く
+ */
+document.addEventListener('DOMContentLoaded', () => {
     const plans = window.MOS_DATA.plans;
     const categories = window.MOS_DATA.categories;
     const menus = window.MOS_DATA.menus;

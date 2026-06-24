@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * 客側画面のコントローラー。
+ * 現状はDB未接続のため、プラン($plans)・カテゴリ($categories)・メニュー($menus)を
+ * ハードコードで用意し、共通レイアウト(app.php)経由で客側ビュー(customer_app.php)を描画する。
+ * これらのデータはレイアウトを通じて window.MOS_DATA としてJSへ渡される。
+ *
+ * メソッド:
+ *   index() … 客側トップ（卓番号入力〜プラン選択〜メニュー）を表示
+ */
 final class CustomerController
 {
     public function index(): void

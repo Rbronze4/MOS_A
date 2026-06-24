@@ -1,3 +1,8 @@
+<?php /**
+ * スタッフ代理注文：卓番号・プラン入力画面。
+ * 卓番号を入力しプラン（スタンダード/プレミアム/単品）を選んで、
+ * メニュー画面(/staff/order-menu)へ GET で渡す。
+ */ ?>
 <section class="staff-order-entry-page">
     <div class="staff-order-entry-top">
         <button id="staffOrderBackButton" class="back-button" type="button">←</button>

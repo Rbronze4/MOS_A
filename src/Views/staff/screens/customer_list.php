@@ -1,3 +1,8 @@
+<?php /**
+ * スタッフ：顧客詳細（卓）一覧画面。
+ * 卓番号・客番号・人数の一覧から1件選択し、「注文詳細」「QR再発行」へ進む。
+ * 行データはPHPの $customers から描画、選択処理は dashboard/customers.js。
+ */ ?>
 <section id="customerListScreen" class="screen">
     <div class="screen-header">
         <button class="back-button" type="button">←</button>

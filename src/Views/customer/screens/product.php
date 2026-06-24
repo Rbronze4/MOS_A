@@ -1,3 +1,8 @@
+<?php /**
+ * 客側：商品詳細画面。
+ * 選択した商品の画像・名称・価格と数量入力を表示し、カートへ追加する。
+ * 内容は app.js / menu.js が選択商品に応じて流し込む。
+ */ ?>
 <section id="productScreen" class="screen">
     <button id="productBackButton" class="white-button" type="button">
         戻る

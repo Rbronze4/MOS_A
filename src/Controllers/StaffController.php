@@ -1,6 +1,18 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * スタッフ側画面のコントローラー。
+ * 現状はDB未接続のため、顧客・注文・商品データをハードコード(private メソッド)で用意し、
+ * 画面ごとに読み込むCSS/JS($cssFiles/$jsFiles)を指定して共通レイアウト(app.php)で描画する。
+ * 注文・商品データはレイアウトを通じて window.STAFF_DATA としてJSへ渡される。
+ *
+ * メソッド:
+ *   index()      … スタッフダッシュボード（ログイン〜各管理画面）
+ *   orderEntry() … スタッフ代理注文：卓番号・プラン入力画面
+ *   orderMenu()  … スタッフ代理注文：メニュー選択画面
+ *   customers()/orders()/products() … ダミーデータ提供（private）
+ */
 final class StaffController
 {
     public function index(): void

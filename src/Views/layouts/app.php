@@ -1,6 +1,18 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * 共通レイアウト（全画面の外枠）。
+ * 各コントローラーから次を受け取りHTML全体を組み立てる:
+ *   $view      … 本文として描画するビューファイルのパス
+ *   $title     … <title>
+ *   $cssFiles / $jsFiles … 読み込むCSS/JS（配列）
+ * 役割:
+ *   - 共有ヘルパー関数 h()（HTMLエスケープ）・yen()（円表示）の定義場所
+ *   - PHPのデータを window.MOS_DATA（客側: plans/categories/menus）や
+ *     window.STAFF_DATA（スタッフ: orders/products）としてJSへ受け渡す
+ */
+
 if (!function_exists('h')) {
     function h($value): string
     {
