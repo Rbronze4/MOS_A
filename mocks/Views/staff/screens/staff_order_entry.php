@@ -21,13 +21,13 @@
 
         <div class="staff-plan-row">
             <label>
-                <input type="radio" name="plan" value="standard" required>
-                スタンダード
+                <input type="radio" name="plan" value="premium" required>
+                プレミアム
             </label>
 
             <label>
-                <input type="radio" name="plan" value="premium">
-                プレミアム
+                <input type="radio" name="plan" value="standard">
+                スタンダード
             </label>
 
             <label>
