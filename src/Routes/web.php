@@ -1,6 +1,17 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * 簡易ルーター。
+ * REQUEST_URI のパスから basePath(/MOS_A/public) を除き、switch で対応する
+ * コントローラーのメソッドを呼び分ける。
+ *   / ・/staff            → StaffController::index（ダッシュボード）
+ *   /staff/order-entry    → StaffController::orderEntry（スタッフ注文 卓番号入力）
+ *   /staff/order-menu     → StaffController::orderMenu（スタッフ注文 メニュー）
+ *   /customer             → CustomerController::index（客側）
+ *   該当なし              → 404
+ */
+
 require_once dirname(__DIR__) . '/Controllers/StaffController.php';
 require_once dirname(__DIR__) . '/Controllers/CustomerController.php';
 

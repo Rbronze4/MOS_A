@@ -1,4 +1,11 @@
-﻿window.MOS = window.MOS || {};
+﻿/**
+ * 客側モジュール：メニュー画面。
+ * カテゴリタブの描画、メニュー一覧（プラン適用後の価格込み）の描画、
+ * カテゴリ左右スクロールボタンの制御を担当する。app.js から context を受け取り生成される。
+ *
+ * 主な関数: renderCategoryTabs() / renderMenu() / bindCategoryScroll()
+ */
+window.MOS = window.MOS || {};
 window.MOS.customer = window.MOS.customer || {};
 
 window.MOS.customer.createMenuModule = function createMenuModule(context) {

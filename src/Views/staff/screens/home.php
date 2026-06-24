@@ -1,3 +1,8 @@
+<?php /**
+ * スタッフ：ホーム画面。
+ * 店舗名表示と、各管理画面（注文一覧/顧客詳細/商品管理/QR発行/ログアウト/スタッフ注文）への
+ * ナビゲーションボタンを配置。
+ */ ?>
 <section id="homeScreen" class="screen">
     <div class="top-bar">
         <div class="top-info">

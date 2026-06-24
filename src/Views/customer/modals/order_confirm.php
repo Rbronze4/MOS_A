@@ -1,3 +1,8 @@
+<?php /**
+ * 客側：注文確認モーダル。
+ * カート内容の最終確認と合計金額を表示し、「注文」で送信（履歴へ移動）する。
+ * 明細は cart-history.js が描画する。
+ */ ?>
 <div id="orderModal" class="modal-layer">
     <div class="modal-card">
         <button id="closeOrderModalButton" class="modal-back" type="button">

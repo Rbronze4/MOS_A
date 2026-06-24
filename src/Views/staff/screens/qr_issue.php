@@ -1,3 +1,7 @@
+<?php /**
+ * スタッフ：QR発行画面。
+ * 人数・枚数を入力してQR（顧客番号）を発行する。発行処理は dashboard/qr.js。
+ */ ?>
 <section id="qrScreen" class="screen qr-screen">
     <div class="screen-header">
         <button class="back-button" type="button">←</button>

@@ -1,3 +1,11 @@
+/**
+ * スタッフ代理注文：メニュー画面のスクリプト。
+ * window.staffOrderInfo（卓番号・プラン・戻り先）を読み、カート（sessionStorageに
+ * 卓番号＋プラン単位で保存）への追加・数量変更・合計計算・送信を担当する。
+ * 戻るボタンやサイドメニュー初期化も行う。
+ *
+ * 主な関数: renderCart() / addCart() / changeQty() / clearCart()
+ */
 document.addEventListener('DOMContentLoaded', () => {
     if (window.MOS?.initSideMenu) {
         window.MOS.initSideMenu();

@@ -1,4 +1,10 @@
-﻿window.MOS = window.MOS || {};
+﻿/**
+ * 客側モジュール：プラン選択。
+ * プラン確認モーダルの表示、選択プランの確定（state.selectedPlanId 設定）、
+ * 確定後のメニュー画面への遷移を担当する。app.js から context を受け取り生成される。
+ * （制限時間機能では、確定処理にタイマー開始フックを追加する予定）
+ */
+window.MOS = window.MOS || {};
 window.MOS.customer = window.MOS.customer || {};
 
 window.MOS.customer.createPlanModule = function createPlanModule(context) {

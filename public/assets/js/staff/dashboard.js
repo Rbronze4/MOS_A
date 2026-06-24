@@ -1,3 +1,10 @@
+/**
+ * スタッフ ダッシュボードの中心スクリプト。
+ * window.STAFF_DATA（orders/products）から共有 state を作り、画面遷移(showScreen)・
+ * モーダル制御・各ボタンのイベントを束ねる。注文/商品/顧客/QR の各機能は
+ * window.MOS.staffDashboard の各モジュール（orders/products/customers/qr）から生成して利用する。
+ * URLの ?ref=... を見て初期表示画面を切り替える（他画面からの遷移復元）。
+ */
 console.log('staff dashboard loaded');
 
 const state = {

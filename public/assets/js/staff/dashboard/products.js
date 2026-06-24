@@ -1,3 +1,10 @@
+/**
+ * スタッフ ダッシュボード モジュール：商品管理。
+ * 商品一覧の描画、商品の選択、追加/編集フォームのモーダル表示を担当する。
+ * dashboard.js から context を受け取り生成。
+ *
+ * 主な関数: renderProducts() / selectedProduct() / openProductForm()
+ */
 window.MOS = window.MOS || {};
 window.MOS.staffDashboard = window.MOS.staffDashboard || {};
 

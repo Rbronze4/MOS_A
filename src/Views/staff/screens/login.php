@@ -1,3 +1,8 @@
+<?php /**
+ * スタッフ：ログイン画面（ダッシュボードの初期表示）。
+ * 店舗選択とパスワード入力。検証は dashboard.js（現状パスワードは中身未検証で、
+ * 店舗選択と非空のみでホームへ遷移）。
+ */ ?>
 <section id="loginScreen" class="screen active">
     <h1 class="login-title">ログイン</h1>
 

@@ -1,3 +1,8 @@
+<?php /**
+ * スタッフ：商品管理画面。
+ * 商品一覧（名称・カテゴリ・在庫・値段・画像）を表示し、追加/編集/削除を行う。
+ * 一覧描画とフォームは dashboard/products.js が担う。
+ */ ?>
 <section id="productScreen" class="screen">
     <div class="screen-header">
         <button class="back-button" type="button">←</button>

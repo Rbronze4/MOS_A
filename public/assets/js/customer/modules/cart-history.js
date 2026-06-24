@@ -1,4 +1,12 @@
-﻿window.MOS = window.MOS || {};
+﻿/**
+ * 客側モジュール：カート・注文履歴。
+ * カート内容と合計の描画、商品の数量変更/削除/変更、注文確認モーダル、
+ * 注文送信（カート→履歴へ移動）、注文履歴の描画・再注文を担当する。
+ * app.js から context を受け取り生成される。
+ *
+ * 主な関数: renderCart() / openOrderModal() / renderHistory() など
+ */
+window.MOS = window.MOS || {};
 window.MOS.customer = window.MOS.customer || {};
 
 window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(context) {
