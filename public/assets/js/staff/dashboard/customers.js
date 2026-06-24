@@ -1,4 +1,11 @@
-﻿window.MOS = window.MOS || {};
+﻿/**
+ * スタッフ ダッシュボード モジュール：顧客（卓）選択。
+ * 顧客詳細一覧の行選択（ラジオ）と選択状態のハイライトを担当する。
+ * dashboard.js から context を受け取り生成。
+ *
+ * 主な関数: setupCustomerSelection()
+ */
+window.MOS = window.MOS || {};
 window.MOS.staffDashboard = window.MOS.staffDashboard || {};
 
 window.MOS.staffDashboard.createCustomerModule = function createCustomerModule(context) {

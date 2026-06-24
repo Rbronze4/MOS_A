@@ -1,3 +1,9 @@
+<?php /**
+ * 客側アプリの本体ビュー。
+ * 各画面（卓番号入力→プラン選択→メニュー→商品詳細→カート→注文履歴）と
+ * 確認モーダル（プラン確認・注文確認）、トースト要素をまとめて読み込む。
+ * 画面切り替えは customer/app.js が .screen の active 付け替えで行う。
+ */ ?>
 <div class="app">
 
     <?php require __DIR__ . '/screens/table.php'; ?>

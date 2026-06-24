@@ -1,3 +1,8 @@
+<?php /**
+ * 客側：注文履歴画面。
+ * 注文済み商品の一覧・現在の合計金額・再注文ボタンを表示。
+ * 内容は cart-history.js が描画する。
+ */ ?>
 <section id="historyScreen" class="screen gray-screen">
     <header class="page-header">
         <div class="header-label">注文履歴</div>

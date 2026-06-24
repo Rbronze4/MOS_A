@@ -1,4 +1,10 @@
 <?php
+/**
+ * スタッフ注文画面用のサイドメニュー(ハンバーガー)。
+ * $staffSideMenuMode で挙動を切り替える想定（link: location.hrefで遷移 等）。
+ * 各ボタンから /MOS_A/public/staff?ref=... に遷移し、遷移先の dashboard.js が
+ * ref を見て対象画面を開く。
+ */
 $staffSideMenuMode = $staffSideMenuMode ?? 'link';
 
 $staffSideMenuItems = [

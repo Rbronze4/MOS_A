@@ -1,3 +1,8 @@
+<?php /**
+ * 客側：メニュー画面。
+ * 上部にカテゴリタブ（左右スクロール対応）、中央にメニュー一覧、下部に
+ * 注文履歴/カートのナビを配置。タブとメニューの中身は menu.js が動的描画する。
+ */ ?>
 <section id="menuScreen" class="screen menu-screen">
     <div class="category-tabs-wrapper">
         <button id="categoryScrollLeft" class="category-scroll-button left" type="button">‹</button>

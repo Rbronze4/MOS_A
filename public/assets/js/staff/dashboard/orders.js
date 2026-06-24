@@ -1,3 +1,10 @@
+/**
+ * スタッフ ダッシュボード モジュール：注文。
+ * 注文一覧（注文中/提供済み/キャンセル）の描画、提供・取消・一括キャンセル等の操作、
+ * 注文詳細の描画、注文編集モーダルを担当する。dashboard.js から context を受け取り生成。
+ *
+ * 主な関数: renderOrders() / setOrderTabActive() / renderOrderDetail() / openOrderEditModal()
+ */
 window.MOS = window.MOS || {};
 window.MOS.staffDashboard = window.MOS.staffDashboard || {};
 

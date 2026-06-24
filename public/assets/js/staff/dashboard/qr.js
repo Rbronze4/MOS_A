@@ -1,3 +1,10 @@
+/**
+ * スタッフ ダッシュボード モジュール：QR発行。
+ * 顧客番号（7桁）の発行と、発行完了モーダルの表示を担当する。
+ * dashboard.js から context を受け取り生成。
+ *
+ * 主な関数: openQrCompleteModal()
+ */
 window.MOS = window.MOS || {};
 window.MOS.staffDashboard = window.MOS.staffDashboard || {};
 
