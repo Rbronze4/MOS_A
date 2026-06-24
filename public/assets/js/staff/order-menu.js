@@ -186,5 +186,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // カート内の一括削除（確認ダイアログ付き）
+    const clearButton = document.getElementById('staffCartClearButton');
+    if (clearButton) {
+        clearButton.addEventListener('click', () => {
+            if (cart.length === 0) {
+                return;
+            }
+
+            if (confirm('カート内の商品をすべて削除しますか？')) {
+                clearCart();
+            }
+        });
+    }
+
     renderCart();
 });
