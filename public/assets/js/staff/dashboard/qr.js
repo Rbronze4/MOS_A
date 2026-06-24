@@ -7,7 +7,7 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
         closeModal
     } = context;
 
-    // 【追加】QRコード生成ライブラリ（QRious）を動的に読み込む処理
+    // QRコード生成ライブラリ（QRious）を動的に読み込む処理
     // HTMLファイル側（ビュー）を変更せずに済むよう、JSの実行時に外部CDNからライブラリを取得します。
     function loadQrLibrary(callback) {
         // 既にライブラリが読み込まれている場合（モーダルを2回目以降開いた場合など）は、
@@ -33,15 +33,16 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
     function openQrCompleteModal(messagePrefix = 'QR発行が完了しました') {
         const number = issueCustomerNumber();
 
-        // MOSの仕様に合わせた店舗IDのダミーデータ（大文字アルファベット2文字）
-        // ※実際はログイン中の店舗情報などから取得しますが、今回はQRコードの要件を満たすため固定値とします。
-        const storeId = 'AB';
-        /* 将来的には店舗識別用のDBを作成してそれに記載の識別コードを参照する形にしたいのですが、
-        まだ作ってないのでとりあえずそれっぽく動くようにしています。ご了承ください*/
+        // 【変更】login.php で保存された店舗識別コードを取得する
+        // localStorage から取得することで、ログインしている店舗に応じたQRコードを生成できる
+        const savedStoreId = localStorage.getItem('mos_current_store_id');
+        
+        // 取得できなかった場合（デバッグ時や直接画面を開いた場合）のフェイルセーフ
+        // URLが不正になって注文画面が開けなくなるのを防ぐため、デフォルト店舗(MB: 緑橋本店)を設定する
+        const storeId = savedStoreId ? savedStoreId : 'MB';
 
         // お客様がスマートフォンで読み取るための客側注文画面URLを生成
-        // QRコードには単なる番号ではなく、アクセス可能なURLを埋め込むことで、
-        // 読み取り後すぐにブラウザで注文画面（顧客IDと店舗IDを渡した状態）を開けるようにします。
+        // 動的に取得した店舗ID（storeId）をURLパラメータに組み込む
         const orderUrl = `${window.location.origin}/customer?storeId=${storeId}&customerId=${number}`;
 
         // 既存のモーダルUIに、QRコード表示用のcanvas要素を追加して展開します。
@@ -64,9 +65,7 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
         // モーダルのDOMが画面上に展開された後に、閉じるボタンのイベントを設定
         document.getElementById('closeModalButton').addEventListener('click', closeModal);
 
-        // 【追加】ライブラリを読み込み、準備ができたらQRコードを生成・描画する
-        // 描画先の <canvas id="qrcode-canvas"> がDOMに存在する必要があるため、
-        // openModal() を実行した「後」にこの処理を呼ぶことが重要です。
+        // ライブラリを読み込み、準備ができたらQRコードを生成・描画する
         loadQrLibrary(function() {
             const canvas = document.getElementById('qrcode-canvas');
             if (canvas) {
