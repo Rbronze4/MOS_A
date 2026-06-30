@@ -19,6 +19,36 @@
     z-index: 0;
 }
 
+/* =========================
+   注文画面 上部バー（卓番号 / 残り時間）
+   タブの上に配置し、左に卓番号・右に残り時間を表示する。
+   背景が暗いので白文字＋影で読めるようにする。
+========================= */
+.menu-topbar {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 430px;
+    height: 44px;
+    padding: 0 16px;
+    color: var(--mos-panel-bg);
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+/* 左:卓番号 */
+.menu-topbar-table {
+    font-size: 16px;
+}
+
+/* 右:残り時間。少し大きめにして視認性を上げる */
+.menu-topbar-remain {
+    font-size: 18px;
+}
+
 /* カテゴリタブのコンテナ */
 .category-tabs-wrapper {
     position: relative;
@@ -115,7 +145,8 @@
     z-index: 1;
     width: calc(100% - 44px);
     /* 画面全体ではなく、親のmenu-screenの中で収まるように調整 */
-    height: calc(100% - 86px - 76px - 24px); 
+    /* 上部バー44px ＋ タブ86px ＋ 下部ナビ76px ＋ 余白24px を差し引く */
+    height: calc(100% - 44px - 86px - 76px - 24px);
     margin: 14px auto 10px;
     padding: 24px 18px;
     border-radius: 22px 22px 0 0;

@@ -1,4 +1,14 @@
 <section id="menuScreen" class="screen menu-screen">
+    <!--
+        注文画面 上部バー（左:現在の卓番号 / 右:飲み放題の残り時間）。
+        ※ここはレイアウト確認用の静的表示。
+          卓番号は本来 app.js の state.tableNumber、残り時間は今後のタイマーJSで動的更新する。
+    -->
+    <div class="menu-topbar">
+        <span id="menuTableNo" class="menu-topbar-table">卓 12番</span>
+        <span id="menuRemainTime" class="menu-topbar-remain">残り 120分</span>
+    </div>
+
     <div class="category-tabs-wrapper">
         <button id="categoryScrollLeft" class="category-scroll-button left" type="button">‹</button>
         <div id="categoryTabs" class="category-tabs"></div>

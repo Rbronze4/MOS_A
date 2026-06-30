@@ -1,6 +1,69 @@
-﻿.plan-list {
+﻿/* ============================================================
+ * 客側 プラン選択画面CSS。
+ * コース画像バナー(.plan-banner)、単品注文ボタン、タイトル装飾、
+ * 画面全体の縦配置（タイトル上部／コース群中央）を定義。
+ * ※本体 public/assets/css/customer/plans.css と同期（レイアウト確認用コピー）。
+ * ============================================================ */
+
+/* コース選択画面：タイトルは上部、コース群は残りスペースの中央に */
+#planScreen.active {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 18px;
+}
+
+/* タイトル：画面上部に。白文字＋ゴールドのアクセントラインで目立たせる */
+#planScreen .page-title {
+    /* 文字幅にラインを合わせるため、見出し自体を文字幅に収める */
+    position: relative;
+    width: fit-content;
+    margin: 28px auto 0;
+    padding-bottom: 14px;
+    color: var(--mos-panel-bg);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
+/* タイトル下の装飾ライン（テーマのゴールド）：文字の端まで伸ばす */
+#planScreen .page-title::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--mos-accent);
+}
+
+.plan-list {
     display: grid;
-    gap: 16px;
+    gap: 18px;
+}
+
+/* コース群を、タイトルと下端の間で上下中央に寄せる */
+#planScreen .plan-list {
+    margin-top: auto;
+}
+
+/* 画像の縦横比(2:1)に合わせた高さで、左右の切れを抑える＋影で立体感 */
+#planScreen .plan-banner {
+    height: 200px;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* 単品注文：少し大きめにして目立たせる */
+#planScreen .single-order-button {
+    width: 100%;
+    max-width: 280px;
+    margin-top: 32px;
+    /* コース群を中央に寄せるため、下側の余白を可変に */
+    margin-bottom: auto;
+    padding: 17px 18px;
+    font-size: 23px;
 }
 
 .plan-banner {
@@ -60,3 +123,43 @@
     font-size: 11px;
 }
 
+/* =========================
+   ▼ mocks 専用の追加分（本体には未反映）
+   プラン確認モーダル：制限時間トグル
+   飲み放題プランで 120分／180分 を選ばせるための 2択。
+   選択中（.is-active）は黒背景で強調し、確定後の見た目を確認できるようにする。
+========================= */
+.modal-time-select {
+    margin: 4px 0 14px;
+}
+
+.modal-time-label {
+    display: block;
+    font-size: 13px;
+    color: #555555;
+    margin-bottom: 6px;
+}
+
+.time-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.time-option {
+    padding: 12px 0;
+    border: 1px solid #cccccc;
+    border-radius: 6px;
+    background: #ffffff;
+    font-size: 16px;
+    font-weight: bold;
+    color: #333333;
+    cursor: pointer;
+}
+
+/* 選択中の時間。実装後はクリックでこの状態が切り替わる */
+.time-option.is-active {
+    border-color: #000000;
+    background: #000000;
+    color: var(--mos-panel-bg);
+}
