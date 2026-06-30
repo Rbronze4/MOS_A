@@ -106,6 +106,11 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                 if (!cartItem) return;
 
                 if (action === 'delete') {
+                    // 削除前に確認ダイアログを表示
+                    if (!confirm(`「${cartItem.name}」をカートから削除しますか？`)) {
+                        return;
+                    }
+
                     state.cart = state.cart.filter(item => String(item.id) !== String(menuId));
                     renderCart();
                     showToast(`${cartItem.name}を削除しました`);

@@ -11,8 +11,12 @@
 .menu-screen {
     position: relative;
     padding: 0 0 76px;
-    min-height: 100vh;
-    /* overflow: hidden; */
+    /* 画面高さに固定し、上部バー・タブ・下部ナビは固定、
+       商品一覧(.menu-panel)だけを内側でスクロールさせる。
+       高さを確定値にすることで .menu-panel の % 高さが解決される。 */
+    height: 100vh;
+    height: 100dvh; /* モバイルのアドレスバーを考慮（対応ブラウザのみ有効） */
+    overflow: hidden; /* ページ自体はスクロールさせない */
     /* 背景画像を削除し、色（var(--mos-page-bg)）のみにする */
     background: var(--mos-page-bg);
 }
@@ -149,12 +153,14 @@
     .menu-panel {
     position: relative;
     z-index: 1;
+    /* 幅は変更前と同じ（左右22pxの余白＝角丸カードの見た目を維持） */
     width: calc(100% - 44px);
-    /* 画面全体ではなく、親のmenu-screenの中で収まるように調整 */
-    /* 上部バー44px ＋ タブ86px ＋ 下部ナビ76px ＋ 余白24px を差し引く */
-    height: calc(100% - 44px - 86px - 76px - 24px);
-    margin: 14px auto 10px;
-    padding: 24px 18px;
+    /* 上部バー44px ＋ タブ86px ＋ 上マージン8px を引く。
+       下部ナビ分は親の padding-bottom で確保済みなので、カード下端はナビに接して隙間なし。 */
+    height: calc(100% - 44px - 86px - 8px);
+    /* 外周の無駄な余白を削減（上8px・下0）。角丸カードはそのまま。 */
+    margin: 8px auto 0;
+    padding: 18px 16px;
     border-radius: 22px 22px 0 0;
     background: rgba(255, 226, 137, 0.68);
     overflow-y: auto; /* ここだけスクロールさせる */
