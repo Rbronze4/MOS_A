@@ -17,5 +17,10 @@
         <strong id="historyTotal">¥0</strong>
     </div>
 
+    <div class="total-row per-person-row">
+        <span>お一人様あたり（<span id="historyHeadcount">2</span>名）</span>
+        <strong id="historyPerPerson">¥0</strong>
+    </div>
+
     <div id="historyList" class="history-list"></div>
 </section>

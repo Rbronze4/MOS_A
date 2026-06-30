@@ -119,6 +119,18 @@
     font-weight: normal;
 }
 
+/* お一人様あたり：合計の下に控えめに表示（上線で区切る） */
+.per-person-row {
+    margin-top: 0;
+    border-bottom: none;
+    color: #5f4b2a;
+}
+
+.per-person-row strong {
+    font-size: 18px;
+    font-weight: bold;
+}
+
 .cart-list {
     width: 78%;
     margin: 0 auto;
