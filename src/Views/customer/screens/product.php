@@ -17,14 +17,17 @@
         </div>
     </div>
 
+    <!--
+        数量はキーボード入力不可（readonly）。下の −／＋ ボタンでのみ増減する。
+        ※卓番号入力(#tableNumberInput)はキーボード入力可のまま。
+    -->
     <input
         id="quantityInput"
         class="quantity-input"
-        type="number"
-        min="1"
-        max="99"
-        inputmode="numeric"
+        type="text"
         value="1"
+        readonly
+        tabindex="-1"
     >
 
     <div class="quantity-buttons">
