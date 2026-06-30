@@ -17,6 +17,9 @@ $products = mock_products();
 
 $title = 'MOS 店員画面 (mock)';
 
+// mock情報パネルで現在の画面に対応する変更ログを強調表示するための識別子
+$mockArea = 'staff';
+
 $cssFiles = [
     '/MOS_A/mocks/css/common/base.css',
     '/MOS_A/mocks/css/staff/base.css',

@@ -18,6 +18,9 @@ $products = mock_products();
 
 $title = 'スタッフ注文 (mock)';
 
+// mock情報パネルで現在の画面に対応する変更ログを強調表示するための識別子
+$mockArea = 'staff-order';
+
 $cssFiles = [
     '/MOS_A/mocks/css/common/base.css',
     '/MOS_A/mocks/css/staff-order/base.css',

@@ -17,6 +17,9 @@ $menus = mock_menus();
 
 $title = 'MOS 客側画面 (mock)';
 
+// mock情報パネルで現在の画面に対応する変更ログを強調表示するための識別子
+$mockArea = 'customer';
+
 $cssFiles = [
     '/MOS_A/mocks/css/common/base.css',
     '/MOS_A/mocks/css/customer/base.css',
