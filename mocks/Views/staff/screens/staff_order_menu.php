@@ -156,7 +156,12 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
         </div>
 
         <aside class="staff-cart-panel">
-            <h2>カート内容</h2>
+            <div class="staff-cart-header">
+                <h2>カート内容</h2>
+                <button id="staffCartClearButton" type="button" class="staff-cart-clear-button">
+                    すべて削除
+                </button>
+            </div>
 
             <div id="staffCartList" class="staff-cart-list">
                 <p class="empty-cart-text">商品が選択されていません</p>

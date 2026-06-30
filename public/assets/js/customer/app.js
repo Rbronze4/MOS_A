@@ -126,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state,
         formatYen,
         findMenu,
+        findPlan,
         showScreen,
         showToast,
         getDisplayPrice,

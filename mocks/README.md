@@ -73,6 +73,29 @@ mocks/
 
 ---
 
+## mock情報パネル（変更ログ表示）
+
+各mock画面の右下に **「🛠 mock情報」ボタン**が表示されます。クリックすると、
+**いつ・どこで・何の機能/レイアウトを試しているか**の一覧（変更ログ）が開きます。
+現在開いている画面（`customer` / `staff` / `staff-order`）に対応する項目は強調表示されます。
+
+- データの実体: [`_changelog.php`](_changelog.php)（新しい順の配列）
+- 表示処理: [`Views/layouts/app.php`](Views/layouts/app.php) 末尾（mock専用UI。本体には出ない）
+
+### 新しい試作を追加したら
+`_changelog.php` の配列の先頭に1件追記してください。
+
+```php
+[
+    'date'   => '2026-07-01',          // 変更日
+    'area'   => 'customer',            // customer | staff | staff-order | common
+    'title'  => '試している機能/レイアウト名',
+    'detail' => '何を確認するためのものか（任意）',
+],
+```
+
+---
+
 ## 本体との対応表
 
 | mocks | 本体 |

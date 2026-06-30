@@ -2,9 +2,11 @@
  * 客側モジュール：カート・注文履歴。
  * カート内容と合計の描画、商品の数量変更/削除/変更、注文確認モーダル、
  * 注文送信（カート→履歴へ移動）、注文履歴の描画・再注文を担当する。
+ * 注文履歴の合計にはコース料金（プラン料金×人数。人数はスタッフ入力前のため暫定2名固定）を
+ * 加算し、コースを履歴の先頭に1注文として表示する。再注文は個数1の状態で注文画面を開く。
  * app.js から context を受け取り生成される。
  *
- * 主な関数: renderCart() / openOrderModal() / renderHistory() など
+ * 主な関数: renderCart() / openOrderModal() / renderHistory() / courseTotal() など
  */
 window.MOS = window.MOS || {};
 window.MOS.customer = window.MOS.customer || {};
@@ -14,6 +16,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         state,
         formatYen,
         findMenu,
+        findPlan,
         showScreen,
         showToast,
         getDisplayPrice,
@@ -21,12 +24,29 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         refreshCategoryScrollButtons
     } = context;
 
+    // 人数はスタッフがQR発行時に入力する想定だが、現状はその数値を取得する機会が
+    // ないため、暫定で2名固定とする（コース料金 = プラン料金 × この人数）。
+    const HEADCOUNT = 2;
+
     function cartTotal() {
         return state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     }
 
+    // 選択中のコース（飲み放題プラン）。飲み放題なし(single,料金0)や未選択時は null 扱い。
+    function selectedCoursePlan() {
+        const plan = findPlan(state.selectedPlanId);
+        return plan && plan.price > 0 ? plan : null;
+    }
+
+    // コース料金の合計（プラン料金 × 人数）。コースなしは0。
+    function courseTotal() {
+        const plan = selectedCoursePlan();
+        return plan ? plan.price * HEADCOUNT : 0;
+    }
+
     function historyTotal() {
-        return state.history.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const itemsTotal = state.history.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        return itemsTotal + courseTotal();
     }
 
     function addCart(menu, quantity, price) {
@@ -126,23 +146,42 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         const historyList = document.getElementById('historyList');
 
-        if (state.history.length === 0) {
+        const rows = [];
+
+        // コース料金を注文の一つとして先頭に表示（数量列に人数、金額列に料金×人数）。
+        const coursePlan = selectedCoursePlan();
+        if (coursePlan) {
+            rows.push(`
+                <div class="history-row">
+                    <span class="history-status">[コース]</span>
+                    <span>${coursePlan.name}</span>
+                    <span>${HEADCOUNT}名</span>
+                    <span>${formatYen(coursePlan.price * HEADCOUNT)}</span>
+                </div>
+            `);
+        }
+
+        state.history.forEach(item => {
+            rows.push(`
+                <div class="history-row">
+                    <span class="history-status">[注文済み]</span>
+                    <span>${item.name}</span>
+                    <span>${item.quantity}</span>
+                    <span>${formatYen(item.price)}</span>
+
+                    <button class="reorder-button" data-menu-id="${item.id}">
+                        再注文
+                    </button>
+                </div>
+            `);
+        });
+
+        if (rows.length === 0) {
             historyList.innerHTML = '<p class="empty-message">注文履歴はありません</p>';
             return;
         }
 
-        historyList.innerHTML = state.history.map(item => `
-            <div class="history-row">
-                <span class="history-status">[注文済み]</span>
-                <span>${item.name}</span>
-                <span>${item.quantity}</span>
-                <span>${formatYen(item.price)}</span>
-
-                <button class="reorder-button" data-menu-id="${item.id}">
-                    再注文
-                </button>
-            </div>
-        `).join('');
+        historyList.innerHTML = rows.join('');
 
         historyList.querySelectorAll('.reorder-button').forEach(button => {
             button.addEventListener('click', () => {
@@ -152,7 +191,8 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                 const menu = findMenu(historyItem.id);
                 if (!menu) return;
 
-                openProduct(menu, historyItem.quantity || 1, true);
+                // 再注文は前回の個数を引き継がず、常に個数1の状態で注文画面を開く
+                openProduct(menu, 1, true);
             });
         });
     }
