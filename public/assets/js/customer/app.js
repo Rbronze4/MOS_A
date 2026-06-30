@@ -111,6 +111,119 @@ document.addEventListener('DOMContentLoaded', () => {
         openProduct
     });
 
+    // ============================================================
+    // 飲み放題タイマー（フロントのみ・sessionStorageに終了予定時刻を保存）
+    //   - プラン確定時に開始（終了予定時刻 = 現在 + 制限時間）
+    //   - 注文画面 上部バー右に「ラストオーダー HH:MM（残り○分）」を表示（残りは分刻み）
+    //   - ラストオーダー = コース終了の30分前
+    //   - 単品プランはタイマーなし（非表示）
+    //   ※サーバー時刻基準ではなく端末時刻基準。将来DB化で差し替え予定。
+    // ============================================================
+    const TIMER_STORAGE_KEY = 'mosDrinkTimer';
+    const LAST_ORDER_BEFORE_MS = 30 * 60 * 1000; // ラストオーダーはコース終了の30分前
+    let timerIntervalId = null;
+
+    function loadTimer() {
+        try {
+            return JSON.parse(sessionStorage.getItem(TIMER_STORAGE_KEY));
+        } catch (error) {
+            return null;
+        }
+    }
+
+    // タイムスタンプを「HH:MM」（24時間制）に整形する
+    function formatClock(timestamp) {
+        const date = new Date(timestamp);
+        const pad = value => String(value).padStart(2, '0');
+        return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    // 上部バーの表示を現在時刻から再計算して更新する
+    // 例: 「ラストオーダー 20:35（残り20分）」
+    function renderRemainTime() {
+        const el = document.getElementById('menuRemainTime');
+        if (!el) return;
+
+        const timer = loadTimer();
+        if (!timer) {
+            el.style.display = 'none';
+            return;
+        }
+
+        el.style.display = '';
+        // ラストオーダー時刻 = コース終了予定の30分前
+        const lastOrderAt = timer.endsAt - LAST_ORDER_BEFORE_MS;
+        const remainMs = lastOrderAt - Date.now();
+
+        if (remainMs <= 0) {
+            el.textContent = 'ラストオーダー終了';
+            stopTimerInterval();
+            return;
+        }
+
+        // 残りは分刻み（切り上げ）。L.O.の時刻は固定表示。
+        const remainMin = Math.max(0, Math.ceil(remainMs / 60000));
+        el.textContent = `ラストオーダー ${formatClock(lastOrderAt)}（残り${remainMin}分）`;
+    }
+
+    function stopTimerInterval() {
+        if (timerIntervalId) {
+            clearInterval(timerIntervalId);
+            timerIntervalId = null;
+        }
+    }
+
+    // カウントダウンを開始（毎秒更新）
+    function startTimerInterval() {
+        stopTimerInterval();
+        renderRemainTime();
+        timerIntervalId = setInterval(renderRemainTime, 1000);
+    }
+
+    // 飲み放題プランのタイマーを開始し、終了予定時刻を保存する
+    function startDrinkTimer(minutes) {
+        const now = Date.now();
+        const timer = {
+            tableNo: state.tableNumber,
+            minutes,
+            startedAt: now,
+            endsAt: now + minutes * 60 * 1000
+        };
+
+        sessionStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timer));
+        startTimerInterval();
+    }
+
+    // タイマーを破棄（単品プランなど）
+    function clearDrinkTimer() {
+        sessionStorage.removeItem(TIMER_STORAGE_KEY);
+        stopTimerInterval();
+
+        const el = document.getElementById('menuRemainTime');
+        if (el) {
+            el.style.display = 'none';
+        }
+    }
+
+    // 上部バー左の卓番号表示を更新する
+    function updateTableNoDisplay() {
+        const el = document.getElementById('menuTableNo');
+        if (el) {
+            el.textContent = state.tableNumber ? `卓 ${state.tableNumber}番` : '';
+        }
+    }
+
+    // プラン確定時の処理（plans.js から呼ばれる）
+    function onPlanConfirmed(planId, minutes) {
+        updateTableNoDisplay();
+
+        if (planId === 'single' || !minutes) {
+            clearDrinkTimer();
+        } else {
+            startDrinkTimer(minutes);
+        }
+    }
+
     const planModule = window.MOS.customer.createPlanModule({
         plans,
         state,
@@ -119,7 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
         findPlan,
         showScreen,
         renderMenu: menuModule.renderMenu,
-        refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons
+        refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons,
+        onPlanConfirmed
     });
 
     cartHistoryModule = window.MOS.customer.createCartHistoryModule({
