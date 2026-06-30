@@ -4,6 +4,16 @@
  * 注文履歴/カートのナビを配置。タブとメニューの中身は menu.js が動的描画する。
  */ ?>
 <section id="menuScreen" class="screen menu-screen">
+    <!--
+        注文画面 上部バー（左:現在の卓番号 / 右:飲み放題の残り時間）。
+        卓番号は app.js が state.tableNumber から、残り時間はタイマーが動的に更新する。
+        単品プランでは残り時間(#menuRemainTime)は非表示。
+    -->
+    <div class="menu-topbar">
+        <span id="menuTableNo" class="menu-topbar-table"></span>
+        <span id="menuRemainTime" class="menu-topbar-remain"></span>
+    </div>
+
     <div class="category-tabs-wrapper">
         <button id="categoryScrollLeft" class="category-scroll-button left" type="button">‹</button>
         <div id="categoryTabs" class="category-tabs"></div>
