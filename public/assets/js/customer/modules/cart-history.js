@@ -49,6 +49,11 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         return itemsTotal + courseTotal();
     }
 
+    // 一人当たりの金額（合計 ÷ 人数）。端数は切り上げ。
+    function perPersonTotal() {
+        return Math.ceil(historyTotal() / HEADCOUNT);
+    }
+
     function addCart(menu, quantity, price) {
         const existing = state.cart.find(item => String(item.id) === String(menu.id));
 
@@ -143,6 +148,16 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
     function renderHistory() {
         document.getElementById('historyTotal').textContent = formatYen(historyTotal());
+
+        // 一人当たりの金額（人数は暫定2名固定）を表示
+        const perPersonEl = document.getElementById('historyPerPerson');
+        if (perPersonEl) {
+            perPersonEl.textContent = formatYen(perPersonTotal());
+        }
+        const headcountEl = document.getElementById('historyHeadcount');
+        if (headcountEl) {
+            headcountEl.textContent = String(HEADCOUNT);
+        }
 
         const historyList = document.getElementById('historyList');
 
