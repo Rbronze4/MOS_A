@@ -7,13 +7,40 @@
     flex-direction: column;
 }
 
-.staff-cart-panel h2 {
+/* 見出し行（タイトル ＋ 右上の一括削除ボタン） */
+.staff-cart-header {
     flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     margin: 0 0 8px;
     padding-bottom: 8px;
     border-bottom: 1px solid #777777;
+}
+
+.staff-cart-panel h2 {
+    margin: 0;
     font-size: clamp(16px, 2.8vw, 20px);
     font-weight: 700;
+}
+
+/* カート内の一括削除ボタン（右上） */
+.staff-cart-clear-button {
+    flex: 0 0 auto;
+    border: 1px solid #c0392b;
+    background: #ffffff;
+    color: #c0392b;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: clamp(11px, 1.8vw, 13px);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.staff-cart-clear-button:hover {
+    background: #c0392b;
+    color: #ffffff;
 }
 
 .staff-cart-list {
