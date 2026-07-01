@@ -12,6 +12,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
     const {
         state,
         openModal,
+        closeModal,
         openCompleteModal
     } = context;
 
@@ -263,9 +264,13 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
                 <div class="form-buttons">
                     <button id="saveOrderEditButton" class="white-button">決定</button>
+                    <button id="cancelOrderEditButton" class="white-button">キャンセル</button>
                 </div>
             </div>
         `);
+
+        // キャンセル：変更を保存せずモーダルを閉じるだけ（枠外クリックと同じ挙動）
+        document.getElementById('cancelOrderEditButton').addEventListener('click', closeModal);
 
         document.getElementById('minusQtyButton').addEventListener('click', () => {
             qty = Math.max(1, qty - 1);
