@@ -142,3 +142,11 @@ body {
     background: rgba(255,255,255,0.45);
 }
 
+/* データが0件のときに表示する空メッセージ行。
+   通常の行より控えめな色にして「該当なし」であることを伝える */
+.data-table td.empty-row {
+    padding: 16px 10px;
+    color: #888888;
+    font-size: 14px;
+}
+

@@ -66,6 +66,30 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
         const orders = state.orders.filter(order => order.status === state.orderMode);
 
+        // 該当する注文が0件のときは、空の表だけが残って分かりづらいので、
+        // タブ（注文中/提供済み/キャンセル）に応じた空メッセージを1行表示する
+        if (orders.length === 0) {
+            const emptyMessage = state.orderMode === 'waiting'
+                ? '注文中の商品はありません'
+                : state.orderMode === 'served'
+                    ? '提供済みの商品はありません'
+                    : 'キャンセルされた注文はありません';
+
+            body.innerHTML = `
+                <tr>
+                    <td colspan="6" class="empty-row">${emptyMessage}</td>
+                </tr>
+            `;
+
+            // 0件時は選択できる注文がないので、一括キャンセルボタンは無効に戻す
+            const bulkCancelButton = document.getElementById('bulkCancelButton');
+            if (bulkCancelButton) {
+                bulkCancelButton.setAttribute('disabled', 'true');
+            }
+
+            return;
+        }
+
         body.innerHTML = orders.map(order => {
             let actionButtons = '';
 
@@ -191,6 +215,16 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         if (!body) return;
 
         const orders = state.orders.filter(order => order.status !== 'canceled');
+
+        // 表示できる注文明細が0件のときは、空メッセージを1行表示する
+        if (orders.length === 0) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="4" class="empty-row">注文はありません</td>
+                </tr>
+            `;
+            return;
+        }
 
         body.innerHTML = orders.map(order => {
             const selectedClass = String(order.id) === String(state.selectedOrderDetailId)
