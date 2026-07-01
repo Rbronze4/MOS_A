@@ -34,6 +34,16 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
         const body = document.getElementById('productTableBody');
         if (!body) return;
 
+        // 商品が0件のときは、空の表だけにならないよう空メッセージを1行表示する
+        if (state.products.length === 0) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="5" class="empty-row">商品が登録されていません</td>
+                </tr>
+            `;
+            return;
+        }
+
         body.innerHTML = state.products.map(product => {
             const selectedClass = String(product.id) === String(state.selectedProductId) ? 'selected-row' : '';
             const checked = String(product.id) === String(state.selectedProductId) ? 'checked' : '';
