@@ -87,6 +87,12 @@
 .staff-cart-control button {
     width: clamp(20px, 3.5vw, 24px);
     height: clamp(20px, 3.5vw, 24px);
+    /* グリフをボタン内で中央寄せし、数字の中央と縦位置を揃える */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
     border: none;
     background: transparent;
     color: #000000;
