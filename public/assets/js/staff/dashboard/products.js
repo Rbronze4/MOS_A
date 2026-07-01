@@ -16,6 +16,20 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
         openCompleteModal
     } = context;
 
+    // 消費税率（10%）。将来変更する場合はここだけ直せばよいように定数化する
+    const TAX_RATE = 0.1;
+
+    // 税抜金額から税込金額を求める。端数（1円未満）は切り捨て
+    function taxIncluded(priceExcludingTax) {
+        return Math.floor(priceExcludingTax * (1 + TAX_RATE));
+    }
+
+    // 保存済み金額は税込のため、編集フォームの「税抜」欄に戻すときは逆算する。
+    // 切り捨てで丸めた税込からは元の税抜を完全復元できないため、四捨五入で近似する
+    function taxExcluded(priceIncludingTax) {
+        return Math.round(priceIncludingTax / (1 + TAX_RATE));
+    }
+
     function renderProducts() {
         const body = document.getElementById('productTableBody');
         if (!body) return;
@@ -73,6 +87,9 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
             return;
         }
 
+        // 税抜入力欄の初期値。追加時は空、編集時は保存済み（税込）から税抜を逆算して表示する
+        const priceExcludingTax = product.price === '' ? '' : taxExcluded(Number(product.price));
+
         openModal(`
             <div class="product-form">
                 <label>
@@ -99,8 +116,14 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                 </label>
 
                 <label>
-                    <span>値段</span>
-                    <input id="productPriceInput" type="number" value="${product.price}">
+                    <span>値段（税抜）</span>
+                    <input id="productPriceInput" type="number" value="${priceExcludingTax}">
+                </label>
+
+                <label>
+                    <span>値段（税込）</span>
+                    <!-- 税込は税抜×1.1の自動計算結果。手入力させず表示専用にする -->
+                    <input id="productPriceTaxIncludedInput" type="number" value="${product.price}" readonly>
                 </label>
 
                 <div class="form-buttons">
@@ -112,10 +135,20 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
 
         document.getElementById('cancelProductButton').addEventListener('click', closeModal);
 
+        // 税抜欄への入力に合わせて、税込欄（表示専用）をリアルタイムに更新する
+        const priceInput = document.getElementById('productPriceInput');
+        const taxIncludedInput = document.getElementById('productPriceTaxIncludedInput');
+        priceInput.addEventListener('input', () => {
+            const excluded = Number(priceInput.value || 0);
+            taxIncludedInput.value = taxIncluded(excluded);
+        });
+
         document.getElementById('saveProductButton').addEventListener('click', () => {
             const name = document.getElementById('productNameInput').value.trim();
             const category = document.getElementById('productCategoryInput').value;
-            const price = Number(document.getElementById('productPriceInput').value || 0);
+            // 入力は税抜。保存・一覧表示は税込に統一するため、ここで税込へ変換する
+            const priceExcluded = Number(priceInput.value || 0);
+            const price = taxIncluded(priceExcluded);
 
             if (!name) {
                 alert('商品名を入力してください');
