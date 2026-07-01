@@ -27,6 +27,14 @@
     font-weight: 500;
 }
 
+/* 確認モーダルの補足文（例: 「ログイン画面に戻ります」）。
+   見出しとボタンの間に軽く余白を取り、本文であることを控えめに示す */
+.modal-card .modal-note {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #666666;
+}
+
 .modal-card .white-button {
     height: 38px;
 }
