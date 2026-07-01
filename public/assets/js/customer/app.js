@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.editingItem = null;
         cartHistoryModule.addCart(state.selectedMenu, quantityValue, priceToApply);
 
-        showToast(`${state.selectedMenu.name}を追加しました`);
+        showToast('カートに商品を追加しました');
         showScreen('menuScreen');
         requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
     });
