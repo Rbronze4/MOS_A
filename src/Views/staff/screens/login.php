@@ -1,35 +1,33 @@
-<?php /**
- * スタッフ：ログイン画面（ダッシュボードの初期表示）。
- * 店舗選択とパスワード入力。検証は dashboard.js（現状パスワードは中身未検証で、
- * 店舗選択と非空のみでホームへ遷移）。
- */ ?>
-<section id="loginScreen" class="screen active">
+<section class="screen active">
     <h1 class="login-title">ログイン</h1>
 
-    <div class="login-form">
+    <?php if (!empty($error)): ?>
+        <p class="error-text">
+            <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?>
+        </p>
+    <?php endif; ?>
+
+    <form method="post" action="/MOS_A/public/login" class="login-form">
         <label>
-            <span>店舗選択</span>
-            <select id="storeId" name="storeId" required>
+            店舗
+            <select name="store_id" required>
                 <option value="" disabled selected hidden>店舗を選択してください</option>
-                <option value="MH">緑橋本店</option>
-                <option value="MN">森ノ宮店</option>
-                <option value="TZ">玉造店</option>
-                <option value="TH">鶴橋店</option>
-                <option value="IM">今里店</option>
-                <option value="FB">深江橋店</option>
-                <option value="TY">谷町四丁目店</option>
-                <option value="HM">本町店</option>
-                <option value="KB">京橋店</option>
-                <option value="NB">なんば店</option>
+
+                <?php foreach ($stores as $store): ?>
+                    <option value="<?= htmlspecialchars($store['store_id'], ENT_QUOTES, 'UTF-8') ?>">
+                        <?= htmlspecialchars($store['store_name'], ENT_QUOTES, 'UTF-8') ?>
+                    </option>
+                <?php endforeach; ?>
             </select>
         </label>
 
         <label>
-            <span>パスワード</span>
-            <input id="loginPassword" type="password">
+            パスワード
+            <input type="password" name="password" required>
         </label>
 
-        <button id="loginButton" class="white-button" type="button">ログイン</button>
-        <p id="loginError" class="error-text"></p>
-    </div>
+        <div style="text-align:center;">
+            <button type="submit" class="white-button">ログイン</button>
+        </div>
+    </form>
 </section>

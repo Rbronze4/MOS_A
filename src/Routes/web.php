@@ -1,54 +1,27 @@
 <?php
-declare(strict_types=1);
-
 /**
- * 簡易ルーター。
- * REQUEST_URI のパスから basePath(/MOS_A/public) を除き、switch で対応する
- * コントローラーのメソッドを呼び分ける。
- *   / ・/staff            → StaffController::index（ダッシュボード）
- *   /staff/order-entry    → StaffController::orderEntry（スタッフ注文 卓番号入力）
- *   /staff/order-menu     → StaffController::orderMenu（スタッフ注文 メニュー）
- *   /customer             → CustomerController::index（客側）
- *   該当なし              → 404
+ * web.php
+ *
+ * Web画面で使用するURLとControllerの対応を定義するルーティングファイルです。
+ *
+ * 主な役割：
+ * - アクセスされたURLに対して、どのControllerのどのメソッドを実行するか決める
+ * - GET /login でログイン画面を表示する
+ * - POST /login でログイン処理を実行する
+ * - POST /logout でログアウト処理を実行する
+ * - ログイン後のスタッフ画面へのルートを定義する
  */
 
-require_once dirname(__DIR__) . '/Controllers/StaffController.php';
-require_once dirname(__DIR__) . '/Controllers/CustomerController.php';
+return [
+    ['GET',  '/',       'AuthController@showLogin'],
+    ['GET',  '/login',  'AuthController@showLogin'],
+    ['POST', '/login',  'AuthController@login'],
+    ['POST', '/logout', 'AuthController@logout'],
 
-$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    // スタッフ画面
+    ['GET', '/staff', 'StaffController@index'],
 
-$basePath = '/MOS_A/public';
-
-if (str_starts_with($path, $basePath)) {
-    $path = substr($path, strlen($basePath));
-}
-
-$path = $path === '' ? '/' : $path;
-
-switch ($path) {
-    case '/':
-    case '/staff':
-        $controller = new StaffController();
-        $controller->index();
-        break;
-
-    case '/staff/order-entry':
-        $controller = new StaffController();
-        $controller->orderEntry();
-        break;
-
-    case '/staff/order-menu':
-        $controller = new StaffController();
-        $controller->orderMenu();
-        break;
-
-    case '/customer':
-        $controller = new CustomerController();
-        $controller->index();
-        break;
-
-    default:
-        http_response_code(404);
-        echo '404 Not Found';
-        break;
-}
+    // スタッフ代理注文
+    ['GET', '/staff/order/entry', 'StaffController@orderEntry'],
+    ['GET', '/staff/order/menu',  'StaffController@orderMenu'],
+];

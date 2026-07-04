@@ -3,21 +3,48 @@ declare(strict_types=1);
 
 /**
  * スタッフ側画面のコントローラー。
+ *
  * 現状はDB未接続のため、顧客・注文・商品データをハードコード(private メソッド)で用意し、
  * 画面ごとに読み込むCSS/JS($cssFiles/$jsFiles)を指定して共通レイアウト(app.php)で描画する。
+ *
+ * ログイン済みか確認し、未ログインの場合はログイン画面へリダイレクトする。
+ * ログイン済みの場合は、セッションに保存された店舗ID・店舗名を各画面で利用できる。
+ *
  * 注文・商品データはレイアウトを通じて window.STAFF_DATA としてJSへ渡される。
  *
  * メソッド:
- *   index()      … スタッフダッシュボード（ログイン〜各管理画面）
+ *   index()      … スタッフダッシュボード（ログイン後の各管理画面）
  *   orderEntry() … スタッフ代理注文：卓番号・プラン入力画面
  *   orderMenu()  … スタッフ代理注文：メニュー選択画面
  *   customers()/orders()/products() … ダミーデータ提供（private）
  */
 final class StaffController
 {
+    /**
+     * ログイン済みか確認する。
+     *
+     * 未ログインの場合はログイン画面へ戻す。
+     */
+    private function requireLogin(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        if (empty($_SESSION['is_logged_in'])) {
+            header('Location: /MOS_A/public/login');
+            exit;
+        }
+    }
+
     public function index(): void
     {
+        $this->requireLogin();
+
         $title = 'MOS 店員画面';
+
+        $storeId = $_SESSION['store_id'] ?? '';
+        $storeName = $_SESSION['store_name'] ?? '';
 
         $cssFiles = [
             '/MOS_A/public/assets/css/common/base.css',
@@ -27,6 +54,7 @@ final class StaffController
             '/MOS_A/public/assets/css/staff/navigation.css',
             '/MOS_A/public/assets/css/staff/order-list.css',
         ];
+
         $jsFiles = [
             '/MOS_A/public/assets/js/common/side-menu.js',
             '/MOS_A/public/assets/js/staff/dashboard/orders.js',
@@ -47,9 +75,15 @@ final class StaffController
 
     public function orderEntry(): void
     {
+        $this->requireLogin();
+
         $title = 'スタッフ注文';
 
+        $storeId = $_SESSION['store_id'] ?? '';
+        $storeName = $_SESSION['store_name'] ?? '';
+
         $assetVersion = time();
+
         $cssFiles = [
             '/MOS_A/public/assets/css/common/base.css?v=' . $assetVersion,
             '/MOS_A/public/assets/css/staff-order/base.css?v=' . $assetVersion,
@@ -80,9 +114,15 @@ final class StaffController
 
     public function orderMenu(): void
     {
+        $this->requireLogin();
+
         $title = 'スタッフ注文';
 
+        $storeId = $_SESSION['store_id'] ?? '';
+        $storeName = $_SESSION['store_name'] ?? '';
+
         $assetVersion = time();
+
         $cssFiles = [
             '/MOS_A/public/assets/css/common/base.css?v=' . $assetVersion,
             '/MOS_A/public/assets/css/staff-order/base.css?v=' . $assetVersion,
