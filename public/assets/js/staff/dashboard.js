@@ -20,7 +20,6 @@ const state = {
 };
 
 const screens = [
-    'loginScreen',
     'homeScreen',
     'orderListScreen',
     'customerListScreen',
@@ -88,45 +87,6 @@ function openCompleteModal(message) {
     document.getElementById('closeModalButton').addEventListener('click', closeModal);
 }
 
-// ログアウトの実処理。ログイン画面に戻し、画面履歴とパスワード入力・エラーをクリアする。
-// ホームボタンとサイドメニューの2箇所から呼ばれるため、重複を避けて共通化している。
-function performLogout() {
-    screenHistory.length = 0;
-
-    const passwordInput = document.getElementById('loginPassword');
-    const loginError = document.getElementById('loginError');
-
-    if (passwordInput) {
-        passwordInput.value = '';
-    }
-
-    if (loginError) {
-        loginError.textContent = '';
-    }
-
-    showScreen('loginScreen', false);
-}
-
-// ログアウト前に確認モーダルを表示する。
-// 誤タップで作業中の画面が飛ぶのを防ぐため、実行前にワンクッション挟む。
-function confirmLogout() {
-    openModal(`
-        <h2>ログアウトしますか？</h2>
-        <p class="modal-note">ログイン画面に戻ります</p>
-        <div class="form-buttons">
-            <button class="white-button" id="confirmLogoutButton">ログアウト</button>
-            <button class="white-button" id="cancelLogoutButton">キャンセル</button>
-        </div>
-    `);
-
-    document.getElementById('confirmLogoutButton').addEventListener('click', () => {
-        closeModal();
-        performLogout();
-    });
-
-    document.getElementById('cancelLogoutButton').addEventListener('click', closeModal);
-}
-
 const dashboardModules = window.MOS?.staffDashboard || {};
 const orderModule = dashboardModules.createOrderModule({
     state,
@@ -175,53 +135,9 @@ function prepareScreen(target) {
     }
 }
 
-const loginButton = document.getElementById('loginButton');
-
-if (loginButton) {
-    loginButton.addEventListener('click', () => {
-        const storeSelect = document.getElementById('storeId');
-        const passwordInput = document.getElementById('loginPassword');
-        const loginError = document.getElementById('loginError');
-
-        const storeId = storeSelect ? storeSelect.value : '';
-        const password = passwordInput ? passwordInput.value.trim() : '';
-
-        if (!storeId) {
-            loginError.textContent = '店舗を選択してください';
-            return;
-        }
-
-        if (!password) {
-            loginError.textContent = 'パスワードを入力してください';
-            return;
-        }
-
-        loginError.textContent = '';
-        screenHistory.length = 0;
-
-        const selectedOption = storeSelect.options[storeSelect.selectedIndex];
-        const selectedStoreName = selectedOption ? selectedOption.textContent : '';
-
-        const storeNameElement = document.querySelector('.store-name');
-        if (storeNameElement) {
-            storeNameElement.textContent = `居酒屋みどり亭 ${selectedStoreName}`;
-        }
-
-        showScreen('homeScreen', false);
-    });
-} else {
-    console.error('loginButton が見つかりません');
-}
-
 document.querySelectorAll('[data-move]').forEach(button => {
     button.addEventListener('click', () => {
         const target = button.dataset.move;
-
-        // ログアウト（ログイン画面へ戻る）は誤タップ防止のため確認モーダルを挟む
-        if (target === 'loginScreen') {
-            confirmLogout();
-            return;
-        }
 
         prepareScreen(target);
         showScreen(target);
@@ -259,12 +175,6 @@ document.querySelectorAll('[data-menu-move]').forEach(button => {
         const target = button.dataset.menuMove;
 
         sideMenuLayer.classList.remove('show');
-
-        // ログアウトはサイドメニューを閉じたうえで、確認モーダルを挟んでから実行する
-        if (target === 'loginScreen') {
-            confirmLogout();
-            return;
-        }
 
         prepareScreen(target);
         showScreen(target);

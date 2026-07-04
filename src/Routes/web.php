@@ -22,6 +22,8 @@ return [
     ['GET', '/staff', 'StaffController@index'],
 
     // スタッフ代理注文
+    ['GET', '/staff/order-entry', 'StaffController@orderEntry'],
+    ['GET', '/staff/order-menu',  'StaffController@orderMenu'],
     ['GET', '/staff/order/entry', 'StaffController@orderEntry'],
     ['GET', '/staff/order/menu',  'StaffController@orderMenu'],
 ];

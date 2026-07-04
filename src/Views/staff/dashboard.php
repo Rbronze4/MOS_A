@@ -6,7 +6,6 @@
  */ ?>
 <div class="staff-app">
 
-    <?php require __DIR__ . '/screens/login.php'; ?>
     <?php require __DIR__ . '/screens/home.php'; ?>
     <?php require __DIR__ . '/screens/order_list.php'; ?>
     <?php require __DIR__ . '/screens/customer_list.php'; ?>

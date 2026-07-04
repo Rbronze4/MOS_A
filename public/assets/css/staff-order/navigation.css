@@ -51,6 +51,10 @@
     cursor: pointer;
 }
 
+.side-menu-logout-form {
+    margin: 0;
+}
+
 .menu-close-button {
     width: 44px !important;
     margin-left: auto;

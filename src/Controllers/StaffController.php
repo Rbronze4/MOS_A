@@ -2,28 +2,26 @@
 declare(strict_types=1);
 
 /**
- * スタッフ側画面のコントローラー。
+ * StaffController.php
  *
- * 現状はDB未接続のため、顧客・注文・商品データをハードコード(private メソッド)で用意し、
- * 画面ごとに読み込むCSS/JS($cssFiles/$jsFiles)を指定して共通レイアウト(app.php)で描画する。
+ * スタッフ側画面を表示するController。
  *
- * ログイン済みか確認し、未ログインの場合はログイン画面へリダイレクトする。
- * ログイン済みの場合は、セッションに保存された店舗ID・店舗名を各画面で利用できる。
+ * 主な役割：
+ * - ログイン済みか確認する
+ * - スタッフダッシュボードを表示する
+ * - スタッフ代理注文の卓番号・プラン入力画面を表示する
+ * - スタッフ代理注文のメニュー選択画面を表示する
+ * - 現状はDB未接続のため、顧客・注文・商品データをダミーデータとして用意する
  *
- * 注文・商品データはレイアウトを通じて window.STAFF_DATA としてJSへ渡される。
- *
- * メソッド:
- *   index()      … スタッフダッシュボード（ログイン後の各管理画面）
- *   orderEntry() … スタッフ代理注文：卓番号・プラン入力画面
- *   orderMenu()  … スタッフ代理注文：メニュー選択画面
- *   customers()/orders()/products() … ダミーデータ提供（private）
+ * ログイン済みの場合は、AuthControllerでセッションに保存した
+ * 店舗ID・店舗名を各画面で利用できる。
  */
 final class StaffController
 {
     /**
      * ログイン済みか確認する。
      *
-     * 未ログインの場合はログイン画面へ戻す。
+     * 未ログインの場合はログイン画面へリダイレクトする。
      */
     private function requireLogin(): void
     {
@@ -37,14 +35,18 @@ final class StaffController
         }
     }
 
+    /**
+     * スタッフダッシュボード画面を表示する。
+     */
     public function index(): void
     {
         $this->requireLogin();
 
         $title = 'MOS 店員画面';
 
+        // ログイン時に保存した店舗情報
         $storeId = $_SESSION['store_id'] ?? '';
-        $storeName = $_SESSION['store_name'] ?? '';
+        $storeName = $_SESSION['store_name'] ?? '店舗未選択';
 
         $cssFiles = [
             '/MOS_A/public/assets/css/common/base.css',
@@ -73,15 +75,20 @@ final class StaffController
         require dirname(__DIR__) . '/Views/layouts/app.php';
     }
 
+    /**
+     * スタッフ代理注文：卓番号・プラン入力画面を表示する。
+     */
     public function orderEntry(): void
     {
         $this->requireLogin();
 
         $title = 'スタッフ注文';
 
+        // ログイン時に保存した店舗情報
         $storeId = $_SESSION['store_id'] ?? '';
-        $storeName = $_SESSION['store_name'] ?? '';
+        $storeName = $_SESSION['store_name'] ?? '店舗未選択';
 
+        // CSS/JSのキャッシュ対策
         $assetVersion = time();
 
         $cssFiles = [
@@ -112,15 +119,20 @@ final class StaffController
         require dirname(__DIR__) . '/Views/layouts/app.php';
     }
 
+    /**
+     * スタッフ代理注文：メニュー選択画面を表示する。
+     */
     public function orderMenu(): void
     {
         $this->requireLogin();
 
         $title = 'スタッフ注文';
 
+        // ログイン時に保存した店舗情報
         $storeId = $_SESSION['store_id'] ?? '';
-        $storeName = $_SESSION['store_name'] ?? '';
+        $storeName = $_SESSION['store_name'] ?? '店舗未選択';
 
+        // CSS/JSのキャッシュ対策
         $assetVersion = time();
 
         $cssFiles = [
@@ -151,30 +163,96 @@ final class StaffController
         require dirname(__DIR__) . '/Views/layouts/app.php';
     }
 
+    /**
+     * 顧客一覧のダミーデータ。
+     *
+     * DB接続後はRepositoryから取得する形に変更する。
+     */
     private function customers(): array
     {
         return [
-            ['table_no' => '1番', 'customer_no' => '1234567', 'people' => 4],
-            ['table_no' => '2番', 'customer_no' => '1234567', 'people' => 5],
-            ['table_no' => '3番', 'customer_no' => '1234567', 'people' => 3],
+            [
+                'table_no' => '1番',
+                'customer_no' => '1234567',
+                'people' => 4,
+            ],
+            [
+                'table_no' => '2番',
+                'customer_no' => '1234567',
+                'people' => 5,
+            ],
+            [
+                'table_no' => '3番',
+                'customer_no' => '1234567',
+                'people' => 3,
+            ],
         ];
     }
 
+    /**
+     * 注文一覧のダミーデータ。
+     *
+     * DB接続後はRepositoryから取得する形に変更する。
+     */
     private function orders(): array
     {
         return [
-            ['id' => 1, 'table_no' => '12番', 'name' => 'もも串 塩', 'qty' => 3, 'time' => '19:05', 'status' => 'waiting'],
-            ['id' => 2, 'table_no' => '5番', 'name' => 'ビール', 'qty' => 5, 'time' => '19:25', 'status' => 'served'],
-            ['id' => 3, 'table_no' => '3番', 'name' => 'コークハイ', 'qty' => 1, 'time' => '19:40', 'status' => 'canceled'],
+            [
+                'id' => 1,
+                'table_no' => '12番',
+                'name' => 'もも串 塩',
+                'qty' => 3,
+                'time' => '19:05',
+                'status' => 'waiting',
+            ],
+            [
+                'id' => 2,
+                'table_no' => '5番',
+                'name' => 'ビール',
+                'qty' => 5,
+                'time' => '19:25',
+                'status' => 'served',
+            ],
+            [
+                'id' => 3,
+                'table_no' => '3番',
+                'name' => 'コークハイ',
+                'qty' => 1,
+                'time' => '19:40',
+                'status' => 'canceled',
+            ],
         ];
     }
 
+    /**
+     * 商品一覧のダミーデータ。
+     *
+     * DB接続後はRepositoryから取得する形に変更する。
+     */
     private function products(): array
     {
         return [
-            ['id' => 1, 'name' => 'もも串 タレ', 'category' => '串', 'stock' => 30, 'price' => 200],
-            ['id' => 2, 'name' => 'もも串 塩', 'category' => '串', 'stock' => 100, 'price' => 200],
-            ['id' => 3, 'name' => 'ビール', 'category' => 'ドリンク', 'stock' => 200, 'price' => 200],
+            [
+                'id' => 1,
+                'name' => 'もも串 タレ',
+                'category' => '串',
+                'stock' => 30,
+                'price' => 200,
+            ],
+            [
+                'id' => 2,
+                'name' => 'もも串 塩',
+                'category' => '串',
+                'stock' => 100,
+                'price' => 200,
+            ],
+            [
+                'id' => 3,
+                'name' => 'ビール',
+                'category' => 'ドリンク',
+                'stock' => 200,
+                'price' => 200,
+            ],
         ];
     }
 }

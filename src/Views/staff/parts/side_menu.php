@@ -14,7 +14,7 @@ $staffSideMenuItems = [
     ['label' => '商品管理', 'screen' => 'productScreen', 'href' => '/MOS_A/public/staff?ref=product'],
     ['label' => 'QR発行', 'screen' => 'qrScreen', 'href' => '/MOS_A/public/staff?ref=qr'],
     ['label' => 'スタッフ注文', 'href' => '/MOS_A/public/staff/order-entry?ref=home'],
-    ['label' => 'ログアウト', 'screen' => 'loginScreen', 'href' => '/MOS_A/public/staff'],
+    ['label' => 'ログアウト', 'logout' => true],
 ];
 ?>
 
@@ -27,7 +27,11 @@ $staffSideMenuItems = [
         <?php endif; ?>
 
         <?php foreach ($staffSideMenuItems as $item): ?>
-            <?php if ($staffSideMenuMode === 'screen' && isset($item['screen'])): ?>
+            <?php if (!empty($item['logout'])): ?>
+                <form method="post" action="/MOS_A/public/logout" class="side-menu-logout-form">
+                    <button type="submit"><?= h($item['label']) ?></button>
+                </form>
+            <?php elseif ($staffSideMenuMode === 'screen' && isset($item['screen'])): ?>
                 <button data-menu-move="<?= h($item['screen']) ?>" type="button"><?= h($item['label']) ?></button>
             <?php else: ?>
                 <button type="button" onclick="location.href='<?= h($item['href']) ?>'"><?= h($item['label']) ?></button>
