@@ -1,20 +1,64 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/Models/MenuModel.php';
+
 /**
  * 客側画面のコントローラー。
- * 現状はDB未接続のため、プラン($plans)・カテゴリ($categories)・メニュー($menus)を
- * ハードコードで用意し、共通レイアウト(app.php)経由で客側ビュー(customer_app.php)を描画する。
- * これらのデータはレイアウトを通じて window.MOS_DATA としてJSへ渡される。
  *
- * メソッド:
- *   index() … 客側トップ（卓番号入力〜プラン選択〜メニュー）を表示
+ * 今回のDB結合対象は商品選択画面のカテゴリ・商品一覧だけ。
+ * プラン選択、カート、注文確定、注文履歴は既存のフロント処理を維持する。
  */
 final class CustomerController
 {
     public function index(): void
     {
-        $plans = [
+        $plans = $this->plans();
+
+        // TODO: QRコード・セッション管理が完成したら、sessionsテーブルまたはセッション情報からstore_idを取得する
+        // 今回は指示どおり緑橋本店(MH)の商品だけを表示する。
+        $storeId = 'MH';
+
+        $menuModel = new MenuModel();
+
+        try {
+            $categories = $menuModel->categoriesForStore($storeId);
+            $menus = $menuModel->menusForStore($storeId);
+        } catch (Throwable $exception) {
+            error_log('[customer-menu] DB error: ' . $exception->getMessage());
+
+            // DB未起動・未インポートなどでも画面全体は落とさない。
+            // 商品欄は既存JSで「商品がありません」と表示される。
+            $categories = [];
+            $menus = [];
+        }
+
+        $title = 'MOS 客側画面';
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css',
+            '/MOS_A/public/assets/css/customer/base.css',
+            '/MOS_A/public/assets/css/customer/plans.css',
+            '/MOS_A/public/assets/css/customer/menu.css',
+            '/MOS_A/public/assets/css/customer/product-cart-history.css',
+            '/MOS_A/public/assets/css/customer/overlays.css',
+        ];
+        $jsFiles = [
+            '/MOS_A/public/assets/js/customer/modules/plans.js',
+            '/MOS_A/public/assets/js/customer/modules/menu.js',
+            '/MOS_A/public/assets/js/customer/modules/cart-history.js',
+            '/MOS_A/public/assets/js/customer/app.js',
+        ];
+        $view = dirname(__DIR__) . '/Views/customer/customer_app.php';
+
+        require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    /**
+     * プラン表示は今回のDB結合対象外なので、既存どおりController内の固定データを使う。
+     */
+    private function plans(): array
+    {
+        return [
             [
                 'id' => 'standard',
                 'name' => 'スタンダードプラン',
@@ -49,114 +93,5 @@ final class CustomerController
                 ],
             ],
         ];
-
-        $categories = [
-            'ドリンク',
-            '串',
-            '一品',
-            '揚げ物',
-            'ご飯もの',
-            '期間限定',
-            '店舗限定'
-        ];
-
-        $menus = [
-            [
-                'id' => 1,
-                'category' => 'ドリンク',
-                'name' => 'ビール',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/beer.png',
-            ],
-            [
-                'id' => 2,
-                'category' => 'ドリンク',
-                'name' => 'ハイボール',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/highball.png',
-            ],
-            [
-                'id' => 3,
-                'category' => 'ドリンク',
-                'name' => '焼酎',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/shochu.png',
-            ],
-            [
-                'id' => 4,
-                'category' => 'ドリンク',
-                'name' => 'レモンサワー',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/lemonsour.png',
-            ],
-            [
-                'id' => 5,
-                'category' => 'ドリンク',
-                'name' => 'カクテル',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/cocktail.png',
-            ],
-            [
-                'id' => 6,
-                'category' => 'ドリンク',
-                'name' => 'ウーロン茶',
-                'price' => 100,
-                'image_path' => '/MOS_A/public/assets/images/menu/oolongtea.png',
-            ],
-            [
-                'id' => 7,
-                'category' => '串',
-                'name' => 'もも串しお',
-                'price' => 100,
-                'image_path' => '/MOS_A/public/assets/images/menu/Chicken_thigh.png',
-            ],
-            [
-                'id' => 8,
-                'category' => '串',
-                'name' => '鳥皮たれ',
-                'price' => 100,
-                'image_path' => '/MOS_A/public/assets/images/menu/Chicken_skin.png',
-            ],
-            [
-                'id' => 9,
-                'category' => 'ご飯もの',
-                'name' => '白ごはん',
-                'price' => 150,
-                'image_path' => '/MOS_A/public/assets/images/menu/rice.png',
-            ],
-            [
-                'id' => 10,
-                'category' => '一品',
-                'name' => '枝豆',
-                'price' => 250,
-                'image_path' => '/MOS_A/public/assets/images/menu/edamame.png',
-            ],
-            [
-                'id' => 11,
-                'category' => '揚げ物',
-                'name' => '唐揚げ',
-                'price' => 400,
-                'image_path' => '/MOS_A/public/assets/images/menu/karage.png',
-            ],
-        ];
-
-        $title = 'MOS 客側画面';
-        $cssFiles = [
-            '/MOS_A/public/assets/css/common/base.css',
-            '/MOS_A/public/assets/css/customer/base.css',
-            '/MOS_A/public/assets/css/customer/plans.css',
-            '/MOS_A/public/assets/css/customer/menu.css',
-            '/MOS_A/public/assets/css/customer/product-cart-history.css',
-            '/MOS_A/public/assets/css/customer/overlays.css',
-        ];
-        $jsFiles = [
-            '/MOS_A/public/assets/js/customer/modules/plans.js',
-            '/MOS_A/public/assets/js/customer/modules/menu.js',
-            '/MOS_A/public/assets/js/customer/modules/cart-history.js',
-            '/MOS_A/public/assets/js/customer/app.js',
-        ];
-        $view = dirname(__DIR__) . '/Views/customer/customer_app.php';
-
-        require dirname(__DIR__) . '/Views/layouts/app.php';
     }
 }
