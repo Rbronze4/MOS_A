@@ -3,19 +3,16 @@ declare(strict_types=1);
 
 /**
  * 簡易ルーター。
- * REQUEST_URI のパスから basePath(/MOS_A/public) を除き、switch で対応する
- * コントローラーのメソッドを呼び分ける。
- *   / ・/staff            → StaffController::index（ダッシュボード）
- *   /staff/order-entry    → StaffController::orderEntry（スタッフ注文 卓番号入力）
- *   /staff/order-menu     → StaffController::orderMenu（スタッフ注文 メニュー）
- *   /customer             → CustomerController::index（客側）
- *   該当なし              → 404
+ *
+ * REQUEST_URIからbasePath(/MOS_A/public)を取り除き、パスとHTTPメソッドで
+ * 対応するControllerメソッドへ振り分ける。
  */
 
 require_once dirname(__DIR__) . '/Controllers/StaffController.php';
 require_once dirname(__DIR__) . '/Controllers/CustomerController.php';
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 $basePath = '/MOS_A/public';
 
@@ -25,8 +22,32 @@ if (str_starts_with($path, $basePath)) {
 
 $path = $path === '' ? '/' : $path;
 
+if ($path !== '/') {
+    $path = rtrim($path, '/');
+}
+
 switch ($path) {
     case '/':
+        $controller = new StaffController();
+        $controller->login();
+        break;
+
+    case '/staff/login':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->authenticate();
+            break;
+        }
+
+        $controller->login();
+        break;
+
+    case '/staff/logout':
+        $controller = new StaffController();
+        $controller->logout();
+        break;
+
     case '/staff':
         $controller = new StaffController();
         $controller->index();

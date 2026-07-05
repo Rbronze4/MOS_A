@@ -20,7 +20,6 @@ const state = {
 };
 
 const screens = [
-    'loginScreen',
     'homeScreen',
     'orderListScreen',
     'customerListScreen',
@@ -91,20 +90,7 @@ function openCompleteModal(message) {
 // ログアウトの実処理。ログイン画面に戻し、画面履歴とパスワード入力・エラーをクリアする。
 // ホームボタンとサイドメニューの2箇所から呼ばれるため、重複を避けて共通化している。
 function performLogout() {
-    screenHistory.length = 0;
-
-    const passwordInput = document.getElementById('loginPassword');
-    const loginError = document.getElementById('loginError');
-
-    if (passwordInput) {
-        passwordInput.value = '';
-    }
-
-    if (loginError) {
-        loginError.textContent = '';
-    }
-
-    showScreen('loginScreen', false);
+    location.href = '/MOS_A/public/staff/logout';
 }
 
 // ログアウト前に確認モーダルを表示する。
@@ -175,44 +161,6 @@ function prepareScreen(target) {
     }
 }
 
-const loginButton = document.getElementById('loginButton');
-
-if (loginButton) {
-    loginButton.addEventListener('click', () => {
-        const storeSelect = document.getElementById('storeId');
-        const passwordInput = document.getElementById('loginPassword');
-        const loginError = document.getElementById('loginError');
-
-        const storeId = storeSelect ? storeSelect.value : '';
-        const password = passwordInput ? passwordInput.value.trim() : '';
-
-        if (!storeId) {
-            loginError.textContent = '店舗を選択してください';
-            return;
-        }
-
-        if (!password) {
-            loginError.textContent = 'パスワードを入力してください';
-            return;
-        }
-
-        loginError.textContent = '';
-        screenHistory.length = 0;
-
-        const selectedOption = storeSelect.options[storeSelect.selectedIndex];
-        const selectedStoreName = selectedOption ? selectedOption.textContent : '';
-
-        const storeNameElement = document.querySelector('.store-name');
-        if (storeNameElement) {
-            storeNameElement.textContent = `居酒屋みどり亭 ${selectedStoreName}`;
-        }
-
-        showScreen('homeScreen', false);
-    });
-} else {
-    console.error('loginButton が見つかりません');
-}
-
 document.querySelectorAll('[data-move]').forEach(button => {
     button.addEventListener('click', () => {
         const target = button.dataset.move;
@@ -225,6 +173,12 @@ document.querySelectorAll('[data-move]').forEach(button => {
 
         prepareScreen(target);
         showScreen(target);
+    });
+});
+
+document.querySelectorAll('[data-logout]').forEach(button => {
+    button.addEventListener('click', () => {
+        confirmLogout();
     });
 });
 
