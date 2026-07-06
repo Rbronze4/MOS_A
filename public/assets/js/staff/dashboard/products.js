@@ -116,7 +116,6 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                         <option ${product.category === '揚げ物' ? 'selected' : ''}>揚げ物</option>
                         <option ${product.category === 'ご飯もの' ? 'selected' : ''}>ご飯もの</option>
                         <option ${product.category === '期間限定' ? 'selected' : ''}>期間限定</option>
-                        <option ${product.category === '店舗限定' ? 'selected' : ''}>店舗限定</option>
                     </select>
                 </label>
 

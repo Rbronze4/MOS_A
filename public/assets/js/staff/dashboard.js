@@ -1,18 +1,15 @@
 /**
- * スタッフ ダッシュボードの中心スクリプト。
- * window.STAFF_DATA（orders/products）から共有 state を作り、画面遷移(showScreen)・
- * モーダル制御・各ボタンのイベントを束ねる。注文/商品/顧客/QR の各機能は
- * window.MOS.staffDashboard の各モジュール（orders/products/customers/qr）から生成して利用する。
- * URLの ?ref=... を見て初期表示画面を切り替える（他画面からの遷移復元）。
+ * スタッフダッシュボードの中心スクリプト。
+ * 各画面の表示切替、モーダル表示、注文・商品・顧客・QRモジュールの初期化を担当します。
  */
 console.log('staff dashboard loaded');
 
 const state = {
-    orders: window.STAFF_DATA.orders.map(order => ({
+    orders: (window.STAFF_DATA?.orders || []).map(order => ({
         ...order,
         servedQty: order.servedQty ?? 0
     })),
-    products: window.STAFF_DATA.products.map(product => ({ ...product })),
+    products: (window.STAFF_DATA?.products || []).map(product => ({ ...product })),
     orderMode: 'waiting',
     selectedProductId: null,
     selectedOrderDetailId: null,
@@ -41,11 +38,7 @@ if (window.MOS?.initSideMenu) {
 function showScreen(screenId, saveHistory = true) {
     const currentScreen = document.querySelector('.screen.active');
 
-    if (
-        saveHistory &&
-        currentScreen &&
-        currentScreen.id !== screenId
-    ) {
+    if (saveHistory && currentScreen && currentScreen.id !== screenId) {
         screenHistory.push(currentScreen.id);
     }
 
@@ -59,21 +52,19 @@ function showScreen(screenId, saveHistory = true) {
 
 function goBackScreen() {
     const previousScreenId = screenHistory.pop();
-
-    if (!previousScreenId) {
-        showScreen('homeScreen', false);
-        return;
-    }
-
-    showScreen(previousScreenId, false);
+    showScreen(previousScreenId || 'homeScreen', false);
 }
 
 function openModal(html) {
+    if (!modalCard || !modalLayer) return;
+
     modalCard.innerHTML = html;
     modalLayer.classList.add('show');
 }
 
 function closeModal() {
+    if (!modalCard || !modalLayer) return;
+
     modalLayer.classList.remove('show');
     modalCard.innerHTML = '';
 }
@@ -84,33 +75,29 @@ function openCompleteModal(message) {
         <button class="white-button" id="closeModalButton">閉じる</button>
     `);
 
-    document.getElementById('closeModalButton').addEventListener('click', closeModal);
+    document.getElementById('closeModalButton')?.addEventListener('click', closeModal);
 }
 
-// ログアウトの実処理。ログイン画面に戻し、画面履歴とパスワード入力・エラーをクリアする。
-// ホームボタンとサイドメニューの2箇所から呼ばれるため、重複を避けて共通化している。
 function performLogout() {
     location.href = '/MOS_A/public/staff/logout';
 }
 
-// ログアウト前に確認モーダルを表示する。
-// 誤タップで作業中の画面が飛ぶのを防ぐため、実行前にワンクッション挟む。
 function confirmLogout() {
     openModal(`
         <h2>ログアウトしますか？</h2>
-        <p class="modal-note">ログイン画面に戻ります</p>
+        <p class="modal-note">ログイン画面に戻ります。</p>
         <div class="form-buttons">
             <button class="white-button" id="confirmLogoutButton">ログアウト</button>
             <button class="white-button" id="cancelLogoutButton">キャンセル</button>
         </div>
     `);
 
-    document.getElementById('confirmLogoutButton').addEventListener('click', () => {
+    document.getElementById('confirmLogoutButton')?.addEventListener('click', () => {
         closeModal();
         performLogout();
     });
 
-    document.getElementById('cancelLogoutButton').addEventListener('click', closeModal);
+    document.getElementById('cancelLogoutButton')?.addEventListener('click', closeModal);
 }
 
 const dashboardModules = window.MOS?.staffDashboard || {};
@@ -136,7 +123,8 @@ const {
     renderOrders,
     setOrderTabActive,
     renderOrderDetail,
-    openOrderEditModal
+    openOrderEditModal,
+    cancelOrders
 } = orderModule;
 const {
     renderProducts,
@@ -149,6 +137,7 @@ const { openQrCompleteModal } = qrModule;
 function prepareScreen(target) {
     if (target === 'orderListScreen') {
         state.orderMode = 'waiting';
+        setOrderTabActive('showWaitingOrders');
         renderOrders();
     }
 
@@ -165,7 +154,6 @@ document.querySelectorAll('[data-move]').forEach(button => {
     button.addEventListener('click', () => {
         const target = button.dataset.move;
 
-        // ログアウト（ログイン画面へ戻る）は誤タップ防止のため確認モーダルを挟む
         if (target === 'loginScreen') {
             confirmLogout();
             return;
@@ -177,15 +165,11 @@ document.querySelectorAll('[data-move]').forEach(button => {
 });
 
 document.querySelectorAll('[data-logout]').forEach(button => {
-    button.addEventListener('click', () => {
-        confirmLogout();
-    });
+    button.addEventListener('click', confirmLogout);
 });
 
 document.querySelectorAll('.back-button').forEach(button => {
-    button.addEventListener('click', () => {
-        goBackScreen();
-    });
+    button.addEventListener('click', goBackScreen);
 });
 
 const initialStaffRef = new URLSearchParams(window.location.search).get('ref');
@@ -212,9 +196,10 @@ document.querySelectorAll('[data-menu-move]').forEach(button => {
     button.addEventListener('click', () => {
         const target = button.dataset.menuMove;
 
-        sideMenuLayer.classList.remove('show');
+        if (sideMenuLayer) {
+            sideMenuLayer.classList.remove('show');
+        }
 
-        // ログアウトはサイドメニューを閉じたうえで、確認モーダルを挟んでから実行する
         if (target === 'loginScreen') {
             confirmLogout();
             return;
@@ -231,9 +216,7 @@ if (showWaitingOrders) {
         state.orderMode = 'waiting';
         setOrderTabActive('showWaitingOrders');
         renderOrders();
-
-        const bulkCancelButton = document.getElementById('bulkCancelButton');
-        if (bulkCancelButton) bulkCancelButton.disabled = true;
+        document.getElementById('bulkCancelButton')?.setAttribute('disabled', 'true');
     });
 }
 
@@ -243,9 +226,7 @@ if (showServedOrders) {
         state.orderMode = 'served';
         setOrderTabActive('showServedOrders');
         renderOrders();
-
-        const bulkCancelButton = document.getElementById('bulkCancelButton');
-        if (bulkCancelButton) bulkCancelButton.disabled = true;
+        document.getElementById('bulkCancelButton')?.setAttribute('disabled', 'true');
     });
 }
 
@@ -255,9 +236,7 @@ if (showCanceledOrders) {
         state.orderMode = 'canceled';
         setOrderTabActive('showCanceledOrders');
         renderOrders();
-
-        const bulkCancelButton = document.getElementById('bulkCancelButton');
-        if (bulkCancelButton) bulkCancelButton.disabled = true;
+        document.getElementById('bulkCancelButton')?.setAttribute('disabled', 'true');
     });
 }
 
@@ -267,7 +246,7 @@ if (customerOrderDetailButton) {
         const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
 
         if (!selectedCustomer) {
-            openCompleteModal('顧客を選択してください');
+            openCompleteModal('顧客を選択してください。');
             return;
         }
 
@@ -282,32 +261,24 @@ if (qrReissueButton) {
         const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
 
         if (!selectedCustomer) {
-            openCompleteModal('顧客を選択してください');
+            openCompleteModal('顧客を選択してください。');
             return;
         }
 
-        openQrCompleteModal('QR再発行が完了しました');
+        openQrCompleteModal('QR再発行が完了しました。');
     });
 }
 
 const staffOrderFromDetailButton = document.getElementById('staffOrderFromDetailButton');
-
 if (staffOrderFromDetailButton) {
     staffOrderFromDetailButton.addEventListener('click', () => {
         let tableNo = '';
-
         const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
 
         if (selectedCustomer) {
             const customerRow = selectedCustomer.closest('tr');
-
-            if (customerRow) {
-                const cells = customerRow.querySelectorAll('td');
-
-                if (cells.length > 1) {
-                    tableNo = cells[1].textContent.trim();
-                }
-            }
+            const cells = customerRow?.querySelectorAll('td') || [];
+            tableNo = cells.length > 1 ? cells[1].textContent.trim() : '';
         }
 
         if (!tableNo) {
@@ -315,10 +286,7 @@ if (staffOrderFromDetailButton) {
 
             if (selectedOrder) {
                 const order = state.orders.find(item => String(item.id) === String(selectedOrder.value));
-
-                if (order) {
-                    tableNo = order.table_no;
-                }
+                tableNo = order?.table_no || '';
             }
         }
 
@@ -327,10 +295,9 @@ if (staffOrderFromDetailButton) {
             return;
         }
 
-        tableNo = String(tableNo).replace('番', '').trim();
+        tableNo = String(tableNo).replace('番', '').replace('逡ｪ', '').trim();
 
         const plan = 'single';
-
         const cartStorageKey = `staffOrderCart_${tableNo}_${plan}`;
         sessionStorage.removeItem(cartStorageKey);
 
@@ -344,7 +311,7 @@ if (orderEditButton) {
         const selectedOrder = document.querySelector('input[name="selectedOrderDetail"]:checked');
 
         if (!selectedOrder) {
-            openCompleteModal('注文を選択してください');
+            openCompleteModal('注文を選択してください。');
             return;
         }
 
@@ -372,7 +339,7 @@ if (deleteProductButton) {
         const product = selectedProduct();
 
         if (!product) {
-            openCompleteModal('削除する商品を選択してください');
+            openCompleteModal('削除する商品を選択してください。');
             return;
         }
 
@@ -380,21 +347,21 @@ if (deleteProductButton) {
         state.selectedProductId = null;
 
         renderProducts();
-        openCompleteModal('商品を削除しました');
+        openCompleteModal('商品を削除しました。');
     });
 }
 
 const issueQrButton = document.getElementById('issueQrButton');
 if (issueQrButton) {
     issueQrButton.addEventListener('click', () => {
-        const people = Number(document.getElementById('peopleInput').value || 0);
+        const people = Number(document.getElementById('peopleInput')?.value || 0);
 
         if (people <= 0) {
-            openCompleteModal('人数を入力してください');
+            openCompleteModal('人数を入力してください。');
             return;
         }
 
-        openQrCompleteModal('QR発行が完了しました');
+        openQrCompleteModal('QR発行が完了しました。');
     });
 }
 
@@ -408,24 +375,26 @@ if (modalLayer) {
 
 const bulkCancelButtonElement = document.getElementById('bulkCancelButton');
 if (bulkCancelButtonElement) {
-    bulkCancelButtonElement.addEventListener('click', () => {
+    bulkCancelButtonElement.addEventListener('click', async () => {
         const body = document.getElementById('orderTableBody');
         if (!body) return;
 
         const checkedBoxes = body.querySelectorAll('.order-checkbox:checked');
         if (checkedBoxes.length === 0) return;
 
-        if (confirm(`選択された ${checkedBoxes.length} 件の注文をキャンセルしますか？`)) {
-            checkedBoxes.forEach(cb => {
-                const targetId = cb.dataset.id;
-                const order = state.orders.find(item => String(item.id) === String(targetId));
-                if (order) {
-                    order.status = 'canceled';
-                }
-            });
+        if (!confirm(`選択された ${checkedBoxes.length} 件の注文をキャンセルしますか？`)) {
+            return;
+        }
 
-            renderOrders();
+        const orderDetailIds = Array.from(checkedBoxes).map(cb => cb.dataset.orderDetailId || cb.dataset.id);
+        bulkCancelButtonElement.disabled = true;
+
+        try {
+            await cancelOrders(orderDetailIds);
             bulkCancelButtonElement.setAttribute('disabled', 'true');
+            openCompleteModal('選択した注文をキャンセルしました。');
+        } catch (error) {
+            openCompleteModal(error.message || '注文のキャンセルに失敗しました。');
         }
     });
 }

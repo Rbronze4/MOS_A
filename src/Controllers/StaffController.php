@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Database/db.php';
+require_once dirname(__DIR__) . '/Models/StaffOrderModel.php';
 
 /**
  * スタッフ側画面のコントローラー。
@@ -203,6 +204,108 @@ final class StaffController
         require dirname(__DIR__) . '/Views/layouts/app.php';
     }
 
+    public function updateOrderProvision(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $orderDetailId = filter_input(INPUT_POST, 'order_detail_id', FILTER_VALIDATE_INT);
+        $action = trim((string)($_POST['action'] ?? ''));
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        if ($orderDetailId === false || $orderDetailId === null || $orderDetailId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '注文明細IDが正しくありません。',
+            ], 422);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $order = $model->updateProvidedQuantity($storeId, (int)$orderDetailId, $action);
+
+            $this->json([
+                'ok' => true,
+                'order' => $order,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-order-provision] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function cancelOrderDetails(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $rawIds = $_POST['order_detail_ids'] ?? [];
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        if (!is_array($rawIds)) {
+            $rawIds = [$rawIds];
+        }
+
+        $orderDetailIds = array_values(array_filter(
+            array_map('intval', $rawIds),
+            static fn (int $id): bool => $id > 0
+        ));
+
+        if ($orderDetailIds === []) {
+            $this->json([
+                'ok' => false,
+                'message' => 'キャンセル対象の注文明細を選択してください。',
+            ], 422);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $orders = $model->cancelOrderDetails($storeId, $orderDetailIds);
+
+            $this->json([
+                'ok' => true,
+                'orders' => $orders,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-order-cancel] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
     private function renderLogin(array $errors = [], array $old = [], ?array $stores = null): void
     {
         $title = 'みどり亭 ログイン';
@@ -328,6 +431,14 @@ final class StaffController
         exit;
     }
 
+    private function json(array $payload, int $statusCode = 200): void
+    {
+        http_response_code($statusCode);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
     private function customers(): array
     {
         return [
@@ -339,11 +450,22 @@ final class StaffController
 
     private function orders(): array
     {
-        return [
-            ['id' => 1, 'table_no' => '12番', 'name' => 'もも串 塩', 'qty' => 3, 'time' => '19:05', 'status' => 'waiting'],
-            ['id' => 2, 'table_no' => '5番', 'name' => 'ビール', 'qty' => 5, 'time' => '19:25', 'status' => 'served'],
-            ['id' => 3, 'table_no' => '3番', 'name' => 'コークハイ', 'qty' => 1, 'time' => '19:40', 'status' => 'canceled'],
-        ];
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            error_log('[staff-orders] store_id is missing from session.');
+            return [];
+        }
+
+        try {
+            $model = new StaffOrderModel();
+
+            return $model->ordersForStore($storeId);
+        } catch (Throwable $exception) {
+            error_log('[staff-orders] DB error: ' . $exception->getMessage());
+
+            return [];
+        }
     }
 
     private function products(): array

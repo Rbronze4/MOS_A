@@ -63,6 +63,30 @@ switch ($path) {
         $controller->orderMenu();
         break;
 
+    case '/staff/order/provision':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->updateOrderProvision();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
+    case '/staff/order/cancel':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->cancelOrderDetails();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
     case '/customer':
         $controller = new CustomerController();
         $controller->index();
