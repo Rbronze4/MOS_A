@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Database/db.php';
+require_once dirname(__DIR__) . '/Models/StaffCustomerModel.php';
 require_once dirname(__DIR__) . '/Models/StaffOrderModel.php';
 require_once dirname(__DIR__) . '/Models/StaffProductModel.php';
 
@@ -204,6 +205,196 @@ final class StaffController
         $view = dirname(__DIR__) . '/Views/staff/screens/staff_order_menu.php';
 
         require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    public function customerDetail(): void
+    {
+        $this->requireStaffLogin();
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $customerId = filter_input(INPUT_GET, 'customer_id', FILTER_VALIDATE_INT);
+
+        if ($storeId === '') {
+            http_response_code(403);
+            echo '店舗情報が取得できません。再度ログインしてください。';
+            return;
+        }
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            http_response_code(422);
+            echo '顧客番号が正しくありません。';
+            return;
+        }
+
+        try {
+            $model = new StaffCustomerModel();
+            $customerDetail = $model->customerDetail($storeId, (int)$customerId);
+            $customerDetailError = '';
+        } catch (Throwable $exception) {
+            error_log('[staff-customer-detail] ' . $exception->getMessage());
+            $customerDetail = null;
+            $customerDetailError = $exception->getMessage();
+        }
+
+        $title = '顧客詳細';
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css',
+            '/MOS_A/public/assets/css/staff/base.css',
+            '/MOS_A/public/assets/css/staff/orders.css',
+            '/MOS_A/public/assets/css/staff/modals-products.css',
+            '/MOS_A/public/assets/css/staff/navigation.css',
+            '/MOS_A/public/assets/css/staff/order-list.css',
+        ];
+        $jsFiles = [
+            '/MOS_A/public/assets/js/common/side-menu.js',
+        ];
+        $view = dirname(__DIR__) . '/Views/staff/screens/customer_detail.php';
+
+        require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    public function customerOrders(): void
+    {
+        $this->requireStaffLogin();
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $customerId = filter_input(INPUT_GET, 'customer_id', FILTER_VALIDATE_INT);
+
+        if ($storeId === '') {
+            http_response_code(403);
+            echo '店舗情報が取得できません。再度ログインしてください。';
+            return;
+        }
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            http_response_code(422);
+            echo '顧客番号が正しくありません。';
+            return;
+        }
+
+        $customerOrderError = '';
+        $customerOrderMessage = (string)($_SESSION['staff_customer_order_message'] ?? '');
+        unset($_SESSION['staff_customer_order_message']);
+
+        try {
+            $customerModel = new StaffCustomerModel();
+            $orderModel = new StaffOrderModel();
+            $customerDetail = $customerModel->customerDetail($storeId, (int)$customerId);
+            $customerOrders = $orderModel->orderDetailsForCustomer($storeId, (int)$customerId);
+        } catch (Throwable $exception) {
+            error_log('[staff-customer-orders] ' . $exception->getMessage());
+            $customerDetail = null;
+            $customerOrders = [];
+            $customerOrderError = $exception->getMessage();
+        }
+
+        $title = '注文詳細';
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css',
+            '/MOS_A/public/assets/css/staff/base.css',
+            '/MOS_A/public/assets/css/staff/orders.css',
+            '/MOS_A/public/assets/css/staff/modals-products.css',
+            '/MOS_A/public/assets/css/staff/navigation.css',
+            '/MOS_A/public/assets/css/staff/order-list.css',
+        ];
+        $jsFiles = [
+            '/MOS_A/public/assets/js/common/side-menu.js',
+        ];
+        $view = dirname(__DIR__) . '/Views/staff/screens/customer_orders.php';
+
+        require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    public function updateCustomerOrderDetail(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            echo '405 Method Not Allowed';
+            return;
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $customerId = filter_input(INPUT_POST, 'customer_id', FILTER_VALIDATE_INT);
+        $orderDetailId = filter_input(INPUT_POST, 'order_detail_id', FILTER_VALIDATE_INT);
+        $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
+
+        if ($storeId === '') {
+            $_SESSION['staff_customer_order_message'] = '店舗情報が取得できません。再度ログインしてください。';
+            $this->redirect('/MOS_A/public/staff');
+        }
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            $_SESSION['staff_customer_order_message'] = '顧客番号が正しくありません。';
+            $this->redirect('/MOS_A/public/staff?ref=customerList');
+        }
+
+        $redirectPath = '/MOS_A/public/staff/customer/orders?customer_id=' . (int)$customerId;
+
+        if ($orderDetailId === false || $orderDetailId === null || $orderDetailId < 1) {
+            $_SESSION['staff_customer_order_message'] = '編集する注文を選択してください。';
+            $this->redirect($redirectPath);
+        }
+
+        if ($quantity === false || $quantity === null || $quantity < 1) {
+            $_SESSION['staff_customer_order_message'] = '数量は1以上の整数で入力してください。';
+            $this->redirect($redirectPath);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $model->updateCustomerOrderDetailQuantity($storeId, (int)$customerId, (int)$orderDetailId, (int)$quantity);
+            $_SESSION['staff_customer_order_message'] = '注文数量を変更しました。';
+        } catch (Throwable $exception) {
+            error_log('[staff-customer-order-update] ' . $exception->getMessage());
+            $_SESSION['staff_customer_order_message'] = $exception->getMessage();
+        }
+
+        $this->redirect($redirectPath);
+    }
+
+    public function cancelCustomerOrderDetail(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            echo '405 Method Not Allowed';
+            return;
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $customerId = filter_input(INPUT_POST, 'customer_id', FILTER_VALIDATE_INT);
+        $orderDetailId = filter_input(INPUT_POST, 'order_detail_id', FILTER_VALIDATE_INT);
+
+        if ($storeId === '') {
+            $_SESSION['staff_customer_order_message'] = '店舗情報が取得できません。再度ログインしてください。';
+            $this->redirect('/MOS_A/public/staff');
+        }
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            $_SESSION['staff_customer_order_message'] = '顧客番号が正しくありません。';
+            $this->redirect('/MOS_A/public/staff?ref=customerList');
+        }
+
+        $redirectPath = '/MOS_A/public/staff/customer/orders?customer_id=' . (int)$customerId;
+
+        if ($orderDetailId === false || $orderDetailId === null || $orderDetailId < 1) {
+            $_SESSION['staff_customer_order_message'] = 'キャンセルする注文を選択してください。';
+            $this->redirect($redirectPath);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $model->cancelCustomerOrderDetail($storeId, (int)$customerId, (int)$orderDetailId);
+            $_SESSION['staff_customer_order_message'] = '注文をキャンセルしました。';
+        } catch (Throwable $exception) {
+            error_log('[staff-customer-order-cancel] ' . $exception->getMessage());
+            $_SESSION['staff_customer_order_message'] = $exception->getMessage();
+        }
+
+        $this->redirect($redirectPath);
     }
 
     public function updateOrderProvision(): void
@@ -527,6 +718,23 @@ final class StaffController
 
     private function customers(): array
     {
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            error_log('[staff-customers] store_id is missing from session.');
+            return [];
+        }
+
+        try {
+            $model = new StaffCustomerModel();
+
+            return $model->customersForStore($storeId);
+        } catch (Throwable $exception) {
+            error_log('[staff-customers] DB error: ' . $exception->getMessage());
+
+            return [];
+        }
+
         return [
             ['table_no' => '1番', 'customer_no' => '1234567', 'people' => 4],
             ['table_no' => '2番', 'customer_no' => '1234567', 'people' => 5],

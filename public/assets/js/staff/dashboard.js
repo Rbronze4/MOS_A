@@ -251,8 +251,14 @@ if (customerOrderDetailButton) {
             return;
         }
 
-        renderOrderDetail();
-        showScreen('orderDetailScreen');
+        const customerId = selectedCustomer.dataset.customerId || selectedCustomer.value;
+
+        if (!customerId) {
+            openCompleteModal('顧客番号が取得できません。');
+            return;
+        }
+
+        location.href = `/MOS_A/public/staff/customer/orders?customer_id=${encodeURIComponent(customerId)}`;
     });
 }
 

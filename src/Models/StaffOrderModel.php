@@ -60,6 +60,189 @@ final class StaffOrderModel
         return $orders;
     }
 
+    public function orderDetailsForCustomer(string $storeId, int $customerId): array
+    {
+        $this->assertCustomerBelongsToStore($storeId, $customerId);
+
+        $sql = <<<SQL
+            SELECT
+                od.order_detail_id,
+                od.order_id,
+                od.product_id,
+                od.ordered_product_name,
+                od.quantity,
+                od.provided_quantity,
+                od.ordered_unit_price,
+                od.plan_applied_flag,
+                od.detail_status,
+                od.ordered_at,
+                od.cancelled_at,
+                o.session_id,
+                o.ordered_at AS order_ordered_at,
+                s.store_id,
+                s.table_number,
+                s.customer_id
+            FROM order_details AS od
+            INNER JOIN orders AS o
+                ON o.order_id = od.order_id
+            INNER JOIN sessions AS s
+                ON s.session_id = o.session_id
+            INNER JOIN customers AS c
+                ON c.customer_id = s.customer_id
+               AND c.store_id = s.store_id
+            WHERE s.store_id = :store_id
+              AND s.customer_id = :customer_id
+            ORDER BY
+                o.ordered_at DESC,
+                od.order_detail_id DESC
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+        $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $orders = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $orders[] = $this->formatOrderRow($row);
+        }
+
+        return $orders;
+    }
+
+    public function updateCustomerOrderDetailQuantity(
+        string $storeId,
+        int $customerId,
+        int $orderDetailId,
+        int $quantity
+    ): array {
+        if ($quantity < 1) {
+            throw new InvalidArgumentException('数量は1以上で入力してください。');
+        }
+
+        $pdo = db();
+
+        try {
+            $pdo->beginTransaction();
+
+            $detail = $this->findCustomerOrderDetailForUpdate($storeId, $customerId, $orderDetailId);
+
+            if ($detail === null) {
+                throw new RuntimeException('注文詳細が見つかりません。');
+            }
+
+            if ((string)$detail['detail_status'] === 'CANCELLED') {
+                throw new RuntimeException('キャンセル済みの商品は数量変更できません。');
+            }
+
+            $providedQuantity = (int)$detail['provided_quantity'];
+            $minimumQuantity = max(1, $providedQuantity);
+
+            if ($quantity < $minimumQuantity) {
+                throw new RuntimeException('提供済み数より少ない数量には変更できません。');
+            }
+
+            $detailStatus = $providedQuantity >= $quantity ? 'PROVIDED' : 'ORDERED';
+            $providedAt = $detailStatus === 'PROVIDED'
+                ? ((string)($detail['provided_at'] ?? '') !== '' ? (string)$detail['provided_at'] : date('Y-m-d H:i:s'))
+                : ($providedQuantity > 0 ? ($detail['provided_at'] ?? null) : null);
+
+            $sql = <<<SQL
+                UPDATE order_details
+                SET
+                    quantity = :quantity,
+                    detail_status = :detail_status,
+                    provided_at = :provided_at,
+                    updated_at = NOW()
+                WHERE order_detail_id = :order_detail_id
+            SQL;
+
+            $statement = $pdo->prepare($sql);
+            $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
+            $statement->bindValue(':detail_status', $detailStatus, PDO::PARAM_STR);
+
+            if ($providedAt === null || $providedAt === '') {
+                $statement->bindValue(':provided_at', null, PDO::PARAM_NULL);
+            } else {
+                $statement->bindValue(':provided_at', (string)$providedAt, PDO::PARAM_STR);
+            }
+
+            $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+            $statement->execute();
+
+            $updated = $this->findCustomerOrderDetailForUpdate($storeId, $customerId, $orderDetailId);
+
+            if ($updated === null) {
+                throw new RuntimeException('更新後の注文詳細が見つかりません。');
+            }
+
+            $pdo->commit();
+
+            return $this->formatOrderRow($updated);
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function cancelCustomerOrderDetail(string $storeId, int $customerId, int $orderDetailId): array
+    {
+        $pdo = db();
+
+        try {
+            $pdo->beginTransaction();
+
+            $detail = $this->findCustomerOrderDetailForUpdate($storeId, $customerId, $orderDetailId);
+
+            if ($detail === null) {
+                throw new RuntimeException('注文詳細が見つかりません。');
+            }
+
+            if ((string)$detail['detail_status'] === 'CANCELLED') {
+                throw new RuntimeException('すでにキャンセル済みです。');
+            }
+
+            if ((int)$detail['provided_quantity'] > 0) {
+                throw new RuntimeException('提供済みの商品はキャンセルできません。');
+            }
+
+            $sql = <<<SQL
+                UPDATE order_details
+                SET
+                    detail_status = 'CANCELLED',
+                    cancelled_at = NOW(),
+                    provided_quantity = 0,
+                    provided_at = NULL,
+                    updated_at = NOW()
+                WHERE order_detail_id = :order_detail_id
+            SQL;
+
+            $statement = $pdo->prepare($sql);
+            $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+            $statement->execute();
+
+            $updated = $this->findCustomerOrderDetailForUpdate($storeId, $customerId, $orderDetailId);
+
+            if ($updated === null) {
+                throw new RuntimeException('キャンセル後の注文詳細が見つかりません。');
+            }
+
+            $pdo->commit();
+
+            return $this->formatOrderRow($updated);
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     /**
      * 提供数を更新する。
      *
@@ -272,6 +455,70 @@ final class StaffOrderModel
         return $detail === false ? null : $detail;
     }
 
+    private function findCustomerOrderDetailForUpdate(string $storeId, int $customerId, int $orderDetailId): ?array
+    {
+        $sql = <<<SQL
+            SELECT
+                od.order_detail_id,
+                od.order_id,
+                od.product_id,
+                od.ordered_product_name,
+                od.quantity,
+                od.provided_quantity,
+                od.ordered_unit_price,
+                od.plan_applied_flag,
+                od.detail_status,
+                od.ordered_at,
+                od.provided_at,
+                od.cancelled_at,
+                o.session_id,
+                o.ordered_at AS order_ordered_at,
+                s.store_id,
+                s.table_number,
+                s.customer_id
+            FROM order_details AS od
+            INNER JOIN orders AS o
+                ON o.order_id = od.order_id
+            INNER JOIN sessions AS s
+                ON s.session_id = o.session_id
+            WHERE od.order_detail_id = :order_detail_id
+              AND s.customer_id = :customer_id
+              AND s.store_id = :store_id
+            LIMIT 1
+            FOR UPDATE
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+        $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+        $statement->execute();
+
+        $detail = $statement->fetch();
+
+        return $detail === false ? null : $detail;
+    }
+
+    private function assertCustomerBelongsToStore(string $storeId, int $customerId): void
+    {
+        $sql = <<<SQL
+            SELECT customer_id
+            FROM customers
+            WHERE customer_id = :customer_id
+              AND store_id = :store_id
+            LIMIT 1
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+        $statement->execute();
+
+        if ($statement->fetch() === false) {
+            throw new RuntimeException('顧客情報が見つかりません。');
+        }
+    }
+
     private function updateProvidedQuantityRow(
         int $orderDetailId,
         int $providedQuantity,
@@ -324,7 +571,9 @@ final class StaffOrderModel
             'qty' => $quantity,
             'servedQty' => $displayProvidedQuantity,
             'time' => $this->formatTime($row['order_ordered_at'] ?? $row['ordered_at'] ?? null),
+            'ordered_at_label' => $this->formatDateTime($row['order_ordered_at'] ?? $row['ordered_at'] ?? null),
             'status' => $this->displayStatus($detailStatus, $quantity, $displayProvidedQuantity),
+            'status_label' => $this->statusLabel($detailStatus, $quantity, $displayProvidedQuantity),
             'detail_status' => $detailStatus,
             'price' => (int)$row['ordered_unit_price'],
             'plan_applied_flag' => (int)$row['plan_applied_flag'],
@@ -357,5 +606,33 @@ final class StaffOrderModel
         }
 
         return date('H:i', $timestamp);
+    }
+
+    private function formatDateTime(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        $timestamp = strtotime((string)$value);
+
+        if ($timestamp === false) {
+            return '';
+        }
+
+        return date('Y/m/d H:i', $timestamp);
+    }
+
+    private function statusLabel(string $detailStatus, int $quantity, int $providedQuantity): string
+    {
+        if ($detailStatus === 'CANCELLED') {
+            return 'キャンセル済み';
+        }
+
+        if ($detailStatus === 'PROVIDED' || $providedQuantity >= $quantity) {
+            return '提供済み';
+        }
+
+        return '注文済み';
     }
 }
