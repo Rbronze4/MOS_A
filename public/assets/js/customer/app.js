@@ -14,13 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const plans = window.MOS_DATA.plans;
     const categories = window.MOS_DATA.categories;
     const menus = window.MOS_DATA.menus;
+    const cartItems = window.MOS_DATA.cartItems || [];
 
     const state = {
         tableNumber: '',
         selectedPlanId: null,
         activeCategory: categories[0] ?? '',
         selectedMenu: null,
-        cart: [],
+        cart: cartItems,
         history: [],
         editingItem: null
     };
@@ -79,6 +80,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return menu.price;
+    }
+
+    async function postCartAction(url, values) {
+        const body = new URLSearchParams();
+
+        Object.entries(values).forEach(([key, value]) => {
+            body.set(key, String(value));
+        });
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body
+        });
+
+        let payload = null;
+
+        try {
+            payload = await response.json();
+        } catch (error) {
+            payload = null;
+        }
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || 'カート操作に失敗しました');
+        }
+
+        return payload;
+    }
+
+    function addCartToServer(productId, quantity) {
+        return postCartAction('/MOS_A/public/customer/cart/add', {
+            product_id: productId,
+            quantity
+        });
+    }
+
+    function updateCartOnServer(productId, quantity) {
+        return postCartAction('/MOS_A/public/customer/cart/update', {
+            product_id: productId,
+            quantity
+        });
+    }
+
+    function deleteCartFromServer(productId) {
+        return postCartAction('/MOS_A/public/customer/cart/delete', {
+            product_id: productId
+        });
     }
 
     let cartHistoryModule;
@@ -245,7 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast,
         getDisplayPrice,
         openProduct,
-        refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons
+        refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons,
+        deleteCartFromServer
     });
 
     document.getElementById('tableSubmitButton').addEventListener('click', () => {
@@ -265,11 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('productBackButton').addEventListener('click', () => {
-        if (state.editingItem) {
-            state.cart.push(state.editingItem);
-            state.editingItem = null;
-            cartHistoryModule.renderCart();
-        }
+        state.editingItem = null;
 
         showScreen('menuScreen');
         requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
@@ -291,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         input.value = String(Math.min(99, current + 1));
     });
 
-    document.getElementById('addCartButton').addEventListener('click', () => {
+    document.getElementById('addCartButton').addEventListener('click', async () => {
         if (!state.selectedMenu) {
             showToast('商品が選択されていません');
             return;
@@ -306,14 +356,21 @@ document.addEventListener('DOMContentLoaded', () => {
         quantityValue = Math.min(99, Math.max(1, Math.floor(quantityValue)));
         quantityInput.value = String(quantityValue);
 
-        const priceToApply = getDisplayPrice(state.selectedMenu);
+        try {
+            const result = state.editingItem
+                ? await updateCartOnServer(state.selectedMenu.id, quantityValue)
+                : await addCartToServer(state.selectedMenu.id, quantityValue);
 
-        state.editingItem = null;
-        cartHistoryModule.addCart(state.selectedMenu, quantityValue, priceToApply);
+            state.editingItem = null;
+            state.cart = result.cart_items || [];
+            cartHistoryModule.renderCart();
 
-        showToast('カートに商品を追加しました');
-        showScreen('menuScreen');
-        requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+            showToast(result.message || 'カートに商品を追加しました');
+            showScreen('menuScreen');
+            requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+        } catch (error) {
+            showToast(error.message || 'カート追加に失敗しました');
+        }
     });
 
     planModule.bindPlanEvents();
@@ -324,4 +381,10 @@ document.addEventListener('DOMContentLoaded', () => {
     menuModule.renderMenu();
     cartHistoryModule.renderCart();
     cartHistoryModule.renderHistory();
+
+    if (window.MOS_CART_FLASH?.message) {
+        showToast(window.MOS_CART_FLASH.message);
+        showScreen('menuScreen');
+        requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+    }
 });

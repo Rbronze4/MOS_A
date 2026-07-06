@@ -68,6 +68,42 @@ switch ($path) {
         $controller->index();
         break;
 
+    case '/customer/cart/add':
+        $controller = new CustomerController();
+
+        if ($method === 'POST') {
+            $controller->addCart();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
+    case '/customer/cart/update':
+        $controller = new CustomerController();
+
+        if ($method === 'POST') {
+            $controller->updateCart();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
+    case '/customer/cart/delete':
+        $controller = new CustomerController();
+
+        if ($method === 'POST') {
+            $controller->deleteCart();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
     default:
         http_response_code(404);
         echo '404 Not Found';
