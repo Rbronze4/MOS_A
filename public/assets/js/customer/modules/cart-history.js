@@ -21,7 +21,8 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         showToast,
         getDisplayPrice,
         openProduct,
-        refreshCategoryScrollButtons
+        refreshCategoryScrollButtons,
+        deleteCartFromServer
     } = context;
 
     // 人数はスタッフがQR発行時に入力する想定だが、現状はその数値を取得する機会が
@@ -98,7 +99,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         `).join('');
 
         cartList.querySelectorAll('.pill-button').forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 const menuId = button.dataset.menuId;
                 const action = button.dataset.action;
                 const cartItem = state.cart.find(item => String(item.id) === String(menuId));
@@ -111,9 +112,16 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                         return;
                     }
 
-                    state.cart = state.cart.filter(item => String(item.id) !== String(menuId));
-                    renderCart();
-                    showToast(`${cartItem.name}を削除しました`);
+                    try {
+                        const result = await deleteCartFromServer(menuId);
+
+                        state.cart = result.cart_items || [];
+                        renderCart();
+                        showToast(result.message || `${cartItem.name}を削除しました`);
+                    } catch (error) {
+                        showToast(error.message || '削除に失敗しました');
+                    }
+
                     return;
                 }
 
@@ -122,7 +130,6 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                     if (!menu) return;
 
                     state.editingItem = cartItem;
-                    state.cart = state.cart.filter(item => String(item.id) !== String(menuId));
                     openProduct(menu, cartItem.quantity, false);
                 }
             });

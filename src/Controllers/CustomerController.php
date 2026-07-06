@@ -1,20 +1,205 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/Models/MenuModel.php';
+require_once dirname(__DIR__) . '/Models/CartModel.php';
+
 /**
- * 客側画面のコントローラー。
- * 現状はDB未接続のため、プラン($plans)・カテゴリ($categories)・メニュー($menus)を
- * ハードコードで用意し、共通レイアウト(app.php)経由で客側ビュー(customer_app.php)を描画する。
- * これらのデータはレイアウトを通じて window.MOS_DATA としてJSへ渡される。
+ * 客側画面のController。
  *
- * メソッド:
- *   index() … 客側トップ（卓番号入力〜プラン選択〜メニュー）を表示
+ * 商品一覧表示はDBから取得する。
+ * カート操作は、現在はテスト用 session_id=1 / store_id=MH を固定で使用する。
  */
 final class CustomerController
 {
+    private const TEST_STORE_ID = 'MH';
+    private const TEST_SESSION_ID = 1;
+
     public function index(): void
     {
-        $plans = [
+        $cartFlash = $_SESSION['cart_flash'] ?? null;
+        unset($_SESSION['cart_flash']);
+
+        $plans = $this->plans();
+
+        // TODO: QRコード・セッション管理が完成したら、sessionsテーブルまたはセッション情報からstore_idを取得する
+        $storeId = self::TEST_STORE_ID;
+
+        // TODO: QRコード・卓番号入力・プラン選択が完成したら、実際のsessions.session_idを使用する
+        // DB確認済みのテスト用データ: sessions.session_id = 1 / carts.cart_id = 1
+        $sessionId = self::TEST_SESSION_ID;
+
+        $menuModel = new MenuModel();
+        $cartModel = new CartModel();
+        $cartItems = [];
+
+        try {
+            $categories = $menuModel->categoriesForStore($storeId);
+            $menus = $menuModel->menusForStore($storeId);
+            $cartItems = $cartModel->cartItemsForSession($sessionId);
+        } catch (Throwable $exception) {
+            error_log('[customer-menu] DB error: ' . $exception->getMessage());
+
+            // DB未起動や未インポートでも画面全体を落とさず、商品なし表示にする。
+            $categories = [];
+            $menus = [];
+            $cartItems = [];
+        }
+
+        $title = 'MOS 客側画面';
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css',
+            '/MOS_A/public/assets/css/customer/base.css',
+            '/MOS_A/public/assets/css/customer/plans.css',
+            '/MOS_A/public/assets/css/customer/menu.css',
+            '/MOS_A/public/assets/css/customer/product-cart-history.css',
+            '/MOS_A/public/assets/css/customer/overlays.css',
+        ];
+        $jsFiles = [
+            '/MOS_A/public/assets/js/customer/modules/plans.js',
+            '/MOS_A/public/assets/js/customer/modules/menu.js',
+            '/MOS_A/public/assets/js/customer/modules/cart-history.js',
+            '/MOS_A/public/assets/js/customer/app.js',
+        ];
+        $view = dirname(__DIR__) . '/Views/customer/customer_app.php';
+
+        require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    public function addCart(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->redirect('/MOS_A/public/customer');
+        }
+
+        $productId = $this->validatedProductId();
+        $quantity = $this->validatedQuantity();
+
+        try {
+            $cartModel = new CartModel();
+            $result = $cartModel->addProduct(
+                self::TEST_SESSION_ID,
+                self::TEST_STORE_ID,
+                $productId,
+                $quantity
+            );
+            $message = $result['product_name'] . 'をカートに追加しました。';
+
+            $this->json([
+                'ok' => true,
+                'message' => $message,
+                'cart_items' => $result['cart_items'],
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[customer-cart-add] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => 'カート追加に失敗しました。テスト用session_id=1、既存カート、商品販売設定を確認してください。',
+            ], 500);
+        }
+    }
+
+    public function updateCart(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->redirect('/MOS_A/public/customer');
+        }
+
+        $productId = $this->validatedProductId();
+        $quantity = $this->validatedQuantity();
+
+        try {
+            $cartModel = new CartModel();
+            $result = $cartModel->updateProductQuantity(self::TEST_SESSION_ID, $productId, $quantity);
+
+            $this->json([
+                'ok' => true,
+                'message' => '数量を変更しました。',
+                'cart_items' => $result['cart_items'],
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[customer-cart-update] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => '数量変更に失敗しました。カート内容を確認してください。',
+            ], 500);
+        }
+    }
+
+    public function deleteCart(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->redirect('/MOS_A/public/customer');
+        }
+
+        $productId = $this->validatedProductId();
+
+        try {
+            $cartModel = new CartModel();
+            $result = $cartModel->deleteProduct(self::TEST_SESSION_ID, $productId);
+
+            $this->json([
+                'ok' => true,
+                'message' => '商品を削除しました。',
+                'cart_items' => $result['cart_items'],
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[customer-cart-delete] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => '削除に失敗しました。カート内容を確認してください。',
+            ], 500);
+        }
+    }
+
+    private function validatedProductId(): int
+    {
+        $productId = filter_input(INPUT_POST, 'product_id', FILTER_VALIDATE_INT);
+
+        if ($productId === false || $productId === null || $productId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '商品IDが正しくありません。',
+            ], 422);
+        }
+
+        return (int)$productId;
+    }
+
+    private function validatedQuantity(): int
+    {
+        $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
+
+        if ($quantity === false || $quantity === null || $quantity < 1) {
+            $quantity = 1;
+        }
+
+        return min(99, max(1, (int)$quantity));
+    }
+
+    private function json(array $payload, int $statusCode = 200): void
+    {
+        http_response_code($statusCode);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    private function redirect(string $path): void
+    {
+        header('Location: ' . $path);
+        exit;
+    }
+
+    /**
+     * プラン表示は今回のDB結合・カート操作対象外のため、既存どおりController内の固定データを使う。
+     */
+    private function plans(): array
+    {
+        return [
             [
                 'id' => 'standard',
                 'name' => 'スタンダードプラン',
@@ -49,114 +234,5 @@ final class CustomerController
                 ],
             ],
         ];
-
-        $categories = [
-            'ドリンク',
-            '串',
-            '一品',
-            '揚げ物',
-            'ご飯もの',
-            '期間限定',
-            '店舗限定'
-        ];
-
-        $menus = [
-            [
-                'id' => 1,
-                'category' => 'ドリンク',
-                'name' => 'ビール',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/beer.png',
-            ],
-            [
-                'id' => 2,
-                'category' => 'ドリンク',
-                'name' => 'ハイボール',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/highball.png',
-            ],
-            [
-                'id' => 3,
-                'category' => 'ドリンク',
-                'name' => '焼酎',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/shochu.png',
-            ],
-            [
-                'id' => 4,
-                'category' => 'ドリンク',
-                'name' => 'レモンサワー',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/lemonsour.png',
-            ],
-            [
-                'id' => 5,
-                'category' => 'ドリンク',
-                'name' => 'カクテル',
-                'price' => 200,
-                'image_path' => '/MOS_A/public/assets/images/menu/cocktail.png',
-            ],
-            [
-                'id' => 6,
-                'category' => 'ドリンク',
-                'name' => 'ウーロン茶',
-                'price' => 100,
-                'image_path' => '/MOS_A/public/assets/images/menu/oolongtea.png',
-            ],
-            [
-                'id' => 7,
-                'category' => '串',
-                'name' => 'もも串しお',
-                'price' => 100,
-                'image_path' => '/MOS_A/public/assets/images/menu/Chicken_thigh.png',
-            ],
-            [
-                'id' => 8,
-                'category' => '串',
-                'name' => '鳥皮たれ',
-                'price' => 100,
-                'image_path' => '/MOS_A/public/assets/images/menu/Chicken_skin.png',
-            ],
-            [
-                'id' => 9,
-                'category' => 'ご飯もの',
-                'name' => '白ごはん',
-                'price' => 150,
-                'image_path' => '/MOS_A/public/assets/images/menu/rice.png',
-            ],
-            [
-                'id' => 10,
-                'category' => '一品',
-                'name' => '枝豆',
-                'price' => 250,
-                'image_path' => '/MOS_A/public/assets/images/menu/edamame.png',
-            ],
-            [
-                'id' => 11,
-                'category' => '揚げ物',
-                'name' => '唐揚げ',
-                'price' => 400,
-                'image_path' => '/MOS_A/public/assets/images/menu/karage.png',
-            ],
-        ];
-
-        $title = 'MOS 客側画面';
-        $cssFiles = [
-            '/MOS_A/public/assets/css/common/base.css',
-            '/MOS_A/public/assets/css/customer/base.css',
-            '/MOS_A/public/assets/css/customer/plans.css',
-            '/MOS_A/public/assets/css/customer/menu.css',
-            '/MOS_A/public/assets/css/customer/product-cart-history.css',
-            '/MOS_A/public/assets/css/customer/overlays.css',
-        ];
-        $jsFiles = [
-            '/MOS_A/public/assets/js/customer/modules/plans.js',
-            '/MOS_A/public/assets/js/customer/modules/menu.js',
-            '/MOS_A/public/assets/js/customer/modules/cart-history.js',
-            '/MOS_A/public/assets/js/customer/app.js',
-        ];
-        $view = dirname(__DIR__) . '/Views/customer/customer_app.php';
-
-        require dirname(__DIR__) . '/Views/layouts/app.php';
     }
 }

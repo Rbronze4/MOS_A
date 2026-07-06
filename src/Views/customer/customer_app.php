@@ -18,4 +18,10 @@
 
     <div id="toast" class="toast"></div>
 
+    <?php if (!empty($cartFlash) && is_array($cartFlash)): ?>
+        <script>
+            window.MOS_CART_FLASH = <?= json_encode($cartFlash, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        </script>
+    <?php endif; ?>
+
 </div>

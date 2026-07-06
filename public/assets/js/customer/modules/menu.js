@@ -21,15 +21,26 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
 
     let refreshCategoryScrollButtons = () => {};
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
+    }
+
     function renderCategoryTabs() {
         const categoryTabs = document.getElementById('categoryTabs');
 
         categoryTabs.innerHTML = categories.map(category => {
             const activeClass = category === state.activeCategory ? 'active' : '';
+            const escapedCategory = escapeHtml(category);
 
             return `
-                <button class="category-tab ${activeClass}" data-category="${category}">
-                    ${category}
+                <button class="category-tab ${activeClass}" data-category="${escapedCategory}">
+                    ${escapedCategory}
                 </button>
             `;
         }).join('');
@@ -55,20 +66,22 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
         }
 
         menuGrid.innerHTML = filteredMenus.map(menu => {
-            const imageSrc = menu.image_path || 'assets/images/common/img.jpg';
+            const imageSrc = menu.image_path || '/MOS_A/public/assets/images/menu/no_image.png';
             const displayPrice = getDisplayPrice(menu);
+            const escapedName = escapeHtml(menu.name);
+            const escapedImageSrc = escapeHtml(imageSrc);
 
             return `
-                <button class="menu-card" data-menu-id="${menu.id}">
+                <button class="menu-card" data-menu-id="${escapeHtml(menu.id)}">
                     <div class="menu-image-frame" style="display: flex; align-items: center; justify-content: center; background: #eee;">
-                        <img src="${imageSrc}"
-                             alt="${menu.name}"
+                        <img src="${escapedImageSrc}"
+                             alt="${escapedName}"
                              style="width: 100%; height: 100%; object-fit: cover; display: block;"
-                             onerror="this.parentElement.style.display='none'; console.error('画像の読み込みに失敗しました', '${imageSrc}')">
+                             onerror="this.src='/MOS_A/public/assets/images/menu/no_image.png'; this.onerror=null;">
                     </div>
 
                     <div class="menu-card-body">
-                        <div class="menu-name">${menu.name}</div>
+                        <div class="menu-name">${escapedName}</div>
                         <div class="menu-price">${formatYen(displayPrice)}</div>
                     </div>
                 </button>
