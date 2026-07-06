@@ -51,7 +51,7 @@ final class MenuModel
      *
      * 既存フロントJSが期待する id/category/name/price/image_path の形へ整える。
      */
-    public function menusForStore(string $storeId): array
+    public function menusForStore(string $storeId, ?int $planTypeId = null): array
     {
         $sql = <<<SQL
             SELECT
@@ -61,32 +61,49 @@ final class MenuModel
                 p.image_path,
                 p.category_id,
                 c.category_name,
-                sp.display_order
+                sp.display_order,
+                CASE
+                    WHEN ptp.product_id IS NOT NULL THEN 1
+                    ELSE 0
+                END AS plan_applied_flag
             FROM store_products AS sp
             INNER JOIN products AS p
                 ON p.product_id = sp.product_id
             INNER JOIN product_categories AS c
                 ON c.category_id = p.category_id
+            LEFT JOIN plan_type_products AS ptp
+                ON ptp.product_id = p.product_id
+               AND ptp.plan_type_id = :plan_type_id
             WHERE sp.store_id = :store_id
               AND sp.sale_status = 'ON_SALE'
               AND p.sale_status = 'ON_SALE'
             ORDER BY
+                c.category_id ASC,
                 sp.display_order ASC,
                 p.product_id ASC
         SQL;
 
         $statement = db()->prepare($sql);
         $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+        if ($planTypeId === null) {
+            $statement->bindValue(':plan_type_id', null, PDO::PARAM_NULL);
+        } else {
+            $statement->bindValue(':plan_type_id', $planTypeId, PDO::PARAM_INT);
+        }
         $statement->execute();
 
         $menus = [];
 
         foreach ($statement->fetchAll() as $row) {
+            $planApplied = (int)$row['plan_applied_flag'] === 1;
+
             $menus[] = [
                 'id' => (int)$row['product_id'],
                 'category' => (string)$row['category_name'],
                 'name' => (string)$row['product_name'],
                 'price' => (int)$row['price'],
+                'display_price' => $planApplied ? 0 : (int)$row['price'],
+                'plan_applied_flag' => $planApplied ? 1 : 0,
                 'image_path' => $this->imagePath($row['image_path'] ?? null),
             ];
         }

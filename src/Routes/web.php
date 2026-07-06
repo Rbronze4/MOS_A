@@ -68,6 +68,18 @@ switch ($path) {
         $controller->index();
         break;
 
+    case '/customer/session/start':
+        $controller = new CustomerController();
+
+        if ($method === 'POST') {
+            $controller->startSession();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
     case '/customer/cart/add':
         $controller = new CustomerController();
 

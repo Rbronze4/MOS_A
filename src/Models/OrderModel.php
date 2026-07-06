@@ -58,13 +58,15 @@ final class OrderModel
             foreach ($cartItems as $item) {
                 $quantity = (int)$item['quantity'];
                 $unitPrice = (int)$item['display_unit_price'];
+                $planAppliedFlag = $unitPrice === 0 ? 1 : 0;
 
                 $this->insertOrderDetail(
                     $orderId,
                     (int)$item['product_id'],
                     (string)$item['product_name'],
                     $quantity,
-                    $unitPrice
+                    $unitPrice,
+                    $planAppliedFlag
                 );
 
                 $totalQuantity += $quantity;
@@ -90,6 +92,58 @@ final class OrderModel
 
             throw $exception;
         }
+    }
+
+    /**
+     * 注文履歴はカートと違い、session_id単位ではなくcustomer_id単位で取得する。
+     *
+     * 1人の顧客が複数セッションを持つ場合でも、orders -> sessionsをたどって
+     * 同じcustomer_idの注文明細をまとめて表示する。
+     */
+    public function historyItemsForCustomer(int $customerId): array
+    {
+        $sql = <<<SQL
+            SELECT
+                od.order_detail_id,
+                od.order_id,
+                od.product_id,
+                od.ordered_product_name,
+                od.quantity,
+                od.ordered_unit_price,
+                od.detail_status,
+                od.ordered_at
+            FROM orders AS o
+            INNER JOIN sessions AS s
+                ON s.session_id = o.session_id
+            INNER JOIN order_details AS od
+                ON od.order_id = o.order_id
+            WHERE s.customer_id = :customer_id
+              AND od.detail_status <> 'CANCELLED'
+            ORDER BY
+                o.ordered_at ASC,
+                od.order_detail_id ASC
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $items = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $items[] = [
+                'id' => (int)$row['product_id'],
+                'order_detail_id' => (int)$row['order_detail_id'],
+                'order_id' => (int)$row['order_id'],
+                'name' => (string)$row['ordered_product_name'],
+                'price' => (int)$row['ordered_unit_price'],
+                'quantity' => (int)$row['quantity'],
+                'status' => (string)$row['detail_status'],
+                'ordered_at' => (string)$row['ordered_at'],
+            ];
+        }
+
+        return $items;
     }
 
     /**
@@ -235,7 +289,8 @@ final class OrderModel
         int $productId,
         string $productName,
         int $quantity,
-        int $unitPrice
+        int $unitPrice,
+        int $planAppliedFlag
     ): void {
         $sql = <<<SQL
             INSERT INTO order_details (
@@ -252,7 +307,7 @@ final class OrderModel
                 :ordered_product_name,
                 :quantity,
                 :ordered_unit_price,
-                0
+                :plan_applied_flag
             )
         SQL;
 
@@ -262,6 +317,7 @@ final class OrderModel
         $statement->bindValue(':ordered_product_name', $productName, PDO::PARAM_STR);
         $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
         $statement->bindValue(':ordered_unit_price', $unitPrice, PDO::PARAM_INT);
+        $statement->bindValue(':plan_applied_flag', $planAppliedFlag, PDO::PARAM_INT);
         $statement->execute();
     }
 

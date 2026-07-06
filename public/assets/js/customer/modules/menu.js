@@ -70,6 +70,9 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
             const displayPrice = getDisplayPrice(menu);
             const escapedName = escapeHtml(menu.name);
             const escapedImageSrc = escapeHtml(imageSrc);
+            const planBadge = Number(menu.plan_applied_flag || 0) === 1
+                ? '<div class="menu-plan-badge">飲み放題対象</div>'
+                : '';
 
             return `
                 <button class="menu-card" data-menu-id="${escapeHtml(menu.id)}">
@@ -82,6 +85,7 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
 
                     <div class="menu-card-body">
                         <div class="menu-name">${escapedName}</div>
+                        ${planBadge}
                         <div class="menu-price">${formatYen(displayPrice)}</div>
                     </div>
                 </button>

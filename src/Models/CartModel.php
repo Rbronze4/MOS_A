@@ -28,11 +28,17 @@ final class CartModel
         $this->assertActiveSession($sessionId);
 
         // カートへ入れる前に、緑橋本店で販売中の商品か必ず確認する。
-        $product = $this->findOnSaleProduct($storeId, $productId);
+        // カート追加時も現在のプランをDBから確認し、飲み放題対象なら表示単価を0円にする。
+        $planTypeId = $this->currentPlanTypeIdForSession($sessionId);
+        $product = $this->findOnSaleProduct($storeId, $productId, $planTypeId);
 
         if ($product === null) {
             throw new RuntimeException('この店舗で販売中の商品ではありません。');
         }
+
+        $displayUnitPrice = ((int)$product['plan_applied_flag'] === 1)
+            ? 0
+            : (int)$product['price'];
 
         try {
             $pdo->beginTransaction();
@@ -44,12 +50,12 @@ final class CartModel
                 throw new RuntimeException('指定されたsession_idに紐づくカートが見つかりません。');
             }
 
-            $cartDetail = $this->findCartDetail($cartId, $productId);
+            $cartDetail = $this->findCartDetailForDisplayPrice($cartId, $productId, $displayUnitPrice);
 
             if ($cartDetail !== null) {
                 $this->incrementCartDetailQuantity((int)$cartDetail['cart_detail_id'], $quantity);
             } else {
-                $this->insertCartDetail($cartId, $productId, $quantity, (int)$product['price']);
+                $this->insertCartDetail($cartId, $productId, $quantity, $displayUnitPrice);
             }
 
             $pdo->commit();
@@ -162,7 +168,12 @@ final class CartModel
                 p.product_id,
                 p.product_name,
                 cd.quantity,
-                cd.display_unit_price
+                cd.display_unit_price,
+                p.price AS normal_price,
+                CASE
+                    WHEN cd.display_unit_price = 0 THEN 1
+                    ELSE 0
+                END AS plan_applied_flag
             FROM carts AS c
             INNER JOIN cart_details AS cd
                 ON cd.cart_id = c.cart_id
@@ -185,6 +196,8 @@ final class CartModel
                 'id' => (int)$row['product_id'],
                 'name' => (string)$row['product_name'],
                 'price' => (int)$row['display_unit_price'],
+                'normal_price' => (int)$row['normal_price'],
+                'plan_applied_flag' => (int)$row['plan_applied_flag'],
                 'quantity' => (int)$row['quantity'],
             ];
         }
@@ -217,17 +230,24 @@ final class CartModel
     /**
      * カート追加前に、対象商品が指定店舗で販売中か確認する。
      */
-    private function findOnSaleProduct(string $storeId, int $productId): ?array
+    private function findOnSaleProduct(string $storeId, int $productId, ?int $planTypeId): ?array
     {
         $sql = <<<SQL
             SELECT
                 p.product_id,
                 p.product_name,
                 p.price,
-                p.tax_rate
+                p.tax_rate,
+                CASE
+                    WHEN ptp.product_id IS NOT NULL THEN 1
+                    ELSE 0
+                END AS plan_applied_flag
             FROM store_products AS sp
             INNER JOIN products AS p
                 ON sp.product_id = p.product_id
+            LEFT JOIN plan_type_products AS ptp
+                ON ptp.product_id = p.product_id
+               AND ptp.plan_type_id = :plan_type_id
             WHERE sp.store_id = :store_id
               AND sp.product_id = :product_id
               AND sp.sale_status = 'ON_SALE'
@@ -238,11 +258,42 @@ final class CartModel
         $statement = db()->prepare($sql);
         $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
         $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        if ($planTypeId === null) {
+            $statement->bindValue(':plan_type_id', null, PDO::PARAM_NULL);
+        } else {
+            $statement->bindValue(':plan_type_id', $planTypeId, PDO::PARAM_INT);
+        }
         $statement->execute();
 
         $product = $statement->fetch();
 
         return $product === false ? null : $product;
+    }
+
+    private function currentPlanTypeIdForSession(int $sessionId): ?int
+    {
+        $sql = <<<SQL
+            SELECT
+                p.plan_type_id
+            FROM sessions AS s
+            INNER JOIN customer_plans AS cp
+                ON cp.customer_id = s.customer_id
+            INNER JOIN plans AS p
+                ON p.plan_id = cp.plan_id
+            WHERE s.session_id = :session_id
+              AND s.session_status = 'ACTIVE'
+              AND cp.ended_at IS NULL
+              AND p.is_active = 1
+            LIMIT 1
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':session_id', $sessionId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $planTypeId = $statement->fetchColumn();
+
+        return $planTypeId === false ? null : (int)$planTypeId;
     }
 
     /**
@@ -288,6 +339,31 @@ final class CartModel
         $statement = db()->prepare($sql);
         $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
         $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $cartDetail = $statement->fetch();
+
+        return $cartDetail === false ? null : $cartDetail;
+    }
+
+    private function findCartDetailForDisplayPrice(int $cartId, int $productId, int $displayUnitPrice): ?array
+    {
+        $sql = <<<SQL
+            SELECT
+                cart_detail_id,
+                quantity
+            FROM cart_details
+            WHERE cart_id = :cart_id
+              AND product_id = :product_id
+              AND display_unit_price = :display_unit_price
+            LIMIT 1
+            FOR UPDATE
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
+        $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->bindValue(':display_unit_price', $displayUnitPrice, PDO::PARAM_INT);
         $statement->execute();
 
         $cartDetail = $statement->fetch();

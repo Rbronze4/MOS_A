@@ -4,40 +4,91 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/Models/MenuModel.php';
 require_once dirname(__DIR__) . '/Models/CartModel.php';
 require_once dirname(__DIR__) . '/Models/OrderModel.php';
+require_once dirname(__DIR__) . '/Models/CustomerSessionModel.php';
 
 /**
  * 客側画面のController。
  *
- * 商品一覧表示はDBから取得する。
- * カート操作は、現在はテスト用 session_id=1 / store_id=MH を固定で使用する。
+ * QR連携が本格化するまでは、customer_idをURLパラメータで受け取る。
+ * プラン確定時にsessions / customer_plans / cartsを作成または再利用する。
  */
 final class CustomerController
 {
-    private const TEST_STORE_ID = 'MH';
-    private const TEST_SESSION_ID = 1;
+    private const TEST_CUSTOMER_ID = 1000004;
 
     public function index(): void
     {
         $cartFlash = $_SESSION['cart_flash'] ?? null;
         unset($_SESSION['cart_flash']);
 
+        // TODO: QRコード連携が完成したら、QRから渡されたcustomer_idを必須にする
+        $customerId = $this->requestCustomerId();
+        if ($customerId === null) {
+            $customerId = self::TEST_CUSTOMER_ID;
+        }
+
+        $sessionId = filter_input(INPUT_GET, 'session_id', FILTER_VALIDATE_INT);
+        if ($sessionId === false || $sessionId === null || $sessionId < 1) {
+            $sessionId = null;
+        }
+
         $plans = $this->plans();
-
-        // TODO: QRコード・セッション管理が完成したら、sessionsテーブルまたはセッション情報からstore_idを取得する
-        $storeId = self::TEST_STORE_ID;
-
-        // TODO: QRコード・卓番号入力・プラン選択が完成したら、実際のsessions.session_idを使用する
-        // DB確認済みのテスト用データ: sessions.session_id = 1 / carts.cart_id = 1
-        $sessionId = self::TEST_SESSION_ID;
-
         $menuModel = new MenuModel();
+        $sessionModel = new CustomerSessionModel();
         $cartModel = new CartModel();
+        $orderModel = new OrderModel();
         $cartItems = [];
+        $historyItems = [];
+        $storeId = 'MH';
+        $planTypeId = null;
+        $peopleCount = 2;
+        $activeCustomerPlan = null;
+        $hasActiveCustomerPlan = false;
 
         try {
+            if ($sessionId !== null) {
+                $activeSession = $sessionModel->activeSession($sessionId);
+
+                if ($activeSession === null) {
+                    throw new RuntimeException('有効なセッションが見つかりません。');
+                }
+
+                if ((int)$activeSession['customer_id'] === $customerId) {
+                    $customerId = (int)$activeSession['customer_id'];
+                    $storeId = (string)$activeSession['store_id'];
+                    $cartItems = $cartModel->cartItemsForSession($sessionId);
+                    $activeCustomerPlan = $sessionModel->activeCustomerPlan($customerId);
+                } else {
+                    // URLに古いsession_idが残っている場合、別のテスト顧客IDを上書きしない。
+                    $sessionId = null;
+                    $customer = $sessionModel->findCustomer($customerId);
+
+                    if ($customer !== null) {
+                        $storeId = (string)$customer['store_id'];
+                    }
+
+                    $activeCustomerPlan = $sessionModel->activeCustomerPlan($customerId);
+                }
+            } else {
+                $customer = $sessionModel->findCustomer($customerId);
+
+                if ($customer !== null) {
+                    $storeId = (string)$customer['store_id'];
+                }
+
+                $activeCustomerPlan = $sessionModel->activeCustomerPlan($customerId);
+            }
+
+            $currentCustomer = $sessionModel->findCustomer($customerId);
+            if ($currentCustomer !== null) {
+                $peopleCount = (int)$currentCustomer['people_count'];
+            }
+
+            $hasActiveCustomerPlan = $activeCustomerPlan !== null;
+            $planTypeId = $activeCustomerPlan === null ? null : (int)$activeCustomerPlan['plan_type_id'];
+            $historyItems = $orderModel->historyItemsForCustomer($customerId);
             $categories = $menuModel->categoriesForStore($storeId);
-            $menus = $menuModel->menusForStore($storeId);
-            $cartItems = $cartModel->cartItemsForSession($sessionId);
+            $menus = $menuModel->menusForStore($storeId, $planTypeId);
         } catch (Throwable $exception) {
             error_log('[customer-menu] DB error: ' . $exception->getMessage());
 
@@ -45,6 +96,9 @@ final class CustomerController
             $categories = [];
             $menus = [];
             $cartItems = [];
+            $historyItems = [];
+            $activeCustomerPlan = null;
+            $hasActiveCustomerPlan = false;
         }
 
         $title = 'MOS 客側画面';
@@ -67,20 +121,67 @@ final class CustomerController
         require dirname(__DIR__) . '/Views/layouts/app.php';
     }
 
+    public function startSession(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->redirect('/MOS_A/public/customer');
+        }
+
+        $customerId = $this->validatedCustomerId();
+        $tableNumber = $this->validatedTableNumber();
+        $sessionModel = new CustomerSessionModel();
+        $activeCustomerPlan = $sessionModel->activeCustomerPlan($customerId);
+        $planKey = $activeCustomerPlan === null ? $this->validatedPlanKey() : null;
+        $planMinutes = $this->validatedPlanMinutes();
+
+        try {
+            $cartModel = new CartModel();
+            $menuModel = new MenuModel();
+            $result = $sessionModel->start($customerId, $tableNumber, $planKey, $planMinutes);
+            $activeCustomerPlan = $sessionModel->activeCustomerPlan((int)$result['customer_id']);
+            $planTypeId = $activeCustomerPlan === null ? null : (int)$activeCustomerPlan['plan_type_id'];
+            $customer = $sessionModel->findCustomer((int)$result['customer_id']);
+            $peopleCount = $customer === null ? 2 : (int)$customer['people_count'];
+
+            $this->json([
+                'ok' => true,
+                'message' => '利用セッションを開始しました。',
+                'customer_id' => $result['customer_id'],
+                'store_id' => $result['store_id'],
+                'session_id' => $result['session_id'],
+                'cart_id' => $result['cart_id'],
+                'plan_id' => $result['plan_id'],
+                'active_customer_plan' => $activeCustomerPlan,
+                'people_count' => $peopleCount,
+                'cart_items' => $cartModel->cartItemsForSession((int)$result['session_id']),
+                'categories' => $menuModel->categoriesForStore((string)$result['store_id']),
+                'menus' => $menuModel->menusForStore((string)$result['store_id'], $planTypeId),
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[customer-session-start] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
     public function addCart(): void
     {
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
             $this->redirect('/MOS_A/public/customer');
         }
 
+        $session = $this->validatedActiveSession();
         $productId = $this->validatedProductId();
         $quantity = $this->validatedQuantity();
 
         try {
             $cartModel = new CartModel();
             $result = $cartModel->addProduct(
-                self::TEST_SESSION_ID,
-                self::TEST_STORE_ID,
+                (int)$session['session_id'],
+                (string)$session['store_id'],
                 $productId,
                 $quantity
             );
@@ -96,7 +197,7 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => 'カート追加に失敗しました。テスト用session_id=1、既存カート、商品販売設定を確認してください。',
+                'message' => 'カート追加に失敗しました。セッション、既存カート、商品販売設定を確認してください。',
             ], 500);
         }
     }
@@ -107,12 +208,13 @@ final class CustomerController
             $this->redirect('/MOS_A/public/customer');
         }
 
+        $session = $this->validatedActiveSession();
         $productId = $this->validatedProductId();
         $quantity = $this->validatedQuantity();
 
         try {
             $cartModel = new CartModel();
-            $result = $cartModel->updateProductQuantity(self::TEST_SESSION_ID, $productId, $quantity);
+            $result = $cartModel->updateProductQuantity((int)$session['session_id'], $productId, $quantity);
 
             $this->json([
                 'ok' => true,
@@ -135,11 +237,12 @@ final class CustomerController
             $this->redirect('/MOS_A/public/customer');
         }
 
+        $session = $this->validatedActiveSession();
         $productId = $this->validatedProductId();
 
         try {
             $cartModel = new CartModel();
-            $result = $cartModel->deleteProduct(self::TEST_SESSION_ID, $productId);
+            $result = $cartModel->deleteProduct((int)$session['session_id'], $productId);
 
             $this->json([
                 'ok' => true,
@@ -162,9 +265,12 @@ final class CustomerController
             $this->redirect('/MOS_A/public/customer');
         }
 
+        $session = $this->validatedActiveSession();
+
         try {
             $orderModel = new OrderModel();
-            $result = $orderModel->submitCart(self::TEST_SESSION_ID, self::TEST_STORE_ID);
+            $result = $orderModel->submitCart((int)$session['session_id'], (string)$session['store_id']);
+            $historyItems = $orderModel->historyItemsForCustomer((int)$result['customer_id']);
 
             $this->json([
                 'ok' => true,
@@ -173,6 +279,7 @@ final class CustomerController
                 'total_quantity' => $result['total_quantity'],
                 'total_amount' => $result['total_amount'],
                 'cart_items' => $result['cart_items'],
+                'history_items' => $historyItems,
             ]);
         } catch (Throwable $exception) {
             error_log('[customer-order-submit] ' . $exception->getMessage());
@@ -182,6 +289,98 @@ final class CustomerController
                 'message' => $exception->getMessage(),
             ], 500);
         }
+    }
+
+    private function validatedActiveSession(): array
+    {
+        $sessionId = filter_input(INPUT_POST, 'session_id', FILTER_VALIDATE_INT);
+
+        if ($sessionId === false || $sessionId === null || $sessionId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => 'セッション情報がありません。卓番号とプランを選択してください。',
+            ], 422);
+        }
+
+        $sessionModel = new CustomerSessionModel();
+        $session = $sessionModel->activeSession((int)$sessionId);
+
+        if ($session === null) {
+            $this->json([
+                'ok' => false,
+                'message' => '有効なセッションが見つかりません。',
+            ], 422);
+        }
+
+        return $session;
+    }
+
+    private function validatedCustomerId(): int
+    {
+        $customerId = filter_input(INPUT_POST, 'customer_id', FILTER_VALIDATE_INT);
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '顧客IDが正しくありません。',
+            ], 422);
+        }
+
+        return (int)$customerId;
+    }
+
+    private function requestCustomerId(): ?int
+    {
+        $customerId = filter_input(INPUT_GET, 'customer_id', FILTER_VALIDATE_INT);
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            $customerId = filter_input(INPUT_GET, 'customerId', FILTER_VALIDATE_INT);
+        }
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            return null;
+        }
+
+        return (int)$customerId;
+    }
+
+    private function validatedTableNumber(): string
+    {
+        $tableNumber = trim((string)($_POST['table_number'] ?? ''));
+
+        if (!preg_match('/^\d{1,3}$/', $tableNumber)) {
+            $this->json([
+                'ok' => false,
+                'message' => '卓番号を数字で入力してください。',
+            ], 422);
+        }
+
+        return $tableNumber;
+    }
+
+    private function validatedPlanKey(): string
+    {
+        $planKey = trim((string)($_POST['plan_key'] ?? ''));
+
+        if (!in_array($planKey, ['standard', 'premium', 'single'], true)) {
+            $this->json([
+                'ok' => false,
+                'message' => 'プランが正しくありません。',
+            ], 422);
+        }
+
+        return $planKey;
+    }
+
+    private function validatedPlanMinutes(): ?int
+    {
+        $minutes = filter_input(INPUT_POST, 'plan_minutes', FILTER_VALIDATE_INT);
+
+        if ($minutes === false || $minutes === null || $minutes < 1) {
+            return null;
+        }
+
+        return (int)$minutes;
     }
 
     private function validatedProductId(): int
@@ -224,7 +423,9 @@ final class CustomerController
     }
 
     /**
-     * プラン表示は今回のDB結合・カート操作対象外のため、既存どおりController内の固定データを使う。
+     * 画面表示用のプラン定義。
+     *
+     * 実DBのplansとは、プラン確定時にplan_key + plan_minutesから紐づける。
      */
     private function plans(): array
     {
