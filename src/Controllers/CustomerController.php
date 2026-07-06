@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Models/MenuModel.php';
 require_once dirname(__DIR__) . '/Models/CartModel.php';
+require_once dirname(__DIR__) . '/Models/OrderModel.php';
 
 /**
  * 客側画面のController。
@@ -151,6 +152,34 @@ final class CustomerController
             $this->json([
                 'ok' => false,
                 'message' => '削除に失敗しました。カート内容を確認してください。',
+            ], 500);
+        }
+    }
+
+    public function submitOrder(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->redirect('/MOS_A/public/customer');
+        }
+
+        try {
+            $orderModel = new OrderModel();
+            $result = $orderModel->submitCart(self::TEST_SESSION_ID, self::TEST_STORE_ID);
+
+            $this->json([
+                'ok' => true,
+                'message' => '注文を送信しました。',
+                'order_id' => $result['order_id'],
+                'total_quantity' => $result['total_quantity'],
+                'total_amount' => $result['total_amount'],
+                'cart_items' => $result['cart_items'],
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[customer-order-submit] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $exception->getMessage(),
             ], 500);
         }
     }

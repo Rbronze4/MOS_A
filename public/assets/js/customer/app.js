@@ -134,6 +134,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function submitOrderToServer() {
+        // 注文内容はサーバー側でDBのcart_detailsから取得する。
+        // フロントから商品名・価格・数量一覧は送らない。
+        return postCartAction('/MOS_A/public/customer/order/submit', {});
+    }
+
     let cartHistoryModule;
 
     function openProduct(menu, quantity = 1, resetEditing = true) {
@@ -299,7 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
         getDisplayPrice,
         openProduct,
         refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons,
-        deleteCartFromServer
+        deleteCartFromServer,
+        submitOrderToServer
     });
 
     document.getElementById('tableSubmitButton').addEventListener('click', () => {

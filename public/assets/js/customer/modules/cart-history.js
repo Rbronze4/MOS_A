@@ -22,7 +22,8 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         getDisplayPrice,
         openProduct,
         refreshCategoryScrollButtons,
-        deleteCartFromServer
+        deleteCartFromServer,
+        submitOrderToServer
     } = context;
 
     // 人数はスタッフがQR発行時に入力する想定だが、現状はその数値を取得する機会が
@@ -253,17 +254,31 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
             closeOrderModal();
         });
 
-        document.getElementById('submitOrderButton').addEventListener('click', () => {
-            state.history.push(...state.cart.map(item => ({ ...item })));
-            state.cart = [];
+        document.getElementById('submitOrderButton').addEventListener('click', async () => {
+            if (state.cart.length === 0) {
+                showToast('商品が選択されていません');
+                return;
+            }
 
-            closeOrderModal();
-            renderCart();
-            renderHistory();
+            const orderedItems = state.cart.map(item => ({ ...item }));
 
-            showToast('注文を送信しました');
-            showScreen('menuScreen');
-            requestAnimationFrame(refreshCategoryScrollButtons);
+            try {
+                const result = await submitOrderToServer();
+
+                // 注文履歴は今回DB本格実装の対象外なので、従来どおり画面内の簡易履歴へ残す。
+                state.history.push(...orderedItems);
+                state.cart = result.cart_items || [];
+
+                closeOrderModal();
+                renderCart();
+                renderHistory();
+
+                showToast(result.message || '注文を送信しました');
+                showScreen('menuScreen');
+                requestAnimationFrame(refreshCategoryScrollButtons);
+            } catch (error) {
+                showToast(error.message || '注文送信に失敗しました');
+            }
         });
     }
 
