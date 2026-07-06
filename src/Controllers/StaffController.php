@@ -1,23 +1,110 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/Database/db.php';
+
 /**
  * スタッフ側画面のコントローラー。
- * 現状はDB未接続のため、顧客・注文・商品データをハードコード(private メソッド)で用意し、
- * 画面ごとに読み込むCSS/JS($cssFiles/$jsFiles)を指定して共通レイアウト(app.php)で描画する。
- * 注文・商品データはレイアウトを通じて window.STAFF_DATA としてJSへ渡される。
  *
- * メソッド:
- *   index()      … スタッフダッシュボード（ログイン〜各管理画面）
- *   orderEntry() … スタッフ代理注文：卓番号・プラン入力画面
- *   orderMenu()  … スタッフ代理注文：メニュー選択画面
- *   customers()/orders()/products() … ダミーデータ提供（private）
+ * ログイン認証だけDBを使用し、既存の注文・商品などの画面データは現状のモックを維持する。
+ * ログイン後はセッションに店舗情報を保持し、スタッフホームへ遷移する。
  */
 final class StaffController
 {
+    private const ROLE_STAFF = 'STAFF';
+
+    public function login(): void
+    {
+        if ($this->isLoggedIn()) {
+            $this->redirect('/MOS_A/public/staff');
+        }
+
+        $this->renderLogin();
+    }
+
+    public function authenticate(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('/MOS_A/public/staff/login');
+        }
+
+        $storeId = trim((string)($_POST['store_id'] ?? ''));
+        $password = (string)($_POST['password'] ?? '');
+
+        try {
+            $stores = $this->fetchActiveStores();
+        } catch (Throwable $exception) {
+            error_log('[staff-login] Store fetch error: ' . $exception->getMessage());
+
+            $this->renderLogin(['店舗情報の取得に失敗しました。時間をおいて再度お試しください。'], [
+                'store_id' => $storeId,
+            ], []);
+            return;
+        }
+
+        $errors = $this->validateLoginInput($storeId, $password, $stores);
+
+        if ($errors !== []) {
+            $this->renderLogin($errors, [
+                'store_id' => $storeId,
+            ], $stores);
+            return;
+        }
+
+        try {
+            $account = $this->findStaffAccount($storeId);
+        } catch (Throwable $exception) {
+            error_log('[staff-login] DB error: ' . $exception->getMessage());
+
+            $this->renderLogin(['ログイン処理中にエラーが発生しました。時間をおいて再度お試しください。'], [
+                'store_id' => $storeId,
+            ], $stores);
+            return;
+        }
+
+        if ($account === null || !password_verify($password, (string)$account['password_hash'])) {
+            $this->renderLogin(['パスワードが正しくありません。'], [
+                'store_id' => $storeId,
+            ], $stores);
+            return;
+        }
+
+        session_regenerate_id(true);
+
+        $_SESSION['store_id'] = $storeId;
+        $_SESSION['store_name'] = (string)$account['store_name'];
+        $_SESSION['staff_id'] = (string)$account['account_id'];
+        $_SESSION['role'] = self::ROLE_STAFF;
+
+        $this->redirect('/MOS_A/public/staff');
+    }
+
+    public function logout(): void
+    {
+        $_SESSION = [];
+
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params['path'],
+                $params['domain'],
+                $params['secure'],
+                $params['httponly']
+            );
+        }
+
+        session_destroy();
+        $this->redirect('/MOS_A/public/staff/login');
+    }
+
     public function index(): void
     {
-        $title = 'MOS 店員画面';
+        $this->requireStaffLogin();
+
+        $title = 'スタッフホーム';
 
         $cssFiles = [
             '/MOS_A/public/assets/css/common/base.css',
@@ -36,6 +123,7 @@ final class StaffController
             '/MOS_A/public/assets/js/staff/dashboard.js',
         ];
 
+        $storeName = (string)($_SESSION['store_name'] ?? '');
         $customers = $this->customers();
         $orders = $this->orders();
         $products = $this->products();
@@ -47,6 +135,8 @@ final class StaffController
 
     public function orderEntry(): void
     {
+        $this->requireStaffLogin();
+
         $title = 'スタッフ注文';
 
         $assetVersion = time();
@@ -80,6 +170,8 @@ final class StaffController
 
     public function orderMenu(): void
     {
+        $this->requireStaffLogin();
+
         $title = 'スタッフ注文';
 
         $assetVersion = time();
@@ -109,6 +201,131 @@ final class StaffController
         $view = dirname(__DIR__) . '/Views/staff/screens/staff_order_menu.php';
 
         require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    private function renderLogin(array $errors = [], array $old = [], ?array $stores = null): void
+    {
+        $title = 'みどり亭 ログイン';
+
+        if ($stores === null) {
+            try {
+                $stores = $this->fetchActiveStores();
+            } catch (Throwable $exception) {
+                error_log('[staff-login] Store fetch error: ' . $exception->getMessage());
+                $stores = [];
+                $errors[] = '店舗情報の取得に失敗しました。時間をおいて再度お試しください。';
+            }
+        }
+
+        $cssFiles = [
+            '/MOS_A/public/assets/css/common/base.css',
+            '/MOS_A/public/assets/css/staff/base.css',
+            '/MOS_A/public/assets/css/staff/login.css',
+        ];
+        $jsFiles = [];
+        $view = dirname(__DIR__) . '/Views/staff/screens/login.php';
+
+        require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    private function validateLoginInput(string $storeId, string $password, array $stores): array
+    {
+        $errors = [];
+
+        if ($storeId === '' || !array_key_exists($storeId, $stores)) {
+            $errors[] = '店舗を選択してください。';
+        }
+
+        if ($password === '') {
+            $errors[] = 'パスワードを入力してください。';
+        }
+
+        return $errors;
+    }
+
+    private function fetchActiveStores(): array
+    {
+        $sql = <<<SQL
+            SELECT
+                store_id,
+                store_name
+            FROM stores
+            WHERE is_active = 1
+            ORDER BY
+                CASE store_id
+                    WHEN 'MH' THEN 1
+                    WHEN 'MN' THEN 2
+                    WHEN 'TM' THEN 3
+                    WHEN 'TH' THEN 4
+                    WHEN 'IM' THEN 5
+                    WHEN 'FB' THEN 6
+                    WHEN 'TY' THEN 7
+                    WHEN 'HM' THEN 8
+                    WHEN 'KB' THEN 9
+                    WHEN 'NB' THEN 10
+                    ELSE 99
+                END,
+                store_id
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->execute();
+
+        $stores = [];
+
+        foreach ($statement->fetchAll() as $store) {
+            $stores[(string)$store['store_id']] = (string)$store['store_name'];
+        }
+
+        return $stores;
+    }
+
+    private function findStaffAccount(string $storeId): ?array
+    {
+        $sql = <<<SQL
+            SELECT
+                a.account_id,
+                a.store_id,
+                a.password_hash,
+                s.store_name
+            FROM store_accounts AS a
+            INNER JOIN stores AS s
+                ON s.store_id = a.store_id
+            WHERE a.store_id = :store_id
+              AND a.is_active = 1
+              AND s.is_active = 1
+            LIMIT 1
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->execute([
+            ':store_id' => $storeId,
+        ]);
+
+        $account = $statement->fetch();
+
+        return $account === false ? null : $account;
+    }
+
+    private function requireStaffLogin(): void
+    {
+        if ($this->isLoggedIn()) {
+            return;
+        }
+
+        $this->redirect('/MOS_A/public/staff/login');
+    }
+
+    private function isLoggedIn(): bool
+    {
+        return isset($_SESSION['staff_id'], $_SESSION['store_id'], $_SESSION['store_name'], $_SESSION['role'])
+            && $_SESSION['role'] === self::ROLE_STAFF;
+    }
+
+    private function redirect(string $path): void
+    {
+        header('Location: ' . $path);
+        exit;
     }
 
     private function customers(): array
