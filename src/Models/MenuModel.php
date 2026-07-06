@@ -12,13 +12,15 @@ require_once dirname(__DIR__) . '/Database/db.php';
 final class MenuModel
 {
     private const NO_IMAGE_PATH = '/MOS_A/public/assets/images/menu/no_image.png';
+    private const ALL_YOU_CAN_DRINK_CATEGORY_ID = 'all_you_can_drink';
+    private const ALL_YOU_CAN_DRINK_CATEGORY_NAME = '飲み放題';
 
     /**
      * 指定店舗で販売中の商品が存在するカテゴリだけを取得する。
      *
      * 店舗ごとの販売設定は store_products にあるため、必ず store_products を起点にする。
      */
-    public function categoriesForStore(string $storeId): array
+    public function categoriesForStore(string $storeId, bool $hasActivePlan = false): array
     {
         $sql = <<<SQL
             SELECT DISTINCT
@@ -40,10 +42,25 @@ final class MenuModel
         $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
         $statement->execute();
 
-        return array_map(
-            static fn (array $row): string => (string)$row['category_name'],
-            $statement->fetchAll()
-        );
+        $categories = [];
+
+        if ($hasActivePlan) {
+            $categories[] = [
+                'id' => self::ALL_YOU_CAN_DRINK_CATEGORY_ID,
+                'name' => self::ALL_YOU_CAN_DRINK_CATEGORY_NAME,
+                'is_virtual' => true,
+            ];
+        }
+
+        foreach ($statement->fetchAll() as $row) {
+            $categories[] = [
+                'id' => (string)$row['category_id'],
+                'name' => (string)$row['category_name'],
+                'is_virtual' => false,
+            ];
+        }
+
+        return $categories;
     }
 
     /**
@@ -99,6 +116,7 @@ final class MenuModel
 
             $menus[] = [
                 'id' => (int)$row['product_id'],
+                'category_id' => (string)$row['category_id'],
                 'category' => (string)$row['category_name'],
                 'name' => (string)$row['product_name'],
                 'price' => (int)$row['price'],

@@ -20,6 +20,7 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
     } = context;
 
     let refreshCategoryScrollButtons = () => {};
+    const ALL_YOU_CAN_DRINK_CATEGORY_ID = 'all_you_can_drink';
 
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -31,23 +32,38 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
         }[char]));
     }
 
+    function categoryId(category) {
+        return typeof category === 'object' && category !== null
+            ? String(category.id)
+            : String(category);
+    }
+
+    function categoryName(category) {
+        return typeof category === 'object' && category !== null
+            ? String(category.name)
+            : String(category);
+    }
+
     function renderCategoryTabs() {
         const categoryTabs = document.getElementById('categoryTabs');
 
         categoryTabs.innerHTML = categories.map(category => {
-            const activeClass = category === state.activeCategory ? 'active' : '';
-            const escapedCategory = escapeHtml(category);
+            const id = categoryId(category);
+            const name = categoryName(category);
+            const activeClass = id === String(state.activeCategory) ? 'active' : '';
+            const escapedId = escapeHtml(id);
+            const escapedName = escapeHtml(name);
 
             return `
-                <button class="category-tab ${activeClass}" data-category="${escapedCategory}">
-                    ${escapedCategory}
+                <button class="category-tab ${activeClass}" data-category-id="${escapedId}">
+                    ${escapedName}
                 </button>
             `;
         }).join('');
 
         categoryTabs.querySelectorAll('.category-tab').forEach(button => {
             button.addEventListener('click', () => {
-                state.activeCategory = button.dataset.category;
+                state.activeCategory = button.dataset.categoryId;
                 renderMenu();
                 renderCategoryTabs();
             });
@@ -58,7 +74,10 @@ window.MOS.customer.createMenuModule = function createMenuModule(context) {
 
     function renderMenu() {
         const menuGrid = document.getElementById('menuGrid');
-        const filteredMenus = menus.filter(menu => menu.category === state.activeCategory);
+        const selectedCategoryId = String(state.activeCategory);
+        const filteredMenus = selectedCategoryId === ALL_YOU_CAN_DRINK_CATEGORY_ID
+            ? menus.filter(menu => Number(menu.plan_applied_flag || 0) === 1)
+            : menus.filter(menu => String(menu.category_id ?? menu.category) === selectedCategoryId);
 
         if (filteredMenus.length === 0) {
             menuGrid.innerHTML = '<p class="empty-message">商品がありません</p>';

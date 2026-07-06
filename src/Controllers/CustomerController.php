@@ -87,7 +87,7 @@ final class CustomerController
             $hasActiveCustomerPlan = $activeCustomerPlan !== null;
             $planTypeId = $activeCustomerPlan === null ? null : (int)$activeCustomerPlan['plan_type_id'];
             $historyItems = $orderModel->historyItemsForCustomer($customerId);
-            $categories = $menuModel->categoriesForStore($storeId);
+            $categories = $menuModel->categoriesForStore($storeId, $hasActiveCustomerPlan);
             $menus = $menuModel->menusForStore($storeId, $planTypeId);
         } catch (Throwable $exception) {
             error_log('[customer-menu] DB error: ' . $exception->getMessage());
@@ -154,7 +154,7 @@ final class CustomerController
                 'active_customer_plan' => $activeCustomerPlan,
                 'people_count' => $peopleCount,
                 'cart_items' => $cartModel->cartItemsForSession((int)$result['session_id']),
-                'categories' => $menuModel->categoriesForStore((string)$result['store_id']),
+                'categories' => $menuModel->categoriesForStore((string)$result['store_id'], $activeCustomerPlan !== null),
                 'menus' => $menuModel->menusForStore((string)$result['store_id'], $planTypeId),
             ]);
         } catch (Throwable $exception) {

@@ -22,6 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasActiveCustomerPlan = window.MOS_DATA.hasActiveCustomerPlan === true;
     const activeCustomerPlan = window.MOS_DATA.activeCustomerPlan || null;
 
+    function categoryId(category) {
+        return typeof category === 'object' && category !== null
+            ? String(category.id)
+            : String(category);
+    }
+
     function planIdFromActiveCustomerPlan(plan) {
         const planTypeId = Number(plan?.plan_type_id || 0);
 
@@ -45,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         activeCustomerPlan,
         tableNumber: '',
         selectedPlanId: planIdFromActiveCustomerPlan(activeCustomerPlan),
-        activeCategory: categories[0] ?? '',
+        activeCategory: categories.length > 0 ? categoryId(categories[0]) : '',
         selectedMenu: null,
         cart: cartItems,
         history: orderHistory,
@@ -205,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderMenuAndShow() {
-        state.activeCategory = categories[0];
+        state.activeCategory = categories.length > 0 ? categoryId(categories[0]) : '';
         menuModule.renderCategoryTabs();
         menuModule.renderMenu();
         showScreen('menuScreen');

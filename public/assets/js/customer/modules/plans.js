@@ -28,6 +28,12 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
     const DEFAULT_MINUTES = 120;
     let selectedMinutes = DEFAULT_MINUTES;
 
+    function categoryId(category) {
+        return typeof category === 'object' && category !== null
+            ? String(category.id)
+            : String(category);
+    }
+
     // 時間トグルの選択状態を指定の分数に合わせて更新する
     function setSelectedMinutes(minutes) {
         selectedMinutes = minutes;
@@ -139,7 +145,7 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
 
                 closePlanModal();
 
-                state.activeCategory = categories[0];
+                state.activeCategory = categories.length > 0 ? categoryId(categories[0]) : '';
 
                 // タイマー開始・卓番号/残り時間表示の更新（app.js 側）
                 if (typeof onPlanConfirmed === 'function') {
