@@ -10,6 +10,7 @@ const state = {
         servedQty: order.servedQty ?? 0
     })),
     products: (window.STAFF_DATA?.products || []).map(product => ({ ...product })),
+    productCategories: (window.STAFF_DATA?.productCategories || []).map(category => ({ ...category })),
     orderMode: 'waiting',
     selectedProductId: null,
     selectedOrderDetailId: null,
@@ -336,18 +337,7 @@ if (editProductButton) {
 const deleteProductButton = document.getElementById('deleteProductButton');
 if (deleteProductButton) {
     deleteProductButton.addEventListener('click', () => {
-        const product = selectedProduct();
-
-        if (!product) {
-            openCompleteModal('削除する商品を選択してください。');
-            return;
-        }
-
-        state.products = state.products.filter(item => Number(item.id) !== Number(product.id));
-        state.selectedProductId = null;
-
-        renderProducts();
-        openCompleteModal('商品を削除しました。');
+        openCompleteModal('商品削除は今回は未実装です。');
     });
 }
 

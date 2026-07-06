@@ -87,6 +87,30 @@ switch ($path) {
         echo '405 Method Not Allowed';
         break;
 
+    case '/staff/product/add':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->addProduct();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
+    case '/staff/product/update':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->updateProduct();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
     case '/customer':
         $controller = new CustomerController();
         $controller->index();

@@ -1,9 +1,6 @@
 /**
- * スタッフ ダッシュボード モジュール：商品管理。
- * 商品一覧（名称・カテゴリ・値段・画像）の描画、商品の選択、追加/編集フォームのモーダル表示を担当する。
- * dashboard.js から context を受け取り生成。
- *
- * 主な関数: renderProducts() / selectedProduct() / openProductForm()
+ * スタッフダッシュボード 商品管理モジュール。
+ * 商品一覧表示、商品追加、商品編集を担当します。削除処理は実装しません。
  */
 window.MOS = window.MOS || {};
 window.MOS.staffDashboard = window.MOS.staffDashboard || {};
@@ -16,25 +13,40 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
         openCompleteModal
     } = context;
 
-    // 消費税率（10%）。将来変更する場合はここだけ直せばよいように定数化する
     const TAX_RATE = 0.1;
 
-    // 税抜金額から税込金額を求める。端数（1円未満）は切り捨て
-    function taxIncluded(priceExcludingTax) {
-        return Math.floor(priceExcludingTax * (1 + TAX_RATE));
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
     }
 
-    // 保存済み金額は税込のため、編集フォームの「税抜」欄に戻すときは逆算する。
-    // 切り捨てで丸めた税込からは元の税抜を完全復元できないため、四捨五入で近似する
-    function taxExcluded(priceIncludingTax) {
-        return Math.round(priceIncludingTax / (1 + TAX_RATE));
+    function taxIncluded(priceExcludingTax) {
+        return Math.floor(Number(priceExcludingTax || 0) * (1 + TAX_RATE));
+    }
+
+    function saleStatusText(status) {
+        if (status === 'ON_SALE') return '販売中';
+        if (status === 'SOLD_OUT') return '売り切れ';
+        if (status === 'HIDDEN') return '非表示';
+        return status || '';
+    }
+
+    function imageUrl(path) {
+        if (!path) return '';
+        return path.startsWith('/MOS_A/public')
+            ? path
+            : `/MOS_A/public${path}`;
     }
 
     function renderProducts() {
         const body = document.getElementById('productTableBody');
         if (!body) return;
 
-        // 商品が0件のときは、空の表だけにならないよう空メッセージを1行表示する
         if (state.products.length === 0) {
             body.innerHTML = `
                 <tr>
@@ -47,6 +59,9 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
         body.innerHTML = state.products.map(product => {
             const selectedClass = String(product.id) === String(state.selectedProductId) ? 'selected-row' : '';
             const checked = String(product.id) === String(state.selectedProductId) ? 'checked' : '';
+            const preview = product.image_path
+                ? `<img class="product-thumb" src="${escapeHtml(imageUrl(product.image_path))}" alt="">`
+                : '<span class="product-thumb-empty">画像なし</span>';
 
             return `
                 <tr class="${selectedClass}" data-product-id="${product.id}">
@@ -59,10 +74,17 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                             ${checked}
                         >
                     </td>
-                    <td>${product.name}</td>
-                    <td>${product.category}</td>
-                    <td>${product.price}</td>
-                    <td><button class="row-button" type="button">画像選択</button></td>
+                    <td>${escapeHtml(product.name)}</td>
+                    <td>${escapeHtml(product.category)}</td>
+                    <td>
+                        <div>${Number(product.price || 0).toLocaleString()}円</div>
+                        <small>税込 ${Number(product.tax_included_price || taxIncluded(product.price)).toLocaleString()}円</small>
+                        <small>${escapeHtml(saleStatusText(product.sale_status))}</small>
+                    </td>
+                    <td>
+                        ${preview}
+                        <button class="row-button product-edit-row-button" type="button" data-product-id="${product.id}">編集</button>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -81,111 +103,369 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                 renderProducts();
             });
         });
+
+        body.querySelectorAll('.product-edit-row-button').forEach(button => {
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                state.selectedProductId = Number(button.dataset.productId);
+                openProductForm('edit');
+            });
+        });
     }
 
     function selectedProduct() {
         return state.products.find(product => Number(product.id) === Number(state.selectedProductId));
     }
 
+    function categoryOptions(selectedCategoryId = '') {
+        if (state.productCategories.length === 0) {
+            return '<option value="">カテゴリがありません</option>';
+        }
+
+        return [
+            '<option value="">カテゴリを選択してください</option>',
+            ...state.productCategories.map(category => {
+                const categoryId = Number(category.category_id);
+                const selected = String(categoryId) === String(selectedCategoryId) ? 'selected' : '';
+
+                return `<option value="${categoryId}" ${selected}>${escapeHtml(category.category_name)}</option>`;
+            })
+        ].join('');
+    }
+
+    function optionGroupTemplate(index, group = {}) {
+        const groupId = Number(group.option_group_id || 0);
+        const groupName = group.group_name || '';
+        const selectionType = group.selection_type || 'SINGLE';
+        const isRequired = Number(group.is_required || 0) === 1 ? '1' : '0';
+        const options = Array.isArray(group.options) && group.options.length > 0
+            ? group.options
+            : [{ option_id: 0, option_name: '' }, { option_id: 0, option_name: '' }];
+
+        return `
+            <div class="option-group-box" data-option-group-index="${index}" data-option-group-id="${groupId}">
+                <input type="hidden" name="option_group_id" value="${groupId}">
+
+                <div class="option-group-header">
+                    <label>
+                        <span>オプショングループ名</span>
+                        <input type="text" name="option_group_name" value="${escapeHtml(groupName)}" placeholder="例：辛さ">
+                    </label>
+                </div>
+
+                <div class="option-group-flags">
+                    <label>
+                        <span>必須</span>
+                        <select name="option_is_required">
+                            <option value="1" ${isRequired === '1' ? 'selected' : ''}>ON</option>
+                            <option value="0" ${isRequired === '0' ? 'selected' : ''}>OFF</option>
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>複数選択</span>
+                        <select name="option_selection_type">
+                            <option value="SINGLE" ${selectionType === 'SINGLE' ? 'selected' : ''}>OFF</option>
+                            <option value="MULTIPLE" ${selectionType === 'MULTIPLE' ? 'selected' : ''}>ON</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="option-values">
+                    ${options.map(option => `
+                        <label>
+                            <span>選択肢</span>
+                            <input type="hidden" name="option_id" value="${Number(option.option_id || 0)}">
+                            <input type="text" name="option_value" value="${escapeHtml(option.option_name || '')}" placeholder="例：なし">
+                        </label>
+                    `).join('')}
+                </div>
+
+                <button class="row-button add-option-value-button" type="button">選択肢を追加</button>
+            </div>
+        `;
+    }
+
+    function collectOptionGroups(form) {
+        const groups = [];
+
+        form.querySelectorAll('.option-group-box').forEach(groupBox => {
+            const groupName = groupBox.querySelector('[name="option_group_name"]').value.trim();
+            const optionGroupId = Number(groupBox.querySelector('[name="option_group_id"]').value || 0);
+            const selectionType = groupBox.querySelector('[name="option_selection_type"]').value;
+            const isRequired = groupBox.querySelector('[name="option_is_required"]').value;
+            const optionValueInputs = Array.from(groupBox.querySelectorAll('[name="option_value"]'));
+            const optionIdInputs = Array.from(groupBox.querySelectorAll('[name="option_id"]'));
+            const options = optionValueInputs.map((input, index) => ({
+                optionId: Number(optionIdInputs[index]?.value || 0),
+                optionName: input.value.trim()
+            })).filter(option => option.optionName !== '');
+
+            if (groupName !== '' || options.length > 0) {
+                groups.push({
+                    optionGroupId,
+                    groupName,
+                    selectionType,
+                    isRequired,
+                    options
+                });
+            }
+        });
+
+        return groups;
+    }
+
+    function appendOptionGroupsToFormData(formData, groups) {
+        groups.forEach((group, groupIndex) => {
+            formData.append(`option_groups[${groupIndex}][option_group_id]`, String(group.optionGroupId));
+            formData.append(`option_groups[${groupIndex}][group_name]`, group.groupName);
+            formData.append(`option_groups[${groupIndex}][selection_type]`, group.selectionType);
+            formData.append(`option_groups[${groupIndex}][is_required]`, group.isRequired);
+
+            group.options.forEach((option, optionIndex) => {
+                formData.append(`option_groups[${groupIndex}][options][${optionIndex}][option_id]`, String(option.optionId));
+                formData.append(`option_groups[${groupIndex}][options][${optionIndex}][option_name]`, option.optionName);
+            });
+        });
+    }
+
+    async function postProduct(formData, mode) {
+        const response = await fetch(
+            mode === 'edit' ? '/MOS_A/public/staff/product/update' : '/MOS_A/public/staff/product/add',
+            {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            }
+        );
+
+        let payload = null;
+
+        try {
+            payload = await response.json();
+        } catch (error) {
+            payload = null;
+        }
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || '商品の保存に失敗しました。');
+        }
+
+        return payload.product;
+    }
+
+    function bindOptionUi(form, product) {
+        const hasOptionsSelect = form.querySelector('#productHasOptionsInput');
+        const optionArea = form.querySelector('#productOptionArea');
+        const optionGroupList = form.querySelector('#optionGroupList');
+        const addOptionGroupButton = form.querySelector('#addOptionGroupButton');
+        const existingHasOptions = Boolean(product?.has_options);
+
+        function ensureFirstGroup() {
+            if (optionGroupList.children.length === 0) {
+                optionGroupList.insertAdjacentHTML('beforeend', optionGroupTemplate(0));
+            }
+        }
+
+        hasOptionsSelect.addEventListener('change', () => {
+            if (existingHasOptions && hasOptionsSelect.value === '0') {
+                hasOptionsSelect.value = '1';
+                openCompleteModal('既存オプションの削除は行いません。必要な場合は販売状態で制御してください。');
+                return;
+            }
+
+            optionArea.hidden = hasOptionsSelect.value !== '1';
+
+            if (!optionArea.hidden) {
+                ensureFirstGroup();
+            }
+        });
+
+        addOptionGroupButton.addEventListener('click', () => {
+            optionGroupList.insertAdjacentHTML('beforeend', optionGroupTemplate(optionGroupList.children.length));
+        });
+
+        optionGroupList.addEventListener('click', event => {
+            const target = event.target;
+
+            if (!(target instanceof HTMLElement)) return;
+
+            if (target.classList.contains('add-option-value-button')) {
+                const values = target.closest('.option-group-box')?.querySelector('.option-values');
+                values?.insertAdjacentHTML('beforeend', `
+                    <label>
+                        <span>選択肢</span>
+                        <input type="hidden" name="option_id" value="0">
+                        <input type="text" name="option_value" placeholder="例：多め">
+                    </label>
+                `);
+            }
+        });
+    }
+
     function openProductForm(mode) {
         const product = mode === 'edit'
             ? selectedProduct()
-            : { name: '', category: '串', price: '' };
+            : {
+                id: '',
+                name: '',
+                category_id: '',
+                price: '',
+                sale_status: 'ON_SALE',
+                image_path: '',
+                has_options: false,
+                option_groups: []
+            };
 
         if (mode === 'edit' && !product) {
-            openCompleteModal('編集する商品を選択してください');
+            openCompleteModal('編集する商品を選択してください。');
             return;
         }
 
-        // 税抜入力欄の初期値。追加時は空、編集時は保存済み（税込）から税抜を逆算して表示する
-        const priceExcludingTax = product.price === '' ? '' : taxExcluded(Number(product.price));
+        const optionGroups = Array.isArray(product.option_groups) ? product.option_groups : [];
+        const hasOptionsValue = product.has_options ? '1' : '0';
+        const existingImage = product.image_path
+            ? `<img src="${escapeHtml(imageUrl(product.image_path))}" alt="">`
+            : '<span>画像プレビュー</span>';
 
         openModal(`
-            <div class="product-form">
+            <form class="product-form" id="productSaveForm" enctype="multipart/form-data">
+                <input type="hidden" name="product_id" value="${escapeHtml(product.id)}">
+
                 <label>
                     <span>商品名</span>
-                    <input id="productNameInput" type="text" value="${product.name}">
+                    <input id="productNameInput" name="product_name" type="text" maxlength="100" value="${escapeHtml(product.name)}" required>
                 </label>
 
                 <label>
                     <span>カテゴリ</span>
-                    <select id="productCategoryInput">
-                        <option ${product.category === 'ドリンク' ? 'selected' : ''}>ドリンク</option>
-                        <option ${product.category === '串' ? 'selected' : ''}>串</option>
-                        <option ${product.category === '一品' ? 'selected' : ''}>一品</option>
-                        <option ${product.category === '揚げ物' ? 'selected' : ''}>揚げ物</option>
-                        <option ${product.category === 'ご飯もの' ? 'selected' : ''}>ご飯もの</option>
-                        <option ${product.category === '期間限定' ? 'selected' : ''}>期間限定</option>
+                    <select id="productCategoryInput" name="category_id" required>
+                        ${categoryOptions(product.category_id)}
                     </select>
                 </label>
 
                 <label>
-                    <span>画像</span>
-                    <div class="image-box">ここに画像を挿入</div>
+                    <span>商品画像</span>
+                    <input id="productImageInput" name="product_image" type="file" accept="image/jpeg,image/png,image/webp">
+                </label>
+
+                <div class="image-preview-box" id="productImagePreview">
+                    ${existingImage}
+                </div>
+
+                <label>
+                    <span>税抜価格</span>
+                    <input id="productPriceInput" name="price" type="number" min="0" step="1" value="${escapeHtml(product.price)}" required>
                 </label>
 
                 <label>
-                    <span>値段（税抜）</span>
-                    <input id="productPriceInput" type="number" value="${priceExcludingTax}">
+                    <span>税込価格</span>
+                    <input id="productPriceTaxIncludedInput" type="number" value="${taxIncluded(product.price)}" readonly>
                 </label>
 
                 <label>
-                    <span>値段（税込）</span>
-                    <!-- 税込は税抜×1.1の自動計算結果。手入力させず表示専用にする -->
-                    <input id="productPriceTaxIncludedInput" type="number" value="${product.price}" readonly>
+                    <span>販売状態</span>
+                    <select id="productSaleStatusInput" name="sale_status">
+                        <option value="ON_SALE" ${product.sale_status === 'ON_SALE' ? 'selected' : ''}>販売中</option>
+                        <option value="SOLD_OUT" ${product.sale_status === 'SOLD_OUT' ? 'selected' : ''}>売り切れ</option>
+                        <option value="HIDDEN" ${product.sale_status === 'HIDDEN' ? 'selected' : ''}>非表示</option>
+                    </select>
                 </label>
+
+                <label>
+                    <span>オプション</span>
+                    <select id="productHasOptionsInput" name="has_options">
+                        <option value="0" ${hasOptionsValue === '0' ? 'selected' : ''}>なし</option>
+                        <option value="1" ${hasOptionsValue === '1' ? 'selected' : ''}>あり</option>
+                    </select>
+                </label>
+
+                <div class="product-option-area" id="productOptionArea" ${hasOptionsValue === '1' ? '' : 'hidden'}>
+                    <div id="optionGroupList">
+                        ${optionGroups.map((group, index) => optionGroupTemplate(index, group)).join('')}
+                    </div>
+                    <button class="row-button" id="addOptionGroupButton" type="button">オプションを追加</button>
+                </div>
 
                 <div class="form-buttons">
-                    <button id="saveProductButton" class="white-button">決定</button>
-                    <button id="cancelProductButton" class="white-button">取消</button>
+                    <button id="saveProductButton" class="white-button" type="submit">決定</button>
+                    <button id="cancelProductButton" class="white-button" type="button">取消</button>
                 </div>
-            </div>
+            </form>
         `);
+
+        const form = document.getElementById('productSaveForm');
+        const priceInput = document.getElementById('productPriceInput');
+        const taxIncludedInput = document.getElementById('productPriceTaxIncludedInput');
+        const imageInput = document.getElementById('productImageInput');
+        const imagePreview = document.getElementById('productImagePreview');
+        const saveButton = document.getElementById('saveProductButton');
 
         document.getElementById('cancelProductButton').addEventListener('click', closeModal);
 
-        // 税抜欄への入力に合わせて、税込欄（表示専用）をリアルタイムに更新する
-        const priceInput = document.getElementById('productPriceInput');
-        const taxIncludedInput = document.getElementById('productPriceTaxIncludedInput');
         priceInput.addEventListener('input', () => {
-            const excluded = Number(priceInput.value || 0);
-            taxIncludedInput.value = taxIncluded(excluded);
+            taxIncludedInput.value = taxIncluded(priceInput.value);
         });
 
-        document.getElementById('saveProductButton').addEventListener('click', () => {
-            const name = document.getElementById('productNameInput').value.trim();
-            const category = document.getElementById('productCategoryInput').value;
-            // 入力は税抜。保存・一覧表示は税込に統一するため、ここで税込へ変換する
-            const priceExcluded = Number(priceInput.value || 0);
-            const price = taxIncluded(priceExcluded);
+        imageInput.addEventListener('change', () => {
+            const file = imageInput.files?.[0];
 
-            if (!name) {
-                alert('商品名を入力してください');
+            if (!file) {
+                imagePreview.innerHTML = existingImage;
                 return;
             }
 
-            if (mode === 'add') {
-                const ids = state.products.map(item => Number(item.id));
-                const nextId = ids.length > 0 ? Math.max(...ids) + 1 : 1;
+            imagePreview.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="">`;
+        });
 
-                state.products.push({
-                    id: nextId,
-                    name,
-                    category,
-                    price
-                });
+        bindOptionUi(form, product);
 
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+
+            const formData = new FormData(form);
+            const hasOptions = formData.get('has_options') === '1';
+
+            if (hasOptions) {
+                const optionGroupsForSave = collectOptionGroups(form);
+
+                if (optionGroupsForSave.length === 0) {
+                    openCompleteModal('オプションありの場合は、オプショングループを入力してください。');
+                    return;
+                }
+
+                if (optionGroupsForSave.some(group => group.groupName === '' || group.options.length === 0)) {
+                    openCompleteModal('各オプショングループ名と選択肢を入力してください。');
+                    return;
+                }
+
+                appendOptionGroupsToFormData(formData, optionGroupsForSave);
+            }
+
+            saveButton.disabled = true;
+
+            try {
+                const savedProduct = await postProduct(formData, mode);
+                const index = state.products.findIndex(item => Number(item.id) === Number(savedProduct.id));
+
+                if (index >= 0) {
+                    state.products[index] = savedProduct;
+                } else {
+                    state.products.push(savedProduct);
+                }
+
+                state.selectedProductId = savedProduct.id;
                 renderProducts();
-                openCompleteModal('商品を追加しました');
-                return;
+                closeModal();
+                openCompleteModal(mode === 'edit' ? '商品を更新しました。' : '商品を追加しました。');
+            } catch (error) {
+                openCompleteModal(error.message || '商品の保存に失敗しました。');
+            } finally {
+                saveButton.disabled = false;
             }
-
-            product.name = name;
-            product.category = category;
-            product.price = price;
-
-            renderProducts();
-            openCompleteModal('商品を編集しました');
         });
     }
 

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Database/db.php';
 require_once dirname(__DIR__) . '/Models/StaffOrderModel.php';
+require_once dirname(__DIR__) . '/Models/StaffProductModel.php';
 
 /**
  * スタッフ側画面のコントローラー。
@@ -128,6 +129,7 @@ final class StaffController
         $customers = $this->customers();
         $orders = $this->orders();
         $products = $this->products();
+        $productCategories = $this->productCategories();
 
         $view = dirname(__DIR__) . '/Views/staff/dashboard.php';
 
@@ -306,6 +308,90 @@ final class StaffController
         }
     }
 
+    public function addProduct(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        try {
+            $model = new StaffProductModel();
+            $product = $model->addProduct($storeId, $_POST, $_FILES['product_image'] ?? null);
+
+            $this->json([
+                'ok' => true,
+                'product' => $product,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-product-add] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function updateProduct(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $productId = filter_input(INPUT_POST, 'product_id', FILTER_VALIDATE_INT);
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        if ($productId === false || $productId === null || $productId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '商品IDが正しくありません。',
+            ], 422);
+        }
+
+        try {
+            $model = new StaffProductModel();
+            $product = $model->updateProduct($storeId, (int)$productId, $_POST, $_FILES['product_image'] ?? null);
+
+            $this->json([
+                'ok' => true,
+                'product' => $product,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-product-update] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
     private function renderLogin(array $errors = [], array $old = [], ?array $stores = null): void
     {
         $title = 'みどり亭 ログイン';
@@ -468,8 +554,38 @@ final class StaffController
         }
     }
 
+    private function productCategories(): array
+    {
+        try {
+            $model = new StaffProductModel();
+
+            return $model->categories();
+        } catch (Throwable $exception) {
+            error_log('[staff-product-categories] DB error: ' . $exception->getMessage());
+
+            return [];
+        }
+    }
+
     private function products(): array
     {
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            error_log('[staff-products] store_id is missing from session.');
+            return [];
+        }
+
+        try {
+            $model = new StaffProductModel();
+
+            return $model->productsForStore($storeId);
+        } catch (Throwable $exception) {
+            error_log('[staff-products] DB error: ' . $exception->getMessage());
+
+            return [];
+        }
+
         return [
             ['id' => 1, 'name' => 'もも串 タレ', 'category' => '串', 'stock' => 30, 'price' => 200],
             ['id' => 2, 'name' => 'もも串 塩', 'category' => '串', 'stock' => 100, 'price' => 200],
