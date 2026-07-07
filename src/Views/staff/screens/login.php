@@ -55,3 +55,28 @@ $selectedStoreId = (string)($old['store_id'] ?? '');
         </form>
     </section>
 </main>
+
+<script>
+/**
+ * ログインフォーム送信時の処理
+ * * ログインボタンが押されたタイミングで、選択されている店舗IDをローカルストレージに保存します。
+ * 【理由】
+ * ログイン後のダッシュボード画面（JS側）において、現在ログイン中の店舗IDを即座に把握し、
+ * 各店舗専用の客側オーダー用QRコード（URLパラメータに店舗IDを含むもの）を生成できるようにするためです。
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    const loginForm = document.querySelector('.login-form');
+    
+    if (loginForm) {
+        loginForm.addEventListener('submit', function() {
+            const storeSelect = document.getElementById('storeId');
+            
+            // 店舗が正しく選択されている場合のみ保存を実行する
+            if (storeSelect && storeSelect.value) {
+                // qr.js 側で 'mos_current_store_id' というキー名で取得するため、同名で保存
+                localStorage.setItem('mos_current_store_id', storeSelect.value);
+            }
+        });
+    }
+});
+</script>
