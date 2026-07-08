@@ -80,6 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return '¥' + Number(value || 0).toLocaleString('ja-JP');
     }
 
+    function normalizeTableNumberInput(value) {
+        return String(value || '').replace(/\D/g, '').slice(0, 2);
+    }
+
     function showToast(message) {
         const toast = document.getElementById('toast');
 
@@ -404,10 +408,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tableSubmitButton').addEventListener('click', async () => {
         const input = document.getElementById('tableNumberInput');
         const error = document.getElementById('tableError');
-        const value = input.value.trim();
+        const value = normalizeTableNumberInput(input.value);
 
-        if (!/^\d{1,3}$/.test(value)) {
-            error.textContent = '卓番号を数字で入力してください';
+        input.value = value;
+
+        if (!/^\d{1,2}$/.test(value)) {
+            error.textContent = '卓番号は1〜2桁の数字で入力してください';
             return;
         }
 
@@ -426,6 +432,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         showScreen('planScreen');
+    });
+
+    const tableNumberInput = document.getElementById('tableNumberInput');
+    tableNumberInput.addEventListener('input', () => {
+        const normalizedValue = normalizeTableNumberInput(tableNumberInput.value);
+
+        if (tableNumberInput.value !== normalizedValue) {
+            tableNumberInput.value = normalizedValue;
+        }
+    });
+
+    tableNumberInput.addEventListener('keydown', event => {
+        if (event.ctrlKey || event.metaKey || event.altKey) {
+            return;
+        }
+
+        if (event.key.length === 1 && !/\d/.test(event.key)) {
+            event.preventDefault();
+        }
     });
 
     document.getElementById('productBackButton').addEventListener('click', () => {
