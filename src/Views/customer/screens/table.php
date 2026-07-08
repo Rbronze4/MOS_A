@@ -24,7 +24,7 @@
         class="number-input"
         type="text"
         inputmode="numeric"
-        maxlength="3"
+        maxlength="2"
         value=""
     >
 

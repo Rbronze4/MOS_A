@@ -112,8 +112,8 @@ final class StaffOrderModel
             throw new InvalidArgumentException('卓番号または顧客番号を指定してください。');
         }
 
-        if ($tableNumber !== '' && !preg_match('/^\d{1,3}$/', $tableNumber)) {
-            throw new InvalidArgumentException('卓番号は数字で入力してください。');
+        if ($tableNumber !== '' && !preg_match('/^\d{1,2}$/', $tableNumber)) {
+            throw new InvalidArgumentException('卓番号は1〜2桁の数字で入力してください。');
         }
 
         if ($items === []) {
