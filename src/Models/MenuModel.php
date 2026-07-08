@@ -137,6 +137,10 @@ final class MenuModel
             return self::NO_IMAGE_PATH;
         }
 
+        if (str_starts_with($imagePath, '/assets/')) {
+            return '/MOS_A/public' . $imagePath;
+        }
+
         return $imagePath;
     }
 }

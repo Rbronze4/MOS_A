@@ -97,6 +97,85 @@ final class CustomerSessionModel
         }
     }
 
+    public function startForStaff(
+        int $customerId,
+        string $tableNumber,
+        ?string $planKey,
+        ?int $planMinutes,
+        string $storeId
+    ): array {
+        $this->validateTableNumber($tableNumber);
+
+        $pdo = db();
+
+        try {
+            $pdo->beginTransaction();
+
+            $customer = $this->findCustomer($customerId);
+
+            if ($customer === null) {
+                throw new RuntimeException('顧客情報が見つかりません。');
+            }
+
+            if ((string)$customer['store_id'] !== $storeId) {
+                throw new RuntimeException('注文対象の顧客がログイン中の店舗と一致しません。');
+            }
+
+            $activeCustomerPlan = $this->findActiveCustomerPlanForUpdate($customerId);
+            $plan = null;
+            $usedExistingPlan = false;
+
+            if ($activeCustomerPlan !== null) {
+                $plan = $this->findPlanById((int)$activeCustomerPlan['plan_id'], $storeId);
+                $usedExistingPlan = true;
+            } else {
+                $plan = $this->resolvePlan($storeId, $planKey, $planMinutes);
+
+                if ($plan !== null) {
+                    $this->insertCustomerPlan($customerId, $plan);
+                }
+            }
+
+            $session = $this->findActiveSession($customerId, $tableNumber);
+            $sessionCreated = false;
+
+            if ($session === null) {
+                $sessionId = $this->insertSession($customerId, $storeId, $tableNumber, $plan);
+                $sessionCreated = true;
+            } else {
+                $sessionId = (int)$session['session_id'];
+            }
+
+            $cartId = $this->findCartId($sessionId);
+            $cartCreated = false;
+
+            if ($cartId === null) {
+                $cartId = $this->insertCart($sessionId);
+                $cartCreated = true;
+            }
+
+            $pdo->commit();
+
+            return [
+                'customer_id' => $customerId,
+                'store_id' => $storeId,
+                'session_id' => $sessionId,
+                'cart_id' => $cartId,
+                'session_created' => $sessionCreated,
+                'cart_created' => $cartCreated,
+                'plan_id' => $plan === null ? null : (int)$plan['plan_id'],
+                'plan_key' => $planKey,
+                'used_existing_plan' => $usedExistingPlan,
+            ];
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     /**
      * session_idからACTIVEセッションを取得する。
      */

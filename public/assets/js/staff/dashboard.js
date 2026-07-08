@@ -276,6 +276,33 @@ if (qrReissueButton) {
     });
 }
 
+const staffOrderFromCustomerButton = document.getElementById('staffOrderFromCustomerButton');
+if (staffOrderFromCustomerButton) {
+    staffOrderFromCustomerButton.addEventListener('click', () => {
+        const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
+
+        if (!selectedCustomer) {
+            openCompleteModal('顧客を選択してください。');
+            return;
+        }
+
+        const customerId = selectedCustomer.dataset.customerId || selectedCustomer.value;
+
+        if (!customerId) {
+            openCompleteModal('顧客番号を取得できません。');
+            return;
+        }
+
+        const customerRow = selectedCustomer.closest('tr');
+        const cells = customerRow?.querySelectorAll('td') || [];
+        const tableNo = cells.length > 1 ? cells[1].textContent.trim() : '';
+        const hasActiveSession = tableNo !== '' && tableNo !== 'なし';
+        const path = hasActiveSession ? 'order-menu' : 'order-entry';
+
+        location.href = `/MOS_A/public/staff/${path}?customer_id=${encodeURIComponent(customerId)}&ref=customerList`;
+    });
+}
+
 const staffOrderFromDetailButton = document.getElementById('staffOrderFromDetailButton');
 if (staffOrderFromDetailButton) {
     staffOrderFromDetailButton.addEventListener('click', () => {

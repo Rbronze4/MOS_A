@@ -39,7 +39,7 @@ final class StaffCustomerModel
         $customers = [];
 
         foreach ($statement->fetchAll() as $row) {
-            $tableNumbers = (string)($row['table_numbers'] ?? '');
+            $tableNumbers = trim((string)($row['table_numbers'] ?? ''));
 
             $customers[] = [
                 'customer_id' => (int)$row['customer_id'],
@@ -69,6 +69,7 @@ final class StaffCustomerModel
             'people_count' => (int)$customer['people_count'],
             'plan_label' => $this->planLabel($plan),
             'table_numbers' => $this->tableNumberLabels($sessions),
+            'has_active_session' => $sessions !== [],
             'billing_status_label' => $this->billingStatusLabel((string)$customer['billing_status']),
         ];
     }
@@ -179,7 +180,7 @@ final class StaffCustomerModel
             $tableNumber = trim((string)$session['table_number']);
 
             if ($tableNumber !== '') {
-                $labels[] = $tableNumber . '番卓';
+                $labels[] = $tableNumber . '番';
             }
         }
 

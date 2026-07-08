@@ -131,3 +131,36 @@
     opacity: 0.92;
 }
 
+@media (min-width: 1024px) {
+    .staff-order-entry-top {
+        height: 76px;
+        padding: 0 44px;
+        margin-bottom: 52px;
+    }
+
+    .staff-order-entry-form {
+        width: min(560px, 48vw);
+    }
+
+    .staff-order-entry-title {
+        margin-bottom: 56px;
+        font-size: 24px;
+    }
+
+    .staff-table-row {
+        gap: 88px;
+        margin-bottom: 44px;
+    }
+
+    .staff-plan-row {
+        gap: 28px;
+        margin-bottom: 48px;
+        font-size: 17px;
+    }
+
+    .staff-order-decision-button {
+        width: 152px;
+        height: 56px;
+    }
+}
+

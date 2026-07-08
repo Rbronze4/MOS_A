@@ -1,10 +1,4 @@
 <?php
-/**
- * スタッフ画面用のサイドメニュー。
- *
- * $staffSideMenuMode が screen の場合は同一ページ内で画面切り替えを行い、
- * それ以外では通常リンクとして遷移する。
- */
 $staffSideMenuMode = $staffSideMenuMode ?? 'link';
 
 $staffSideMenuItems = [
@@ -13,7 +7,6 @@ $staffSideMenuItems = [
     ['label' => '顧客詳細', 'screen' => 'customerListScreen', 'href' => '/MOS_A/public/staff?ref=customerList'],
     ['label' => '商品管理', 'screen' => 'productScreen', 'href' => '/MOS_A/public/staff?ref=product'],
     ['label' => 'QR発行', 'screen' => 'qrScreen', 'href' => '/MOS_A/public/staff?ref=qr'],
-    ['label' => 'スタッフ注文', 'href' => '/MOS_A/public/staff/order-entry?ref=home'],
     ['label' => 'ログアウト', 'logout' => true, 'href' => '/MOS_A/public/staff/logout'],
 ];
 ?>

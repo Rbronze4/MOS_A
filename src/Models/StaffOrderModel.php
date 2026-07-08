@@ -11,6 +11,185 @@ require_once dirname(__DIR__) . '/Database/db.php';
  */
 final class StaffOrderModel
 {
+    public function activeSessionByTable(string $storeId, string $tableNumber, bool $forUpdate = false): ?array
+    {
+        $lockSql = $forUpdate ? 'FOR UPDATE' : '';
+        $sql = <<<SQL
+            SELECT
+                session_id,
+                customer_id,
+                store_id,
+                table_number,
+                session_status
+            FROM sessions
+            WHERE store_id = :store_id
+              AND table_number = :table_number
+              AND session_status = 'ACTIVE'
+            ORDER BY started_at DESC
+            LIMIT 1
+            $lockSql
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+        $statement->bindValue(':table_number', $tableNumber, PDO::PARAM_STR);
+        $statement->execute();
+
+        $session = $statement->fetch();
+
+        return $session === false ? null : $session;
+    }
+
+    public function activeSessionByCustomer(string $storeId, int $customerId, ?string $tableNumber = null, bool $forUpdate = false): ?array
+    {
+        $tableSql = $tableNumber === null ? '' : 'AND table_number = :table_number';
+        $lockSql = $forUpdate ? 'FOR UPDATE' : '';
+        $sql = <<<SQL
+            SELECT
+                session_id,
+                customer_id,
+                store_id,
+                table_number,
+                session_status
+            FROM sessions
+            WHERE store_id = :store_id
+              AND customer_id = :customer_id
+              AND session_status = 'ACTIVE'
+              $tableSql
+            ORDER BY started_at DESC
+            LIMIT 1
+            $lockSql
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+        $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+
+        if ($tableNumber !== null) {
+            $statement->bindValue(':table_number', $tableNumber, PDO::PARAM_STR);
+        }
+
+        $statement->execute();
+
+        $session = $statement->fetch();
+
+        return $session === false ? null : $session;
+    }
+
+    public function planTypeIdForSession(int $sessionId): ?int
+    {
+        $sql = <<<SQL
+            SELECT
+                p.plan_type_id
+            FROM sessions AS s
+            INNER JOIN customer_plans AS cp
+                ON cp.customer_id = s.customer_id
+            INNER JOIN plans AS p
+                ON p.plan_id = cp.plan_id
+            WHERE s.session_id = :session_id
+              AND s.session_status = 'ACTIVE'
+              AND cp.ended_at IS NULL
+              AND p.is_active = 1
+            LIMIT 1
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':session_id', $sessionId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $planTypeId = $statement->fetchColumn();
+
+        return $planTypeId === false ? null : (int)$planTypeId;
+    }
+
+    public function submitStaffOrder(string $storeId, array $payload): array
+    {
+        $tableNumber = trim((string)($payload['table_number'] ?? $payload['tableNo'] ?? ''));
+        $customerId = filter_var($payload['customer_id'] ?? null, FILTER_VALIDATE_INT);
+        $items = $this->normalizeStaffOrderItems($payload['items'] ?? null);
+
+        if ($tableNumber === '' && ($customerId === false || $customerId === null || $customerId < 1)) {
+            throw new InvalidArgumentException('卓番号または顧客番号を指定してください。');
+        }
+
+        if ($tableNumber !== '' && !preg_match('/^\d{1,3}$/', $tableNumber)) {
+            throw new InvalidArgumentException('卓番号は数字で入力してください。');
+        }
+
+        if ($items === []) {
+            throw new InvalidArgumentException('注文する商品を選択してください。');
+        }
+
+        $pdo = db();
+
+        try {
+            $pdo->beginTransaction();
+
+            if ($customerId !== false && $customerId !== null && $customerId > 0) {
+                $session = $this->activeSessionByCustomer(
+                    $storeId,
+                    (int)$customerId,
+                    $tableNumber === '' ? null : $tableNumber,
+                    true
+                );
+            } else {
+                $session = $this->activeSessionByTable($storeId, $tableNumber, true);
+            }
+
+            if ($session === null) {
+                throw new RuntimeException('指定された卓番号または顧客番号の利用中セッションが見つかりません。先にQR読込または卓番号入力とプラン選択を行ってください。');
+            }
+
+            $planTypeId = $this->planTypeIdForSession((int)$session['session_id']);
+            $productIds = array_column($items, 'product_id');
+            $products = $this->onSaleProductsForStaffOrder($storeId, $productIds, $planTypeId);
+
+            if (count($products) !== count($productIds)) {
+                throw new RuntimeException('販売中ではない商品が含まれています。メニューを再読み込みしてください。');
+            }
+
+            $orderId = $this->insertStaffOrder((int)$session['session_id']);
+            $totalQuantity = 0;
+            $totalAmount = 0;
+
+            foreach ($items as $item) {
+                $product = $products[(int)$item['product_id']];
+                $quantity = (int)$item['quantity'];
+                $unitPrice = (int)$product['plan_applied_flag'] === 1 ? 0 : (int)$product['price'];
+                $planAppliedFlag = (int)$product['plan_applied_flag'];
+
+                $this->insertStaffOrderDetail(
+                    $orderId,
+                    (int)$product['product_id'],
+                    (string)$product['product_name'],
+                    $quantity,
+                    $unitPrice,
+                    $planAppliedFlag
+                );
+
+                $totalQuantity += $quantity;
+                $totalAmount += $unitPrice * $quantity;
+            }
+
+            $pdo->commit();
+
+            return [
+                'order_id' => $orderId,
+                'session_id' => (int)$session['session_id'],
+                'customer_id' => (int)$session['customer_id'],
+                'table_number' => (string)$session['table_number'],
+                'total_quantity' => $totalQuantity,
+                'total_amount' => $totalAmount,
+            ];
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     /**
      * ログイン中店舗の注文詳細一覧を取得する。
      *
@@ -413,6 +592,165 @@ final class StaffOrderModel
 
             throw $exception;
         }
+    }
+
+    private function normalizeStaffOrderItems(mixed $rawItems): array
+    {
+        if (!is_array($rawItems)) {
+            return [];
+        }
+
+        $items = [];
+
+        foreach ($rawItems as $rawItem) {
+            if (!is_array($rawItem)) {
+                continue;
+            }
+
+            $productId = filter_var($rawItem['product_id'] ?? $rawItem['id'] ?? null, FILTER_VALIDATE_INT);
+            $quantity = filter_var($rawItem['quantity'] ?? $rawItem['qty'] ?? null, FILTER_VALIDATE_INT);
+
+            if ($productId === false || $productId === null || $productId < 1) {
+                throw new InvalidArgumentException('商品IDが正しくありません。');
+            }
+
+            if ($quantity === false || $quantity === null || $quantity < 1) {
+                throw new InvalidArgumentException('数量は1以上の整数で入力してください。');
+            }
+
+            if (!isset($items[(int)$productId])) {
+                $items[(int)$productId] = [
+                    'product_id' => (int)$productId,
+                    'quantity' => 0,
+                ];
+            }
+
+            $items[(int)$productId]['quantity'] += (int)$quantity;
+        }
+
+        return array_values($items);
+    }
+
+    private function onSaleProductsForStaffOrder(string $storeId, array $productIds, ?int $planTypeId): array
+    {
+        $productIds = array_values(array_unique(array_map('intval', $productIds)));
+
+        if ($productIds === []) {
+            return [];
+        }
+
+        $placeholders = [];
+
+        foreach ($productIds as $index => $productId) {
+            $placeholders[] = ':product_id_' . $index;
+        }
+
+        $inSql = implode(', ', $placeholders);
+        $sql = <<<SQL
+            SELECT
+                p.product_id,
+                p.product_name,
+                p.price,
+                p.tax_rate,
+                CASE
+                    WHEN ptp.product_id IS NOT NULL THEN 1
+                    ELSE 0
+                END AS plan_applied_flag
+            FROM store_products AS sp
+            INNER JOIN products AS p
+                ON p.product_id = sp.product_id
+            LEFT JOIN plan_type_products AS ptp
+                ON ptp.product_id = p.product_id
+               AND ptp.plan_type_id = :plan_type_id
+            WHERE sp.store_id = :store_id
+              AND sp.product_id IN ($inSql)
+              AND sp.sale_status = 'ON_SALE'
+              AND p.sale_status = 'ON_SALE'
+            FOR UPDATE
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+
+        if ($planTypeId === null) {
+            $statement->bindValue(':plan_type_id', null, PDO::PARAM_NULL);
+        } else {
+            $statement->bindValue(':plan_type_id', $planTypeId, PDO::PARAM_INT);
+        }
+
+        foreach ($productIds as $index => $productId) {
+            $statement->bindValue(':product_id_' . $index, $productId, PDO::PARAM_INT);
+        }
+
+        $statement->execute();
+
+        $products = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $products[(int)$row['product_id']] = $row;
+        }
+
+        return $products;
+    }
+
+    private function insertStaffOrder(int $sessionId): int
+    {
+        $sql = <<<SQL
+            INSERT INTO orders (
+                session_id,
+                idempotency_key
+            )
+            VALUES (
+                :session_id,
+                :idempotency_key
+            )
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':session_id', $sessionId, PDO::PARAM_INT);
+        $statement->bindValue(':idempotency_key', 'staff-' . $sessionId . '-' . bin2hex(random_bytes(16)), PDO::PARAM_STR);
+        $statement->execute();
+
+        return (int)db()->lastInsertId();
+    }
+
+    private function insertStaffOrderDetail(
+        int $orderId,
+        int $productId,
+        string $productName,
+        int $quantity,
+        int $unitPrice,
+        int $planAppliedFlag
+    ): void {
+        $sql = <<<SQL
+            INSERT INTO order_details (
+                order_id,
+                product_id,
+                ordered_product_name,
+                quantity,
+                ordered_unit_price,
+                plan_applied_flag,
+                detail_status
+            )
+            VALUES (
+                :order_id,
+                :product_id,
+                :ordered_product_name,
+                :quantity,
+                :ordered_unit_price,
+                :plan_applied_flag,
+                'ORDERED'
+            )
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':order_id', $orderId, PDO::PARAM_INT);
+        $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->bindValue(':ordered_product_name', $productName, PDO::PARAM_STR);
+        $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
+        $statement->bindValue(':ordered_unit_price', $unitPrice, PDO::PARAM_INT);
+        $statement->bindValue(':plan_applied_flag', $planAppliedFlag, PDO::PARAM_INT);
+        $statement->execute();
     }
 
     private function findOrderDetailForUpdate(string $storeId, int $orderDetailId): ?array
