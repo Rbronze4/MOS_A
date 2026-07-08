@@ -133,6 +133,18 @@ switch ($path) {
         echo '405 Method Not Allowed';
         break;
 
+    case '/staff/qr/issue':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->issueQr();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
     case '/staff/product/add':
         $controller = new StaffController();
 

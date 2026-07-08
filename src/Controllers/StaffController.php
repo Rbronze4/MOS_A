@@ -807,6 +807,56 @@ final class StaffController
         exit;
     }
 
+    /**
+     * QR発行：ログイン中店舗で新しい顧客を連番で作成し、customer_idを返す。
+     * 返したcustomer_idで客側画面を利用できる。
+     */
+    public function issueQr(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            echo '405 Method Not Allowed';
+            return;
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 401);
+        }
+
+        $peopleCount = filter_input(INPUT_POST, 'people_count', FILTER_VALIDATE_INT);
+        if ($peopleCount === false || $peopleCount === null || $peopleCount < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '人数を正しく入力してください。',
+            ], 422);
+        }
+        $peopleCount = min(99, (int)$peopleCount);
+
+        try {
+            $model = new StaffCustomerModel();
+            $result = $model->issueCustomer($storeId, $peopleCount);
+
+            $this->json([
+                'ok' => true,
+                'message' => 'QRを発行しました。',
+                'customer_id' => $result['customer_id'],
+                'store_id' => $result['store_id'],
+                'people_count' => $result['people_count'],
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-qr-issue] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => 'QR発行に失敗しました。',
+            ], 500);
+        }
+    }
+
     private function json(array $payload, int $statusCode = 200): void
     {
         http_response_code($statusCode);

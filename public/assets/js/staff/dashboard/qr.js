@@ -1,9 +1,12 @@
 /**
  * スタッフ ダッシュボード モジュール：QR発行。
- * 顧客番号（7桁）の発行と、発行完了モーダルの表示を担当する。
+ * 発行時にサーバー(/staff/qr/issue)で顧客を連番でDB登録し、返ってきた
+ * customer_id で客側URLのQRコードを表示する。発行された顧客はそのまま客として利用できる。
  * dashboard.js から context を受け取り生成。
  *
- * 主な関数: openQrCompleteModal()
+ * 主な関数:
+ *   issueCustomer()      … 新規顧客を連番で発行し、QRを表示（発行ボタン用）
+ *   openQrCompleteModal()… 既存の customer_id を指定してQRを表示（再発行ボタン用）
  */
 window.MOS = window.MOS || {};
 window.MOS.staffDashboard = window.MOS.staffDashboard || {};
@@ -14,56 +17,40 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
         closeModal
     } = context;
 
-    // QRコード生成ライブラリ（QRious）を動的に読み込む処理
-    // HTMLファイル側（ビュー）を変更せずに済むよう、JSの実行時に外部CDNからライブラリを取得します。
+    // QRコード生成ライブラリ（QRious）を動的に読み込む。
+    // 2回目以降は再読込しない。
     function loadQrLibrary(callback) {
-        // 既にライブラリが読み込まれている場合（モーダルを2回目以降開いた場合など）は、
-        // 重複して読み込まずにすぐコールバック（QR描画処理）を実行します。
         if (typeof QRious !== 'undefined') {
             callback();
             return;
         }
-        
+
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
-        
-        // スクリプトの読み込みが完了したタイミングで、引数として渡されたQR描画処理を実行させます。
-        // これにより「ライブラリが存在しないエラー」を防ぎます。
         script.onload = callback;
         document.head.appendChild(script);
     }
 
-    function issueCustomerNumber() {
-        return String(Math.floor(Math.random() * 10000000)).padStart(7, '0');
+    // 客側注文画面のURLを組み立てる。
+    // ※ アプリは /MOS_A/public 配下で動くため、そのベースパスを必ず含める
+    //   （含めないとQRを読み込んでも 404 になり、客側が開けない）。
+    function buildOrderUrl(customerId) {
+        return `${window.location.origin}/MOS_A/public/customer?customer_id=${encodeURIComponent(customerId)}`;
     }
 
-    function openQrCompleteModal(messagePrefix = 'QR発行が完了しました') {
-        const number = issueCustomerNumber();
+    // 指定した customer_id でQRコード表示モーダルを開く（表示専用）。
+    function openQrCompleteModal(customerId, messagePrefix = 'QR発行が完了しました。') {
+        const orderUrl = buildOrderUrl(customerId);
 
-        // login.php の送信時に保存された店舗識別コードを取得する
-        // サーバー側から都度データを取得する通信コストを削減し、画面描画を高速化するため localStorage を利用します。
-        const savedStoreId = localStorage.getItem('mos_current_store_id');
-        
-        // 取得できなかった場合（キャッシュクリア後や直接画面を開いた場合など）のフェイルセーフ
-        // URLの storeId が空になって注文画面自体が開けなくなる致命的エラーを防ぐため、
-        // デフォルト店舗として「緑橋本店（MH）」を設定します。
-        // ※データベース（storesテーブル）の定義上、緑橋本店のstore_idは 'MH' となっています。
-        const storeId = savedStoreId ? savedStoreId : 'MH';
-
-        // お客様がスマートフォンで読み取るための客側注文画面URLを生成
-        // 動的に取得した店舗ID（storeId）をURLパラメータに組み込むことで、正しい店舗のメニューが表示されるようにします。
-        const orderUrl = `${window.location.origin}/customer?storeId=${storeId}&customerId=${number}`;
-
-        // 既存のモーダルUIに、QRコード表示用のcanvas要素を追加して展開します。
         openModal(`
             <h2>${messagePrefix}</h2>
             <div>顧客番号</div>
-            <div class="generated-number">${number}</div>
-            
+            <div class="generated-number">${customerId}</div>
+
             <div class="qr-container" style="margin: 20px 0; text-align: center;">
                 <canvas id="qrcode-canvas"></canvas>
             </div>
-            
+
             <div style="font-size: 12px; word-break: break-all; margin-bottom: 20px; color: #666;">
                 アクセスURL: ${orderUrl}
             </div>
@@ -71,25 +58,56 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
             <button class="white-button" id="closeModalButton">閉じる</button>
         `);
 
-        // モーダルのDOMが画面上に展開された後に、閉じるボタンのイベントを設定
         document.getElementById('closeModalButton').addEventListener('click', closeModal);
 
-        // ライブラリを読み込み、準備ができたらQRコードを生成・描画する
-        loadQrLibrary(function() {
+        loadQrLibrary(function () {
             const canvas = document.getElementById('qrcode-canvas');
             if (canvas) {
-                // QRiousライブラリを使って、指定したcanvas要素にQRコードを描画します
                 new QRious({
                     element: canvas,
-                    value: orderUrl, // QRコードに埋め込むデータ（客側画面のURL）
-                    size: 200,       // QRコードのサイズ（200px）
-                    level: 'H'       // 誤り訂正レベル（High: スマホの影や画面の反射があっても読み取りやすくするため高めに設定）
+                    value: orderUrl,
+                    size: 200,
+                    level: 'H'
                 });
             }
         });
     }
 
+    // 新規顧客を連番でDB発行し、返ってきた customer_id でQRを表示する。
+    async function issueCustomer(peopleCount, messagePrefix = 'QR発行が完了しました。') {
+        try {
+            const response = await fetch('/MOS_A/public/staff/qr/issue', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: new URLSearchParams({ people_count: String(peopleCount) })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.ok) {
+                openModal(`
+                    <h2>${data.message || 'QR発行に失敗しました。'}</h2>
+                    <button class="white-button" id="closeModalButton">閉じる</button>
+                `);
+                document.getElementById('closeModalButton').addEventListener('click', closeModal);
+                return;
+            }
+
+            openQrCompleteModal(data.customer_id, messagePrefix);
+        } catch (error) {
+            openModal(`
+                <h2>通信に失敗しました。もう一度お試しください。</h2>
+                <button class="white-button" id="closeModalButton">閉じる</button>
+            `);
+            document.getElementById('closeModalButton').addEventListener('click', closeModal);
+        }
+    }
+
     return {
+        issueCustomer,
         openQrCompleteModal
     };
 };
