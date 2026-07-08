@@ -125,8 +125,18 @@ const {
     setOrderTabActive,
     renderOrderDetail,
     openOrderEditModal,
-    cancelOrders
+    cancelOrders,
+    restoreOrders
 } = orderModule;
+
+// 一括操作ボタンのラベルを、現在のタブに合わせて切り替える。
+// キャンセル済みタブでは「キャンセル」ではなく「一括取消解除」を表示する。
+function updateBulkButtonLabel() {
+    const button = document.getElementById('bulkCancelButton');
+    if (!button) return;
+
+    button.textContent = state.orderMode === 'canceled' ? '一括取消解除' : 'キャンセル';
+}
 const {
     renderProducts,
     selectedProduct,
@@ -217,6 +227,7 @@ if (showWaitingOrders) {
         state.orderMode = 'waiting';
         setOrderTabActive('showWaitingOrders');
         renderOrders();
+        updateBulkButtonLabel();
         document.getElementById('bulkCancelButton')?.setAttribute('disabled', 'true');
     });
 }
@@ -227,6 +238,7 @@ if (showServedOrders) {
         state.orderMode = 'served';
         setOrderTabActive('showServedOrders');
         renderOrders();
+        updateBulkButtonLabel();
         document.getElementById('bulkCancelButton')?.setAttribute('disabled', 'true');
     });
 }
@@ -237,6 +249,7 @@ if (showCanceledOrders) {
         state.orderMode = 'canceled';
         setOrderTabActive('showCanceledOrders');
         renderOrders();
+        updateBulkButtonLabel();
         document.getElementById('bulkCancelButton')?.setAttribute('disabled', 'true');
     });
 }
@@ -378,7 +391,14 @@ if (bulkCancelButtonElement) {
         const checkedBoxes = body.querySelectorAll('.order-checkbox:checked');
         if (checkedBoxes.length === 0) return;
 
-        if (!confirm(`選択された ${checkedBoxes.length} 件の注文をキャンセルしますか？`)) {
+        // キャンセル済みタブでは「一括取消解除」、それ以外では「一括キャンセル」として動作する。
+        const isRestore = state.orderMode === 'canceled';
+
+        const confirmMessage = isRestore
+            ? `選択された ${checkedBoxes.length} 件の取消を解除しますか？`
+            : `選択された ${checkedBoxes.length} 件の注文をキャンセルしますか？`;
+
+        if (!confirm(confirmMessage)) {
             return;
         }
 
@@ -386,17 +406,24 @@ if (bulkCancelButtonElement) {
         bulkCancelButtonElement.disabled = true;
 
         try {
-            await cancelOrders(orderDetailIds);
+            if (isRestore) {
+                await restoreOrders(orderDetailIds);
+                openCompleteModal('選択した注文の取消を解除しました。');
+            } else {
+                await cancelOrders(orderDetailIds);
+                openCompleteModal('選択した注文をキャンセルしました。');
+            }
+
             bulkCancelButtonElement.setAttribute('disabled', 'true');
-            openCompleteModal('選択した注文をキャンセルしました。');
         } catch (error) {
-            openCompleteModal(error.message || '注文のキャンセルに失敗しました。');
+            openCompleteModal(error.message || '操作に失敗しました。');
         }
     });
 }
 
 setOrderTabActive('showWaitingOrders');
 renderOrders();
+updateBulkButtonLabel();
 renderProducts();
 renderOrderDetail();
 setupCustomerSelection();

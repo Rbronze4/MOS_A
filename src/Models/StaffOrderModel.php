@@ -415,6 +415,120 @@ final class StaffOrderModel
         }
     }
 
+    /**
+     * キャンセル済みの注文明細を「注文中(ORDERED)」に戻す（取消解除）。
+     *
+     * キャンセルの逆操作。detail_status を ORDERED に戻し、cancelled_at をクリアし、
+     * 提供数は0にリセットする。ログイン中店舗の明細だけを対象にする。
+     * 戻した明細を formatOrderRow の形で返し、フロントの一覧を更新できるようにする。
+     */
+    public function restoreOrderDetails(string $storeId, array $orderDetailIds): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', $orderDetailIds),
+            static fn (int $id): bool => $id > 0
+        )));
+
+        if ($ids === []) {
+            throw new InvalidArgumentException('取消解除の対象が選択されていません。');
+        }
+
+        $pdo = db();
+        $placeholders = [];
+
+        foreach ($ids as $index => $id) {
+            $placeholders[] = ':order_detail_id_' . $index;
+        }
+
+        $inSql = implode(', ', $placeholders);
+
+        try {
+            $pdo->beginTransaction();
+
+            // キャンセル済みの明細だけを注文中(ORDERED)に戻す。提供数はリセット。
+            $updateSql = <<<SQL
+                UPDATE order_details AS od
+                INNER JOIN orders AS o
+                    ON o.order_id = od.order_id
+                INNER JOIN sessions AS s
+                    ON s.session_id = o.session_id
+                SET
+                    od.detail_status = 'ORDERED',
+                    od.cancelled_at = NULL,
+                    od.provided_quantity = 0,
+                    od.provided_at = NULL
+                WHERE s.store_id = :store_id
+                  AND od.detail_status = 'CANCELLED'
+                  AND od.order_detail_id IN ($inSql)
+            SQL;
+
+            $statement = $pdo->prepare($updateSql);
+            $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+
+            foreach ($ids as $index => $id) {
+                $statement->bindValue(':order_detail_id_' . $index, $id, PDO::PARAM_INT);
+            }
+
+            $statement->execute();
+
+            $selectSql = <<<SQL
+                SELECT
+                    od.order_detail_id,
+                    od.order_id,
+                    od.product_id,
+                    od.ordered_product_name,
+                    od.quantity,
+                    od.provided_quantity,
+                    od.ordered_unit_price,
+                    od.plan_applied_flag,
+                    od.detail_status,
+                    od.ordered_at,
+                    o.session_id,
+                    o.ordered_at AS order_ordered_at,
+                    s.store_id,
+                    s.table_number,
+                    s.customer_id
+                FROM order_details AS od
+                INNER JOIN orders AS o
+                    ON o.order_id = od.order_id
+                INNER JOIN sessions AS s
+                    ON s.session_id = o.session_id
+                WHERE s.store_id = :store_id
+                  AND od.order_detail_id IN ($inSql)
+                ORDER BY od.order_detail_id ASC
+            SQL;
+
+            $statement = $pdo->prepare($selectSql);
+            $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+
+            foreach ($ids as $index => $id) {
+                $statement->bindValue(':order_detail_id_' . $index, $id, PDO::PARAM_INT);
+            }
+
+            $statement->execute();
+
+            $orders = [];
+
+            foreach ($statement->fetchAll() as $row) {
+                $orders[] = $this->formatOrderRow($row);
+            }
+
+            if ($orders === []) {
+                throw new RuntimeException('取消解除の対象が見つかりません。');
+            }
+
+            $pdo->commit();
+
+            return $orders;
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     private function findOrderDetailForUpdate(string $storeId, int $orderDetailId): ?array
     {
         $sql = <<<SQL

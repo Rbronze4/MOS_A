@@ -499,6 +499,65 @@ final class StaffController
         }
     }
 
+    /**
+     * 取消解除：キャンセル済みの注文明細を注文中(ORDERED)に戻す。
+     * 戻した後は提供数の変更が可能になる。
+     */
+    public function restoreOrderDetails(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $rawIds = $_POST['order_detail_ids'] ?? [];
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        if (!is_array($rawIds)) {
+            $rawIds = [$rawIds];
+        }
+
+        $orderDetailIds = array_values(array_filter(
+            array_map('intval', $rawIds),
+            static fn (int $id): bool => $id > 0
+        ));
+
+        if ($orderDetailIds === []) {
+            $this->json([
+                'ok' => false,
+                'message' => '取消解除の対象を選択してください。',
+            ], 422);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $orders = $model->restoreOrderDetails($storeId, $orderDetailIds);
+
+            $this->json([
+                'ok' => true,
+                'orders' => $orders,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-order-restore] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
     public function addProduct(): void
     {
         $this->requireStaffLogin();
