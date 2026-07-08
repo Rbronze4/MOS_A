@@ -19,6 +19,8 @@ $returnRef = (string)($_GET['ref'] ?? 'customerDetail');
                 id="tableNo"
                 name="tableNo"
                 min="1"
+                max="99"
+                step="1"
                 required
             >
         </div>
@@ -50,5 +52,35 @@ $returnRef = (string)($_GET['ref'] ?? 'customerDetail');
         </button>
     </form>
 </section>
+
+<script>
+    (() => {
+        const input = document.getElementById('tableNo');
+
+        if (!input) {
+            return;
+        }
+
+        const normalize = value => String(value || '').replace(/\D/g, '').slice(0, 2);
+
+        input.addEventListener('input', () => {
+            const normalized = normalize(input.value);
+
+            if (input.value !== normalized) {
+                input.value = normalized;
+            }
+        });
+
+        input.addEventListener('keydown', event => {
+            if (event.ctrlKey || event.metaKey || event.altKey) {
+                return;
+            }
+
+            if (event.key.length === 1 && !/\d/.test(event.key)) {
+                event.preventDefault();
+            }
+        });
+    })();
+</script>
 
 <?php require dirname(__DIR__) . '/parts/side_menu.php'; ?>

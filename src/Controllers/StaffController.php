@@ -217,6 +217,11 @@ final class StaffController
             return;
         }
 
+        if ($tableNo !== '' && !preg_match('/^\d{1,2}$/', $tableNo)) {
+            $staffOrderError = '卓番号は1〜2桁の数字で入力してください。';
+            $tableNo = '';
+        }
+
         try {
             $orderModel = new StaffOrderModel();
 
