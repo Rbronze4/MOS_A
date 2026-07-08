@@ -1,6 +1,9 @@
 RewriteEngine On
+DirectoryIndex index.php
 
 RewriteBase /MOS_A/public/
+
+RewriteRule ^$ index.php [QSA,L]
 
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

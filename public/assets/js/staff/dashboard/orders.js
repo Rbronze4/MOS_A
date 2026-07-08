@@ -1,9 +1,6 @@
 /**
- * スタッフ ダッシュボード モジュール：注文。
- * 注文一覧（注文中/提供済み/キャンセル）の描画、提供・取消・一括キャンセル等の操作、
- * 注文詳細の描画、注文編集モーダルを担当する。dashboard.js から context を受け取り生成。
- *
- * 主な関数: renderOrders() / setOrderTabActive() / renderOrderDetail() / openOrderEditModal()
+ * スタッフダッシュボード 注文一覧モジュール。
+ * 注文一覧の表示、提供数の更新、キャンセル更新、注文詳細の描画を担当します。
  */
 window.MOS = window.MOS || {};
 window.MOS.staffDashboard = window.MOS.staffDashboard || {};
@@ -15,6 +12,98 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         closeModal,
         openCompleteModal
     } = context;
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
+    }
+
+    async function postProvisionAction(orderDetailId, action) {
+        const body = new URLSearchParams();
+        body.set('order_detail_id', String(orderDetailId));
+        body.set('action', action);
+
+        const response = await fetch('/MOS_A/public/staff/order/provision', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body
+        });
+
+        const payload = await parseJson(response);
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || '提供数の更新に失敗しました。');
+        }
+
+        return payload.order;
+    }
+
+    async function postCancelAction(orderDetailIds) {
+        const body = new URLSearchParams();
+
+        orderDetailIds.forEach(orderDetailId => {
+            body.append('order_detail_ids[]', String(orderDetailId));
+        });
+
+        const response = await fetch('/MOS_A/public/staff/order/cancel', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body
+        });
+
+        const payload = await parseJson(response);
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || '注文のキャンセルに失敗しました。');
+        }
+
+        return payload.orders || [];
+    }
+
+    async function parseJson(response) {
+        try {
+            return await response.json();
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function replaceOrder(updatedOrder) {
+        const index = state.orders.findIndex(item => String(item.id) === String(updatedOrder.id));
+
+        if (index >= 0) {
+            state.orders[index] = {
+                ...state.orders[index],
+                ...updatedOrder
+            };
+        }
+    }
+
+    function replaceOrders(updatedOrders) {
+        updatedOrders.forEach(replaceOrder);
+    }
+
+    async function cancelOrders(orderDetailIds) {
+        const updatedOrders = await postCancelAction(orderDetailIds);
+        replaceOrders(updatedOrders);
+        renderOrders();
+        renderOrderDetail();
+
+        return updatedOrders;
+    }
 
     function getProductColor(name) {
         const productName = String(name);
@@ -66,8 +155,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
         const orders = state.orders.filter(order => order.status === state.orderMode);
 
-        // 該当する注文が0件のときは、空の表だけが残って分かりづらいので、
-        // タブ（注文中/提供済み/キャンセル）に応じた空メッセージを1行表示する
+        // タブごとに該当する注文がない場合は、空メッセージを表示します。
         if (orders.length === 0) {
             const emptyMessage = state.orderMode === 'waiting'
                 ? '注文中の商品はありません'
@@ -81,7 +169,6 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                 </tr>
             `;
 
-            // 0件時は選択できる注文がないので、一括キャンセルボタンは無効に戻す
             const bulkCancelButton = document.getElementById('bulkCancelButton');
             if (bulkCancelButton) {
                 bulkCancelButton.setAttribute('disabled', 'true');
@@ -92,88 +179,89 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
         body.innerHTML = orders.map(order => {
             let actionButtons = '';
+            const orderDetailId = order.order_detail_id ?? order.id;
+            const escapedTableNo = escapeHtml(order.table_no);
+            const escapedName = escapeHtml(order.name);
 
             if (state.orderMode === 'waiting') {
                 actionButtons = `
-                    <button class="row-button green-button" data-action="serveOne" data-id="${order.id}">1つ提供</button>
-                    <button class="row-button green-button" data-action="serveAll" data-id="${order.id}">全て提供</button>
-                    <button class="row-button red-button" data-action="minusOne" data-id="${order.id}">1つ減らす</button>
+                    <button class="row-button green-button" data-action="serveOne" data-id="${order.id}" data-order-detail-id="${orderDetailId}">1つ提供</button>
+                    <button class="row-button green-button" data-action="serveAll" data-id="${order.id}" data-order-detail-id="${orderDetailId}">全て提供</button>
+                    <button class="row-button red-button" data-action="minusOne" data-id="${order.id}" data-order-detail-id="${orderDetailId}">1つ減らす</button>
                 `;
             }
 
             if (state.orderMode === 'served') {
                 actionButtons = `
-                    <button class="row-button red-button" data-action="undoServe" data-id="${order.id}">提供取消</button>
+                    <button class="row-button red-button" data-action="undoServe" data-id="${order.id}" data-order-detail-id="${orderDetailId}">提供取消</button>
                 `;
             }
 
             if (state.orderMode === 'canceled') {
                 actionButtons = `
-                    <button class="row-button red-button" data-action="undoCancel" data-id="${order.id}">取消解除</button>
+                    <button class="row-button red-button" data-action="undoCancel" data-id="${order.id}" data-order-detail-id="${orderDetailId}">取消解除</button>
                 `;
             }
 
             return `
-                <tr>
+                <tr data-order-detail-id="${orderDetailId}">
                     <td>
-                        <input type="checkbox" class="order-checkbox" data-id="${order.id}">
+                        <input type="checkbox" class="order-checkbox" data-id="${order.id}" data-order-detail-id="${orderDetailId}">
                     </td>
 
                     <td class="${order.table_no === '12番' || order.table_no === '3番' ? 'table-red' : ''}">
-                        ${order.table_no}
+                        ${escapedTableNo}
                     </td>
 
                     <td class="${getProductColor(order.name)}">
-                        ${order.name}
+                        ${escapedName}
                     </td>
 
                     <td>${order.qty}</td>
 
                     <td>${order.servedQty}/${order.qty}</td>
 
-                    <td>${actionButtons}</td>
+                    <td>
+                        <div class="order-actions">${actionButtons}</div>
+                    </td>
                 </tr>
             `;
         }).join('');
 
         body.querySelectorAll('button').forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 const order = state.orders.find(item => String(item.id) === String(button.dataset.id));
                 if (!order) return;
 
-                if (button.dataset.action === 'serveOne') {
-                    order.servedQty = Math.min(order.qty, order.servedQty + 1);
+                const action = button.dataset.action;
+                const orderDetailId = button.dataset.orderDetailId || order.order_detail_id || order.id;
 
-                    if (order.servedQty >= order.qty) {
-                        order.status = 'served';
-                    }
-                }
+                button.disabled = true;
 
-                if (button.dataset.action === 'serveAll') {
-                    order.servedQty = order.qty;
-                    order.status = 'served';
-                }
-
-                if (button.dataset.action === 'minusOne') {
-                    order.servedQty = Math.max(0, order.servedQty - 1);
-                }
-
-                if (button.dataset.action === 'undoServe') {
-                    order.status = 'waiting';
-                    order.servedQty = 0;
-                }
-
-                if (button.dataset.action === 'undoCancel') {
-                    order.status = 'waiting';
-
-                    if (order.qty <= 0) {
-                        order.qty = 1;
+                try {
+                    if (['serveOne', 'serveAll', 'minusOne', 'undoServe'].includes(action)) {
+                        const updatedOrder = await postProvisionAction(orderDetailId, action);
+                        replaceOrder(updatedOrder);
                     }
 
-                    order.servedQty = 0;
-                }
+                    // 取消解除はDB連携未実装の既存挙動を維持しています。
+                    if (action === 'undoCancel') {
+                        order.status = 'waiting';
 
-                renderOrders();
+                        if (order.qty <= 0) {
+                            order.qty = 1;
+                        }
+
+                        order.servedQty = 0;
+                    }
+
+                    renderOrders();
+                    renderOrderDetail();
+                } catch (error) {
+                    openCompleteModal(error.message || '提供数の更新に失敗しました。');
+                } finally {
+                    button.disabled = false;
+                }
             });
         });
 
@@ -216,7 +304,6 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
         const orders = state.orders.filter(order => order.status !== 'canceled');
 
-        // 表示できる注文明細が0件のときは、空メッセージを1行表示する
         if (orders.length === 0) {
             body.innerHTML = `
                 <tr>
@@ -234,21 +321,23 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
             const checked = String(order.id) === String(state.selectedOrderDetailId)
                 ? 'checked'
                 : '';
+            const orderDetailId = order.order_detail_id ?? order.id;
 
             return `
-                <tr class="${selectedClass}" data-order-id="${order.id}">
+                <tr class="${selectedClass}" data-order-id="${order.id}" data-order-detail-id="${orderDetailId}">
                     <td>
                         <input
                             type="radio"
                             name="selectedOrderDetail"
                             class="order-detail-radio"
                             value="${order.id}"
+                            data-order-detail-id="${orderDetailId}"
                             ${checked}
                         >
                     </td>
-                    <td>${order.name}</td>
+                    <td>${escapeHtml(order.name)}</td>
                     <td>${order.qty}</td>
-                    <td>${order.time}</td>
+                    <td>${escapeHtml(order.time)}</td>
                 </tr>
             `;
         }).join('');
@@ -274,7 +363,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         const order = state.orders.find(item => String(item.id) === String(orderId));
 
         if (!order) {
-            openCompleteModal('注文データが見つかりません');
+            openCompleteModal('注文データが見つかりません。');
             return;
         }
 
@@ -285,9 +374,9 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                 <div class="edit-row">
                     <span>個数変更</span>
                     <div class="qty-control">
-                        <button id="minusQtyButton">−</button>
+                        <button id="minusQtyButton">-</button>
                         <span id="editQtyValue">${qty}</span>
-                        <button id="plusQtyButton">＋</button>
+                        <button id="plusQtyButton">+</button>
                     </div>
                 </div>
 
@@ -303,7 +392,6 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
             </div>
         `);
 
-        // キャンセル：変更を保存せずモーダルを閉じるだけ（枠外クリックと同じ挙動）
         document.getElementById('cancelOrderEditButton').addEventListener('click', closeModal);
 
         document.getElementById('minusQtyButton').addEventListener('click', () => {
@@ -316,16 +404,25 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
             document.getElementById('editQtyValue').textContent = qty;
         });
 
-        document.getElementById('saveOrderEditButton').addEventListener('click', () => {
+        document.getElementById('saveOrderEditButton').addEventListener('click', async () => {
             const deleteCheck = document.getElementById('deleteOrderCheck');
+            const saveButton = document.getElementById('saveOrderEditButton');
 
             if (deleteCheck && deleteCheck.checked) {
-                if (confirm('この注文をキャンセルしてもよろしいですか？')) {
-                    order.status = 'canceled';
-                    renderOrderDetail();
-                    renderOrders();
-                    openCompleteModal('注文をキャンセルしました');
+                if (!confirm('この注文をキャンセルしてもよろしいですか？')) {
+                    return;
                 }
+
+                saveButton.disabled = true;
+
+                try {
+                    await cancelOrders([order.order_detail_id ?? order.id]);
+                    closeModal();
+                    openCompleteModal('注文をキャンセルしました。');
+                } catch (error) {
+                    openCompleteModal(error.message || '注文のキャンセルに失敗しました。');
+                }
+
                 return;
             }
 
@@ -338,7 +435,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
             renderOrderDetail();
             renderOrders();
 
-            openCompleteModal('注文の変更が完了しました');
+            openCompleteModal('注文の変更が完了しました。');
         });
     }
 
@@ -346,6 +443,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         renderOrders,
         setOrderTabActive,
         renderOrderDetail,
-        openOrderEditModal
+        openOrderEditModal,
+        cancelOrders
     };
 };

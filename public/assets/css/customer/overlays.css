@@ -126,6 +126,10 @@
     top: 150px;
     transform: translateX(-50%);
     min-width: 230px;
+    /* 端末幅いっぱいまでは広げてよいが、テキストは折り返さず1行で表示する */
+    max-width: calc(100vw - 24px);
+    width: max-content;
+    white-space: nowrap;
     padding: 28px 20px;
     background: var(--mos-panel-bg);
     border-radius: 4px;

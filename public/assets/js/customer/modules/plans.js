@@ -15,14 +15,24 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
         formatYen,
         findPlan,
         showScreen,
+        renderCategoryTabs,
         renderMenu,
         refreshCategoryScrollButtons,
-        onPlanConfirmed
+        onPlanConfirmed,
+        startCustomerSession,
+        syncMenuData,
+        showToast
     } = context;
 
     // 制限時間の選択値（飲み放題プラン用）。既定は120分。
     const DEFAULT_MINUTES = 120;
     let selectedMinutes = DEFAULT_MINUTES;
+
+    function categoryId(category) {
+        return typeof category === 'object' && category !== null
+            ? String(category.id)
+            : String(category);
+    }
 
     // 時間トグルの選択状態を指定の分数に合わせて更新する
     function setSelectedMinutes(minutes) {
@@ -87,26 +97,70 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
             });
         });
 
-        document.getElementById('planConfirmButton').addEventListener('click', event => {
+        document.getElementById('planConfirmButton').addEventListener('click', async event => {
+            if (state.hasActiveCustomerPlan) {
+                showToast('このQRコードではすでにプランが選択されています');
+                closePlanModal();
+                showScreen('tableScreen');
+                return;
+            }
+
             const planId = event.currentTarget.dataset.planId;
 
             // 単品は制限時間なし。飲み放題プランは選択した分数を採用。
             const minutes = planId === 'single' ? null : selectedMinutes;
 
-            state.selectedPlanId = planId;
-            state.planMinutes = minutes;
-            closePlanModal();
-
-            state.activeCategory = categories[0];
-
-            // タイマー開始・卓番号/残り時間表示の更新（app.js 側）
-            if (typeof onPlanConfirmed === 'function') {
-                onPlanConfirmed(planId, minutes);
+            if (!state.customerId) {
+                showToast('顧客情報が見つかりません');
+                return;
             }
 
-            renderMenu();
-            showScreen('menuScreen');
-            requestAnimationFrame(refreshCategoryScrollButtons);
+            if (!state.tableNumber) {
+                showToast('卓番号を入力してください');
+                closePlanModal();
+                showScreen('tableScreen');
+                return;
+            }
+
+            try {
+                const result = await startCustomerSession(planId, minutes);
+
+                state.customerId = result.customer_id;
+                state.storeId = result.store_id;
+                state.sessionId = result.session_id;
+                state.cart = result.cart_items || [];
+                state.activeCustomerPlan = result.active_customer_plan || state.activeCustomerPlan;
+                state.peopleCount = Number(result.people_count || state.peopleCount || 2);
+                if (typeof syncMenuData === 'function') {
+                    syncMenuData(result);
+                }
+                state.hasActiveCustomerPlan = true;
+                state.selectedPlanId = planId;
+                state.planMinutes = minutes;
+
+                const url = new URL(window.location.href);
+                url.searchParams.set('customer_id', String(result.customer_id));
+                url.searchParams.set('session_id', String(result.session_id));
+                window.history.replaceState(null, '', url.toString());
+
+                closePlanModal();
+
+                state.activeCategory = categories.length > 0 ? categoryId(categories[0]) : '';
+
+                // タイマー開始・卓番号/残り時間表示の更新（app.js 側）
+                if (typeof onPlanConfirmed === 'function') {
+                    onPlanConfirmed(planId, minutes);
+                }
+
+                renderMenu();
+                if (typeof renderCategoryTabs === 'function') {
+                    renderCategoryTabs();
+                }
+                showScreen('menuScreen');
+                requestAnimationFrame(refreshCategoryScrollButtons);
+            } catch (error) {
+                showToast(error.message || 'セッション作成に失敗しました');
+            }
         });
     }
 

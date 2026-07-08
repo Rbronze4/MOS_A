@@ -6,22 +6,55 @@
  *
  * 主な関数:
  *   showScreen()        … .screen の active 切り替えで画面遷移
- *   getDisplayPrice()   … プラン適用後の価格（飲み放題プランはドリンク0円）
- *   isDrinkCategory()   … 「ドリンク」カテゴリ判定
+ *   getDisplayPrice()   … DBのplan_applied_flagに基づく表示価格
  *   openProduct()       … 商品詳細画面を開く
  */
 document.addEventListener('DOMContentLoaded', () => {
     const plans = window.MOS_DATA.plans;
     const categories = window.MOS_DATA.categories;
     const menus = window.MOS_DATA.menus;
+    const cartItems = window.MOS_DATA.cartItems || [];
+    const orderHistory = window.MOS_DATA.orderHistory || [];
+    const initialCustomerId = window.MOS_DATA.customerId || null;
+    const initialSessionId = window.MOS_DATA.sessionId || null;
+    const initialStoreId = window.MOS_DATA.storeId || null;
+    const initialPeopleCount = Number(window.MOS_DATA.peopleCount || 2);
+    const hasActiveCustomerPlan = window.MOS_DATA.hasActiveCustomerPlan === true;
+    const activeCustomerPlan = window.MOS_DATA.activeCustomerPlan || null;
+
+    function categoryId(category) {
+        return typeof category === 'object' && category !== null
+            ? String(category.id)
+            : String(category);
+    }
+
+    function planIdFromActiveCustomerPlan(plan) {
+        const planTypeId = Number(plan?.plan_type_id || 0);
+
+        if (planTypeId === 1) {
+            return 'standard';
+        }
+
+        if (planTypeId === 2) {
+            return 'premium';
+        }
+
+        return null;
+    }
 
     const state = {
+        customerId: initialCustomerId,
+        sessionId: initialSessionId,
+        storeId: initialStoreId,
+        peopleCount: initialPeopleCount,
+        hasActiveCustomerPlan,
+        activeCustomerPlan,
         tableNumber: '',
-        selectedPlanId: null,
-        activeCategory: categories[0] ?? '',
+        selectedPlanId: planIdFromActiveCustomerPlan(activeCustomerPlan),
+        activeCategory: categories.length > 0 ? categoryId(categories[0]) : '',
         selectedMenu: null,
-        cart: [],
-        history: [],
+        cart: cartItems,
+        history: orderHistory,
         editingItem: null
     };
 
@@ -66,22 +99,136 @@ document.addEventListener('DOMContentLoaded', () => {
         return menus.find(menu => String(menu.id) === String(menuId));
     }
 
-    function isDrinkCategory(category) {
-        return String(category).includes('ドリンク') || String(category).includes('繝峨Μ');
-    }
-
     function getDisplayPrice(menu) {
-        if (
-            (state.selectedPlanId === 'standard' || state.selectedPlanId === 'premium') &&
-            isDrinkCategory(menu.category)
-        ) {
+        if (Number(menu.plan_applied_flag || 0) === 1) {
             return 0;
         }
 
-        return menu.price;
+        return Number(menu.display_price ?? menu.price ?? 0);
+    }
+
+    async function postCartAction(url, values) {
+        const body = new URLSearchParams();
+
+        Object.entries(values).forEach(([key, value]) => {
+            body.set(key, String(value));
+        });
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body
+        });
+
+        let payload = null;
+
+        try {
+            payload = await response.json();
+        } catch (error) {
+            payload = null;
+        }
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || 'カート操作に失敗しました');
+        }
+
+        return payload;
+    }
+
+    function addCartToServer(productId, quantity) {
+        return postCartAction('/MOS_A/public/customer/cart/add', {
+            session_id: state.sessionId,
+            product_id: productId,
+            quantity
+        });
+    }
+
+    function updateCartOnServer(productId, quantity) {
+        return postCartAction('/MOS_A/public/customer/cart/update', {
+            session_id: state.sessionId,
+            product_id: productId,
+            quantity
+        });
+    }
+
+    function deleteCartFromServer(productId) {
+        return postCartAction('/MOS_A/public/customer/cart/delete', {
+            session_id: state.sessionId,
+            product_id: productId
+        });
+    }
+
+    function submitOrderToServer() {
+        // 注文内容はサーバー側でDBのcart_detailsから取得する。
+        // フロントから商品名・価格・数量一覧は送らない。
+        return postCartAction('/MOS_A/public/customer/order/submit', {
+            session_id: state.sessionId
+        });
+    }
+
+    function startCustomerSession(planId, minutes) {
+        // QR連携が完成するまでは、PHPから渡されたテスト用customer_idを使う。
+        // セッション作成後に返るsession_idを、以後のカート操作と注文確定で送信する。
+        return postCartAction('/MOS_A/public/customer/session/start', {
+            customer_id: state.customerId,
+            table_number: state.tableNumber,
+            plan_key: planId || '',
+            plan_minutes: minutes || ''
+        });
+    }
+
+    function rememberSessionInUrl(result) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('customer_id', String(result.customer_id));
+        url.searchParams.set('session_id', String(result.session_id));
+        window.history.replaceState(null, '', url.toString());
+    }
+
+    function applyStartedSession(result, planId = null, minutes = null) {
+        state.customerId = result.customer_id;
+        state.storeId = result.store_id;
+        state.sessionId = result.session_id;
+        state.cart = result.cart_items || [];
+        state.activeCustomerPlan = result.active_customer_plan || state.activeCustomerPlan;
+        state.peopleCount = Number(result.people_count || state.peopleCount || 2);
+        syncMenuData(result);
+
+        if (planId !== null) {
+            state.selectedPlanId = planId;
+            state.planMinutes = minutes;
+        } else {
+            state.selectedPlanId = planIdFromActiveCustomerPlan(state.activeCustomerPlan);
+        }
+
+        rememberSessionInUrl(result);
+        updateTableNoDisplay();
+        cartHistoryModule.renderCart();
+        renderMenuAndShow();
+    }
+
+    function renderMenuAndShow() {
+        state.activeCategory = categories.length > 0 ? categoryId(categories[0]) : '';
+        menuModule.renderCategoryTabs();
+        menuModule.renderMenu();
+        showScreen('menuScreen');
+        requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
     }
 
     let cartHistoryModule;
+
+    function syncMenuData(result) {
+        if (Array.isArray(result.categories)) {
+            categories.splice(0, categories.length, ...result.categories);
+        }
+
+        if (Array.isArray(result.menus)) {
+            menus.splice(0, menus.length, ...result.menus);
+        }
+    }
 
     function openProduct(menu, quantity = 1, resetEditing = true) {
         state.selectedMenu = menu;
@@ -231,9 +378,13 @@ document.addEventListener('DOMContentLoaded', () => {
         formatYen,
         findPlan,
         showScreen,
+        renderCategoryTabs: menuModule.renderCategoryTabs,
         renderMenu: menuModule.renderMenu,
         refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons,
-        onPlanConfirmed
+        onPlanConfirmed,
+        startCustomerSession,
+        syncMenuData,
+        showToast
     });
 
     cartHistoryModule = window.MOS.customer.createCartHistoryModule({
@@ -245,10 +396,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast,
         getDisplayPrice,
         openProduct,
-        refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons
+        refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons,
+        deleteCartFromServer,
+        submitOrderToServer
     });
 
-    document.getElementById('tableSubmitButton').addEventListener('click', () => {
+    document.getElementById('tableSubmitButton').addEventListener('click', async () => {
         const input = document.getElementById('tableNumberInput');
         const error = document.getElementById('tableError');
         const value = input.value.trim();
@@ -261,15 +414,22 @@ document.addEventListener('DOMContentLoaded', () => {
         state.tableNumber = value;
         error.textContent = '';
 
+        if (state.hasActiveCustomerPlan) {
+            try {
+                const result = await startCustomerSession(null, null);
+                applyStartedSession(result);
+            } catch (error) {
+                showToast(error.message || 'セッション作成に失敗しました');
+            }
+
+            return;
+        }
+
         showScreen('planScreen');
     });
 
     document.getElementById('productBackButton').addEventListener('click', () => {
-        if (state.editingItem) {
-            state.cart.push(state.editingItem);
-            state.editingItem = null;
-            cartHistoryModule.renderCart();
-        }
+        state.editingItem = null;
 
         showScreen('menuScreen');
         requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
@@ -291,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
         input.value = String(Math.min(99, current + 1));
     });
 
-    document.getElementById('addCartButton').addEventListener('click', () => {
+    document.getElementById('addCartButton').addEventListener('click', async () => {
         if (!state.selectedMenu) {
             showToast('商品が選択されていません');
             return;
@@ -306,14 +466,27 @@ document.addEventListener('DOMContentLoaded', () => {
         quantityValue = Math.min(99, Math.max(1, Math.floor(quantityValue)));
         quantityInput.value = String(quantityValue);
 
-        const priceToApply = getDisplayPrice(state.selectedMenu);
+        if (!state.sessionId) {
+            showToast('卓番号とプランを選択してください');
+            showScreen(state.hasActiveCustomerPlan ? 'tableScreen' : 'planScreen');
+            return;
+        }
 
-        state.editingItem = null;
-        cartHistoryModule.addCart(state.selectedMenu, quantityValue, priceToApply);
+        try {
+            const result = state.editingItem
+                ? await updateCartOnServer(state.selectedMenu.id, quantityValue)
+                : await addCartToServer(state.selectedMenu.id, quantityValue);
 
-        showToast(`${state.selectedMenu.name}を追加しました`);
-        showScreen('menuScreen');
-        requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+            state.editingItem = null;
+            state.cart = result.cart_items || [];
+            cartHistoryModule.renderCart();
+
+            showToast(result.message || 'カートに商品を追加しました');
+            showScreen('menuScreen');
+            requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+        } catch (error) {
+            showToast(error.message || 'カート追加に失敗しました');
+        }
     });
 
     planModule.bindPlanEvents();
@@ -324,4 +497,10 @@ document.addEventListener('DOMContentLoaded', () => {
     menuModule.renderMenu();
     cartHistoryModule.renderCart();
     cartHistoryModule.renderHistory();
+
+    if (window.MOS_CART_FLASH?.message) {
+        showToast(window.MOS_CART_FLASH.message);
+        showScreen('menuScreen');
+        requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+    }
 });

@@ -56,7 +56,15 @@ $jsFile = $jsFile ?? '';
         window.MOS_DATA = {
             plans: <?= json_encode($plans, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             categories: <?= json_encode($categories, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
-            menus: <?= json_encode($menus, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+            menus: <?= json_encode($menus, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            cartItems: <?= json_encode($cartItems ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            orderHistory: <?= json_encode($historyItems ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            customerId: <?= json_encode($customerId ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            sessionId: <?= json_encode($sessionId ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            storeId: <?= json_encode($storeId ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            peopleCount: <?= json_encode($peopleCount ?? 2, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            hasActiveCustomerPlan: <?= json_encode($hasActiveCustomerPlan ?? false, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            activeCustomerPlan: <?= json_encode($activeCustomerPlan ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
         };
     </script>
 <?php endif; ?>
@@ -65,7 +73,8 @@ $jsFile = $jsFile ?? '';
     <script>
         window.STAFF_DATA = {
             orders: <?= json_encode($orders, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
-            products: <?= json_encode($products, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+            products: <?= json_encode($products, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            productCategories: <?= json_encode($productCategories ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
         };
     </script>
 <?php endif; ?>
