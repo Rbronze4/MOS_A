@@ -1,0 +1,18 @@
+[2026-06-25 22:59:40] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Models\AccountModel.php(13): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\src\Models\AccountModel.php(19): App\Models\AccountModel->getConnection()
+#3 C:\xampp\htdocs\regi\src\Controllers\AuthController.php(46): App\Models\AccountModel->findActiveByLoginId('staff0001')
+#4 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\AuthController->login()
+#5 {main}
+[2026-06-25 22:59:44] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Models\AccountModel.php(13): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\src\Models\AccountModel.php(19): App\Models\AccountModel->getConnection()
+#3 C:\xampp\htdocs\regi\src\Controllers\AuthController.php(46): App\Models\AccountModel->findActiveByLoginId('staff0001')
+#4 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\AuthController->login()
+#5 {main}

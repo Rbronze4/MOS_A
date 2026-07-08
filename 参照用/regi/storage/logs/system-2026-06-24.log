@@ -1,0 +1,21 @@
+[2026-06-24 04:30:30] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\HistoryController.php(17): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\HistoryController->index()
+#3 {main}
+[2026-06-24 04:31:30] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\HistoryController.php(17): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\HistoryController->index()
+#3 {main}
+[2026-06-24 04:31:39] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\HistoryController.php(17): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\HistoryController->index()
+#3 {main}
