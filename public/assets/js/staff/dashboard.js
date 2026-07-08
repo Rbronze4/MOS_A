@@ -133,7 +133,7 @@ const {
     openProductForm
 } = productModule;
 const { setupCustomerSelection } = customerModule;
-const { openQrCompleteModal } = qrModule;
+const { issueCustomer, openQrCompleteModal } = qrModule;
 
 function prepareScreen(target) {
     if (target === 'orderListScreen') {
@@ -272,7 +272,8 @@ if (qrReissueButton) {
             return;
         }
 
-        openQrCompleteModal('QR再発行が完了しました。');
+        // 再発行は新規作成せず、選択中の既存顧客のcustomer_idでQRを再表示する
+        openQrCompleteModal(selectedCustomer.value, 'QR再発行が完了しました。');
     });
 }
 
@@ -357,7 +358,8 @@ if (issueQrButton) {
             return;
         }
 
-        openQrCompleteModal('QR発行が完了しました。');
+        // サーバーで顧客を連番発行し、その customer_id でQRを表示する
+        issueCustomer(people, 'QR発行が完了しました。');
     });
 }
 

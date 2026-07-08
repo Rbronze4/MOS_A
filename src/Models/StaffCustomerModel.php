@@ -5,6 +5,56 @@ require_once dirname(__DIR__) . '/Database/db.php';
 
 final class StaffCustomerModel
 {
+    /**
+     * QR発行用に、新しい顧客を1件作成する。
+     *
+     * customer_id は AUTO_INCREMENT に任せて連番で採番する（現在の最大IDの次番号）。
+     * QRトークンのハッシュ化は開発中は見送り、識別しやすい平文プレースホルダを入れる。
+     * 発行された顧客は、そのまま customer_id で客側画面を利用できる。
+     *
+     * @return array{customer_id:int, store_id:string, people_count:int}
+     */
+    public function issueCustomer(string $storeId, int $peopleCount): array
+    {
+        $pdo = db();
+
+        try {
+            $pdo->beginTransaction();
+
+            // customer_id は指定しない（AUTO_INCREMENTで自動連番）。
+            $insert = $pdo->prepare(
+                'INSERT INTO customers (store_id, qr_token_hash, people_count, billing_status)
+                 VALUES (:store_id, :placeholder, :people_count, \'UNPAID\')'
+            );
+            $insert->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+            $insert->bindValue(':placeholder', 'pending', PDO::PARAM_STR);
+            $insert->bindValue(':people_count', $peopleCount, PDO::PARAM_INT);
+            $insert->execute();
+
+            $customerId = (int)$pdo->lastInsertId();
+
+            // ハッシュ化は未実装のため、開発中に識別しやすい平文トークンを入れておく。
+            $update = $pdo->prepare('UPDATE customers SET qr_token_hash = :token WHERE customer_id = :customer_id');
+            $update->bindValue(':token', 'dev_qr_token_' . $customerId, PDO::PARAM_STR);
+            $update->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+            $update->execute();
+
+            $pdo->commit();
+
+            return [
+                'customer_id' => $customerId,
+                'store_id' => $storeId,
+                'people_count' => $peopleCount,
+            ];
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     public function customersForStore(string $storeId): array
     {
         $sql = <<<SQL
