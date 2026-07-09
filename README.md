@@ -1,5 +1,13 @@
 # MOS開発でAIを使うときのルールとプロンプト
 
+## 各画面のURL（XAMPP起動時）
+
+- 利用客画面：`http://localhost/MOS_A/public/customer`
+- スタッフ画面：`http://localhost/MOS_A/public/staff`
+- （参照用）レジシステム：`http://localhost/regi/public/`　※htdocs直下に`regi`を配置している想定
+
+---
+
 MOSを多人数で開発する場合、AIに自由にコードを書かせると、既存の画面・JavaScript・DB・API仕様を壊してしまう可能性があります。
 
 HTMLの `id`、CSSの `class`、JavaScriptの関数名、PHPのルート、DBカラム名、API仕様がつながっています。
