@@ -22,9 +22,10 @@ final class StaffCustomerModel
             $pdo->beginTransaction();
 
             // customer_id は指定しない（AUTO_INCREMENTで自動連番）。
+            // billing_status は 1:受付中 2:会計済み 4:未収金 8:会計中（tinyint）。新規発行は受付中(1)。
             $insert = $pdo->prepare(
                 'INSERT INTO customers (store_id, qr_token_hash, people_count, billing_status)
-                 VALUES (:store_id, :placeholder, :people_count, \'UNPAID\')'
+                 VALUES (:store_id, :placeholder, :people_count, 1)'
             );
             $insert->bindValue(':store_id', $storeId, PDO::PARAM_STR);
             $insert->bindValue(':placeholder', 'pending', PDO::PARAM_STR);
@@ -96,7 +97,7 @@ final class StaffCustomerModel
                 'customer_no' => (string)$row['customer_id'],
                 'table_no' => $tableNumbers !== '' ? $tableNumbers : 'なし',
                 'people' => (int)$row['people_count'],
-                'billing_status' => (string)$row['billing_status'],
+                'billing_status' => (int)$row['billing_status'],
             ];
         }
 
@@ -120,7 +121,7 @@ final class StaffCustomerModel
             'plan_label' => $this->planLabel($plan),
             'table_numbers' => $this->tableNumberLabels($sessions),
             'has_active_session' => $sessions !== [],
-            'billing_status_label' => $this->billingStatusLabel((string)$customer['billing_status']),
+            'billing_status_label' => $this->billingStatusLabel((int)$customer['billing_status']),
         ];
     }
 
@@ -237,13 +238,14 @@ final class StaffCustomerModel
         return array_values(array_unique($labels));
     }
 
-    private function billingStatusLabel(string $status): string
+    // billing_status（tinyint 1:受付中 2:会計済み 4:未収金 8:会計中）の表示ラベル。
+    private function billingStatusLabel(int $status): string
     {
         return match ($status) {
-            'UNPAID' => '未会計',
-            'PAYMENT_PENDING' => '会計待ち',
-            'PAID' => '会計済み',
-            'CANCELLED', 'CANCELED' => 'キャンセル',
+            1 => '未会計',
+            8 => '会計待ち',
+            2 => '会計済み',
+            4 => '未収金',
             default => '不明',
         };
     }
