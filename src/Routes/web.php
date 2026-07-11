@@ -145,6 +145,11 @@ switch ($path) {
         echo '405 Method Not Allowed';
         break;
 
+    case '/staff/qr/print':
+        $controller = new StaffController();
+        $controller->qrPrint();
+        break;
+
     case '/staff/product/add':
         $controller = new StaffController();
 

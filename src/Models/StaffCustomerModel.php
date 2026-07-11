@@ -125,6 +125,15 @@ final class StaffCustomerModel
         ];
     }
 
+    /**
+     * QR印刷ページ用に顧客1件を取得する。
+     * 他店舗の顧客番号のQRを印刷できないよう、store_id一致を条件にしたfindCustomerをそのまま使う。
+     */
+    public function customerForPrint(string $storeId, int $customerId): ?array
+    {
+        return $this->findCustomer($storeId, $customerId);
+    }
+
     private function findCustomer(string $storeId, int $customerId): ?array
     {
         $sql = <<<SQL
