@@ -217,8 +217,16 @@ final class StaffController
             return;
         }
 
-        if ($tableNo !== '' && !preg_match('/^\d{1,2}$/', $tableNo)) {
-            $staffOrderError = '卓番号は1〜2桁の数字で入力してください。';
+        if ($tableNo !== '') {
+            // 「01」→「1」のように先頭ゼロを正規化する。
+            // 「0」「00」は全て削れて空になるため、無効値として下の検証で弾けるよう元の値を残す
+            $trimmed = ltrim($tableNo, '0');
+            $tableNo = $trimmed === '' ? $tableNo : $trimmed;
+        }
+
+        // 卓番号は1〜99のみ有効。「0」「00」は卓として存在しないため弾く
+        if ($tableNo !== '' && !preg_match('/^[1-9]\d?$/', $tableNo)) {
+            $staffOrderError = '卓番号は1〜99の数字で入力してください。';
             $tableNo = '';
         }
 
