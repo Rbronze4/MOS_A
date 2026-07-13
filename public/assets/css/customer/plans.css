@@ -77,6 +77,17 @@
     cursor: pointer;
 }
 
+/*
+    DBに有効な価格が無い（全ての制限時間が利用不可の）プランは選ばせない。
+    バナーはPHPが静的に出力しているため、押せない状態にして選択済みと誤解させないようにする。
+*/
+.plan-banner.is-disabled,
+.plan-banner:disabled {
+    filter: grayscale(1);
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .plan-image-frame {
     position: absolute;
     inset: 8px;
