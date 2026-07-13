@@ -22,6 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasActiveCustomerPlan = window.MOS_DATA.hasActiveCustomerPlan === true;
     const activeCustomerPlan = window.MOS_DATA.activeCustomerPlan || null;
 
+    // 店舗別・制限時間別のプラン単価（DBのplans由来）。
+    // 形: { standard: { "120": 2200, "180": 3000 }, premium: { "120": 3200, "180": 4200 } }
+    const planUnitPrices = window.MOS_DATA.planUnitPrices || {};
+
     function categoryId(category) {
         return typeof category === 'object' && category !== null
             ? String(category.id)
@@ -377,6 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const planModule = window.MOS.customer.createPlanModule({
         plans,
+        planUnitPrices,
         state,
         categories,
         formatYen,

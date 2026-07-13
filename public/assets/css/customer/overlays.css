@@ -90,6 +90,27 @@
     color: var(--mos-panel-bg);
 }
 
+/*
+    店舗のDBにその制限時間のプラン価格が無い場合、選べないことが分かるようにする。
+    選択肢を消さずに残すのは、120分だけ提供の店舗などで
+    「180分は選べない」と客が理解できるようにするため。
+*/
+.time-option.is-disabled,
+.time-option:disabled {
+    background: #eeeeee;
+    border-color: #dddddd;
+    color: #aaaaaa;
+    cursor: not-allowed;
+}
+
+/* 利用できないプランでは確定させない */
+.black-button.is-disabled,
+.black-button:disabled {
+    background: #bbbbbb;
+    border-color: #bbbbbb;
+    cursor: not-allowed;
+}
+
 /* ラストオーダーの注意書き */
 .modal-time-note {
     margin: 8px 0 0;

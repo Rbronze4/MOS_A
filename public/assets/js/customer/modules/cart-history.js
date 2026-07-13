@@ -42,8 +42,10 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
             return null;
         }
 
+        // 単価はDBのcustomer_plans（プラン確定時に登録された実際の単価）だけを使う。
+        // 画面用のプラン定義は価格を持たない（店舗・制限時間で価格が変わるため）。
         const dbPlan = state.activeCustomerPlan || null;
-        const unitPrice = Number(dbPlan?.unit_price ?? dbPlan?.price ?? plan.price ?? 0);
+        const unitPrice = Number(dbPlan?.unit_price ?? dbPlan?.price ?? 0);
 
         if (unitPrice <= 0) {
             return null;
