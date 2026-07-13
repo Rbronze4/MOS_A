@@ -73,6 +73,33 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         return payload.orders || [];
     }
 
+    // 取消解除：キャンセル済みの明細を注文中に戻す（DBも更新する）。
+    async function postRestoreAction(orderDetailIds) {
+        const body = new URLSearchParams();
+
+        orderDetailIds.forEach(orderDetailId => {
+            body.append('order_detail_ids[]', String(orderDetailId));
+        });
+
+        const response = await fetch('/MOS_A/public/staff/order/restore', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body
+        });
+
+        const payload = await parseJson(response);
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || '取消解除に失敗しました。');
+        }
+
+        return payload.orders || [];
+    }
+
     async function parseJson(response) {
         try {
             return await response.json();
@@ -98,6 +125,16 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
     async function cancelOrders(orderDetailIds) {
         const updatedOrders = await postCancelAction(orderDetailIds);
+        replaceOrders(updatedOrders);
+        renderOrders();
+        renderOrderDetail();
+
+        return updatedOrders;
+    }
+
+    // 一括取消解除：チェックした明細をまとめて注文中に戻す。
+    async function restoreOrders(orderDetailIds) {
+        const updatedOrders = await postRestoreAction(orderDetailIds);
         replaceOrders(updatedOrders);
         renderOrders();
         renderOrderDetail();
@@ -244,15 +281,11 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                         replaceOrder(updatedOrder);
                     }
 
-                    // 取消解除はDB連携未実装の既存挙動を維持しています。
+                    // 取消解除：DBもキャンセル済み→注文中に戻す。
+                    // これをしないと、DB上はキャンセルのままで提供数変更が拒否される。
                     if (action === 'undoCancel') {
-                        order.status = 'waiting';
-
-                        if (order.qty <= 0) {
-                            order.qty = 1;
-                        }
-
-                        order.servedQty = 0;
+                        const updatedOrders = await postRestoreAction([orderDetailId]);
+                        replaceOrders(updatedOrders);
                     }
 
                     renderOrders();
@@ -444,6 +477,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         setOrderTabActive,
         renderOrderDetail,
         openOrderEditModal,
-        cancelOrders
+        cancelOrders,
+        restoreOrders
     };
 };
