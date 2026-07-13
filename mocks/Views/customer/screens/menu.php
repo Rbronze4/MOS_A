@@ -1,12 +1,17 @@
+<?php /**
+ * 客側：メニュー画面。
+ * 上部にカテゴリタブ（左右スクロール対応）、中央にメニュー一覧、下部に
+ * 注文履歴/カートのナビを配置。タブとメニューの中身は menu.js が動的描画する。
+ */ ?>
 <section id="menuScreen" class="screen menu-screen">
     <!--
         注文画面 上部バー（左:現在の卓番号 / 右:飲み放題の残り時間）。
-        ※ここはレイアウト確認用の静的表示。
-          卓番号は本来 app.js の state.tableNumber、残り時間は今後のタイマーJSで動的更新する。
+        卓番号は app.js が state.tableNumber から、残り時間はタイマーが動的に更新する。
+        単品プランでは残り時間(#menuRemainTime)は非表示。
     -->
     <div class="menu-topbar">
-        <span id="menuTableNo" class="menu-topbar-table">卓 12番</span>
-        <span id="menuRemainTime" class="menu-topbar-remain">残り 120分</span>
+        <span id="menuTableNo" class="menu-topbar-table"></span>
+        <span id="menuRemainTime" class="menu-topbar-remain"></span>
     </div>
 
     <div class="category-tabs-wrapper">

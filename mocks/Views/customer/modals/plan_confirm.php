@@ -1,3 +1,8 @@
+<?php /**
+ * 客側：プラン確認モーダル。
+ * 選択プランの名称・価格・内容を表示し、「確定」でプランを確定する。
+ * （制限時間機能では、ここに120分/180分のトグルを追加する予定）
+ */ ?>
 <div id="planModal" class="modal-layer">
     <div class="modal-card">
         <button id="closePlanModalButton" class="modal-back" type="button">
@@ -9,10 +14,8 @@
         </p>
 
         <!--
-            制限時間の選択（飲み放題プランで 120分／180分 を選ばせる想定）。
-            ※ここはレイアウト確認用の静的マークアップ。
-              クリックでの選択切替・価格連動は本機能の JS（plans.js）実装時に対応する。
-              単品プランでは非表示にする想定（mock では常時表示で見た目だけ確認）。
+            制限時間の選択（飲み放題プランで 120分／180分 を選ばせる）。
+            単品プランでは plans.js が非表示にする。選択値は確定時にタイマー開始へ渡される。
         -->
         <div class="modal-time-select" id="modalTimeSelect">
             <span class="modal-time-label">制限時間を選択</span>
@@ -20,6 +23,7 @@
                 <button type="button" class="time-option is-active" data-minutes="120">120分</button>
                 <button type="button" class="time-option" data-minutes="180">180分</button>
             </div>
+            <p class="modal-time-note">※ ラストオーダーはコース時間の30分前です</p>
         </div>
 
         <div class="modal-total">

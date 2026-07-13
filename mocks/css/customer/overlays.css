@@ -1,4 +1,9 @@
-﻿/* =========================
+﻿/* ============================================================
+ * 客側 オーバーレイCSS。
+ * モーダル（プラン確認・注文確認）とトースト通知のスタイル。
+ * ============================================================ */
+
+/* =========================
    モーダル
 ========================= */
 
@@ -49,6 +54,70 @@
     font-size: 20px;
 }
 
+/* プラン確認モーダル：制限時間トグル（120分／180分） */
+.modal-time-select {
+    margin: 4px 0 14px;
+}
+
+.modal-time-label {
+    display: block;
+    font-size: 13px;
+    color: #555555;
+    margin-bottom: 6px;
+}
+
+.time-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.time-option {
+    padding: 12px 0;
+    border: 1px solid #cccccc;
+    border-radius: 6px;
+    background: var(--mos-panel-bg);
+    font-size: 16px;
+    font-weight: bold;
+    color: #333333;
+    cursor: pointer;
+}
+
+/* 選択中の時間 */
+.time-option.is-active {
+    border-color: #000000;
+    background: #000000;
+    color: var(--mos-panel-bg);
+}
+
+/*
+    店舗のDBにその制限時間のプラン価格が無い場合、選べないことが分かるようにする。
+    選択肢を消さずに残すのは、120分だけ提供の店舗などで
+    「180分は選べない」と客が理解できるようにするため。
+*/
+.time-option.is-disabled,
+.time-option:disabled {
+    background: #eeeeee;
+    border-color: #dddddd;
+    color: #aaaaaa;
+    cursor: not-allowed;
+}
+
+/* 利用できないプランでは確定させない */
+.black-button.is-disabled,
+.black-button:disabled {
+    background: #bbbbbb;
+    border-color: #bbbbbb;
+    cursor: not-allowed;
+}
+
+/* ラストオーダーの注意書き */
+.modal-time-note {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: #b00020;
+}
+
 .modal-detail h2 {
     font-size: 16px;
     margin-bottom: 6px;
@@ -68,6 +137,35 @@
     font-size: 15px;
 }
 
+/* 商品種類が多いときも「注文」ボタンに必ず到達できるよう、
+   注文確認モーダルはカード全体ではなく明細リストだけを内部スクロールさせる */
+#orderModal .modal-card {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#orderModal .modal-back,
+#orderModal .modal-title,
+#orderModal .modal-total,
+#submitOrderButton {
+    flex-shrink: 0;
+}
+
+/* flexアイテム化で幅いっぱいに伸び、ボタン既定のtext-align:centerで
+   中央寄せに見えてしまうため、左上の元の見た目に戻す */
+#orderModal .modal-back {
+    align-self: flex-start;
+    text-align: left;
+}
+
+#modalOrderList {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 /* =========================
    トースト
 ========================= */
@@ -78,6 +176,10 @@
     top: 150px;
     transform: translateX(-50%);
     min-width: 230px;
+    /* 端末幅いっぱいまでは広げてよいが、テキストは折り返さず1行で表示する */
+    max-width: calc(100vw - 24px);
+    width: max-content;
+    white-space: nowrap;
     padding: 28px 20px;
     background: var(--mos-panel-bg);
     border-radius: 4px;

@@ -1,3 +1,8 @@
+<?php /**
+ * スタッフ：注文一覧画面。
+ * 注文中/提供済み/キャンセル済みのタブで切り替え、商品ごとの提供操作や
+ * 一括キャンセルを行う。表本体は dashboard/orders.js が動的描画する。
+ */ ?>
 <section id="orderListScreen" class="screen order-list-screen">
     <div class="screen-header">
         <button class="back-button" type="button">←</button>

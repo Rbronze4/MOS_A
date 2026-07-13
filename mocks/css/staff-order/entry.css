@@ -1,4 +1,8 @@
-﻿.staff-order-entry-page {
+﻿/* ============================================================
+ * スタッフ注文 卓番号入力画面CSS。
+ * 卓番号入力・プラン選択ラジオ・決定ボタンのレイアウト。
+ * ============================================================ */
+.staff-order-entry-page {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -125,5 +129,38 @@
 
 .staff-order-decision-button:hover {
     opacity: 0.92;
+}
+
+@media (min-width: 1024px) {
+    .staff-order-entry-top {
+        height: 76px;
+        padding: 0 44px;
+        margin-bottom: 52px;
+    }
+
+    .staff-order-entry-form {
+        width: min(560px, 48vw);
+    }
+
+    .staff-order-entry-title {
+        margin-bottom: 56px;
+        font-size: 24px;
+    }
+
+    .staff-table-row {
+        gap: 88px;
+        margin-bottom: 44px;
+    }
+
+    .staff-plan-row {
+        gap: 28px;
+        margin-bottom: 48px;
+        font-size: 17px;
+    }
+
+    .staff-order-decision-button {
+        width: 152px;
+        height: 56px;
+    }
 }
 
