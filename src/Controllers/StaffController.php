@@ -217,8 +217,16 @@ final class StaffController
             return;
         }
 
-        if ($tableNo !== '' && !preg_match('/^\d{1,2}$/', $tableNo)) {
-            $staffOrderError = '卓番号は1〜2桁の数字で入力してください。';
+        if ($tableNo !== '') {
+            // 「01」→「1」のように先頭ゼロを正規化する。
+            // 「0」「00」は全て削れて空になるため、無効値として下の検証で弾けるよう元の値を残す
+            $trimmed = ltrim($tableNo, '0');
+            $tableNo = $trimmed === '' ? $tableNo : $trimmed;
+        }
+
+        // 卓番号は1〜99のみ有効。「0」「00」は卓として存在しないため弾く
+        if ($tableNo !== '' && !preg_match('/^[1-9]\d?$/', $tableNo)) {
+            $staffOrderError = '卓番号は1〜99の数字で入力してください。';
             $tableNo = '';
         }
 
@@ -919,6 +927,60 @@ final class StaffController
                 'message' => 'QR発行に失敗しました。',
             ], 500);
         }
+    }
+
+    /**
+     * QR印刷ページ：発行済みQRコードを伝票風レイアウトで表示し、ブラウザの印刷機能で印刷する。
+     * QR発行完了モーダルの「印刷」ボタンから別タブで開かれる（regiの領収書画面と同じ方式）。
+     */
+    public function qrPrint(): void
+    {
+        $this->requireStaffLogin();
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $storeName = trim((string)($_SESSION['store_name'] ?? ''));
+        $customerId = filter_input(INPUT_GET, 'customer_id', FILTER_VALIDATE_INT);
+
+        // 再発行ボタン経由の場合は印刷物に「再発行」ラベルを表示する
+        $isReissue = (string)($_GET['reissue'] ?? '') === '1';
+
+        if ($storeId === '') {
+            http_response_code(403);
+            echo '店舗情報が取得できません。再度ログインしてください。';
+            return;
+        }
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            http_response_code(422);
+            echo '顧客番号が正しくありません。';
+            return;
+        }
+
+        try {
+            $model = new StaffCustomerModel();
+
+            // store_id一致も条件のため、他店舗の顧客番号を指定してもnullになる
+            $customer = $model->customerForPrint($storeId, (int)$customerId);
+        } catch (Throwable $exception) {
+            error_log('[staff-qr-print] ' . $exception->getMessage());
+            http_response_code(500);
+            echo '顧客情報の取得に失敗しました。';
+            return;
+        }
+
+        if ($customer === null) {
+            http_response_code(404);
+            echo '顧客情報が見つかりません。';
+            return;
+        }
+
+        // 客側注文画面のURL（qr.jsのbuildOrderUrlと同じ形式にすること）
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+        $orderUrl = $scheme . '://' . $host . '/MOS_A/public/customer?customer_id=' . (int)$customerId;
+
+        // 単独の印刷用ページのため、共通レイアウト(app.php)は使わない
+        require dirname(__DIR__) . '/Views/staff/screens/qr_print.php';
     }
 
     private function json(array $payload, int $statusCode = 200): void

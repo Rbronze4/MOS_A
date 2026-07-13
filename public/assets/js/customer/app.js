@@ -408,12 +408,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tableSubmitButton').addEventListener('click', async () => {
         const input = document.getElementById('tableNumberInput');
         const error = document.getElementById('tableError');
-        const value = normalizeTableNumberInput(input.value);
+        // 「01」のような先頭ゼロは「1」に正規化してから検証する
+        const value = normalizeTableNumberInput(input.value).replace(/^0+(?=\d)/, '');
 
         input.value = value;
 
-        if (!/^\d{1,2}$/.test(value)) {
-            error.textContent = '卓番号は1〜2桁の数字で入力してください';
+        // 卓番号は1〜99のみ有効。「0」「00」は卓として存在しないため弾く
+        if (!/^[1-9]\d?$/.test(value)) {
+            error.textContent = '卓番号は1〜99の数字で入力してください';
             return;
         }
 

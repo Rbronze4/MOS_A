@@ -39,7 +39,8 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
     }
 
     // 指定した customer_id でQRコード表示モーダルを開く（表示専用）。
-    function openQrCompleteModal(customerId, messagePrefix = 'QR発行が完了しました。') {
+    // isReissue を true にすると、印刷ページに「再発行」ラベルが表示される。
+    function openQrCompleteModal(customerId, messagePrefix = 'QR発行が完了しました。', isReissue = false) {
         const orderUrl = buildOrderUrl(customerId);
 
         openModal(`
@@ -55,8 +56,16 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
                 アクセスURL: ${orderUrl}
             </div>
 
+            <button class="white-button" id="printQrButton">印刷</button>
             <button class="white-button" id="closeModalButton">閉じる</button>
         `);
+
+        // 印刷ページ（伝票風レイアウト）を別タブで開く。印刷自体はページ側のボタンで行う。
+        document.getElementById('printQrButton').addEventListener('click', function () {
+            const printUrl = `/MOS_A/public/staff/qr/print?customer_id=${encodeURIComponent(customerId)}`
+                + (isReissue ? '&reissue=1' : '');
+            window.open(printUrl, '_blank');
+        });
 
         document.getElementById('closeModalButton').addEventListener('click', closeModal);
 

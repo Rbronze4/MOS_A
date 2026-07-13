@@ -266,11 +266,12 @@ final class CustomerSessionModel
 
     /**
      * 卓番号はsessions.table_numberに保存する文字列として扱う。
+     * 「0」や先頭ゼロ（00・01など）は卓として存在しないため、1〜99のみ許可する。
      */
     private function validateTableNumber(string $tableNumber): void
     {
-        if (!preg_match('/^\d{1,3}$/', $tableNumber)) {
-            throw new InvalidArgumentException('卓番号を数字で入力してください。');
+        if (!preg_match('/^[1-9]\d?$/', $tableNumber)) {
+            throw new InvalidArgumentException('卓番号は1〜99の数字で入力してください。');
         }
     }
 

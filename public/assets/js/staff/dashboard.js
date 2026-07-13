@@ -285,8 +285,9 @@ if (qrReissueButton) {
             return;
         }
 
-        // 再発行は新規作成せず、選択中の既存顧客のcustomer_idでQRを再表示する
-        openQrCompleteModal(selectedCustomer.value, 'QR再発行が完了しました。');
+        // 再発行は新規作成せず、選択中の既存顧客のcustomer_idでQRを再表示する。
+        // 第3引数trueで、印刷ページに「再発行」ラベルを表示する。
+        openQrCompleteModal(selectedCustomer.value, 'QR再発行が完了しました。', true);
     });
 }
 
