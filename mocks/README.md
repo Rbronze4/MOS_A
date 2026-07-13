@@ -25,7 +25,7 @@ XAMPP（Apache）を起動した状態で、以下のURLにアクセスします
 ```
 mocks/
 ├── README.md          … このファイル
-├── _data.php          … 共通ダミーデータ（本体コントローラーからコピー）
+├── _data.php          … 共通ダミーデータ（本体Modelが返す構造と同じ形）
 ├── customer.php       … 客側の入口
 ├── staff.php          … スタッフ ダッシュボードの入口
 ├── staff-order.php    … スタッフ注文の入口
@@ -39,7 +39,7 @@ mocks/
 
 各入口PHP（`customer.php` など）は、本体コントローラーの代わりに以下を行います。
 
-1. `_data.php` のダミーデータを読み込む
+1. `_data.php` のダミーデータを読み込む（**DBには接続しない**）
 2. **CSS は `mocks/css/...` を参照**（＝ここを編集すると即反映）
 3. **JS は本体の `public/assets/js/...` を流用**
 4. **画像も本体の `public/assets/images/...` を流用**
@@ -63,43 +63,38 @@ mocks/
 |---|---|
 | 客側メニューカード / カテゴリタブ | `public/assets/js/customer/modules/menu.js` |
 | 客側カート・履歴の行 | `public/assets/js/customer/modules/cart-history.js` |
+| 客側プラン確認モーダルの金額・内容 | `public/assets/js/customer/modules/plans.js` |
 | スタッフ注文一覧テーブルの行 | `public/assets/js/staff/dashboard/orders.js` |
 | スタッフ商品管理テーブルの行 | `public/assets/js/staff/dashboard/products.js` |
 | スタッフ注文カートの行 | `public/assets/js/staff/order-menu.js` |
 
 ### 本体への反映
 - mocks で確定したCSS/HTMLは、**手動で本体（`public/assets/css/` `src/Views/`）へ反映**してください。
-- mocks と本体は自動同期されません。本体側の構造を変えた場合は、必要に応じて再コピーしてください。
+- mocks と本体は自動同期されません。
 
 ---
 
-## mock情報パネル（変更ログ表示）
+## 本体と同期するとき
 
-各mock画面の右下に **「🛠 mock情報」ボタン**が表示されます。クリックすると、
-**いつ・どこで・何の機能/レイアウトを試しているか**の一覧（変更ログ）が開きます。
-現在開いている画面（`customer` / `staff` / `staff-order`）に対応する項目は強調表示されます。
+本体（`public/assets/css/` `src/Views/`）が更新されたら、mocksへコピーして最新化します。
 
-- データの実体: [`_changelog.php`](_changelog.php)（新しい順の配列）
-- 表示処理: [`Views/layouts/app.php`](Views/layouts/app.php) 末尾（mock専用UI。本体には出ない）
-
-### 新しい試作を追加したら
-`_changelog.php` の配列の先頭に1件追記してください。
-
-```php
-[
-    'date'   => '2026-07-01',          // 変更日
-    'area'   => 'customer',            // customer | staff | staff-order | common
-    'title'  => '試している機能/レイアウト名',
-    'detail' => '何を確認するためのものか（任意）',
-],
+```bash
+# プロジェクトルートで実行
+cp -r public/assets/css/. mocks/css/
+cp -r src/Views/. mocks/Views/
 ```
 
----
+コピー後は `_data.php` と各入口PHPの確認が必要です。
+**本体のModelが返すデータ構造や、Controllerがビューへ渡す変数が変わっている場合**、
+mocks側もそれに合わせないと画面が正しく動きません。
 
-## 本体との対応表
+| mocks | 本体 | 合わせるもの |
+|---|---|---|
+| `mocks/css/` | `public/assets/css/` | ファイルごとコピー |
+| `mocks/Views/` | `src/Views/` | ファイルごとコピー |
+| `_data.php` | 各Model（`MenuModel` / `StaffOrderModel` / `PlanModel` など） | **返り値のキー**を合わせる |
+| `customer.php` / `staff.php` / `staff-order.php` | 各Controller | **ビューへ渡す変数**を合わせる |
 
-| mocks | 本体 |
-|---|---|
-| `mocks/css/` | `public/assets/css/` |
-| `mocks/Views/` | `src/Views/` |
-| `_data.php` | `src/Controllers/CustomerController.php` / `StaffController.php` のダミーデータ |
+### 動作確認
+
+同期後は、各画面をブラウザで開いてPHPのエラーや警告が出ないことを確認してください。

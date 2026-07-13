@@ -1,3 +1,8 @@
+<?php /**
+ * 客側：プラン選択画面。
+ * スタンダード/プレミアムの画像バナー（飲み放題）と単品注文ボタンを表示。
+ * バナータップで plans.js がプラン確認モーダルを開く。
+ */ ?>
 <section id="planScreen" class="screen">
     <h1 class="page-title">プランを選択してください</h1>
 

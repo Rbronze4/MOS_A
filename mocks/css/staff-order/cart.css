@@ -1,4 +1,8 @@
-﻿.staff-cart-panel {
+﻿/* ============================================================
+ * スタッフ注文 カートCSS。
+ * メニュー画面右側のカートパネル（明細・数量操作・合計・注文ボタン）のスタイル。
+ * ============================================================ */
+.staff-cart-panel {
     width: 100%;
     height: 388px;
     background: #fffaf0;
@@ -83,6 +87,12 @@
 .staff-cart-control button {
     width: clamp(20px, 3.5vw, 24px);
     height: clamp(20px, 3.5vw, 24px);
+    /* グリフをボタン内で中央寄せし、数字の中央と縦位置を揃える */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
     border: none;
     background: transparent;
     color: #000000;
@@ -122,5 +132,44 @@
 
 .staff-order-submit-button:hover {
     opacity: 0.9;
+}
+
+@media (min-width: 1024px) {
+    .staff-cart-panel {
+        height: calc(100vh - 176px);
+        min-height: 620px;
+        max-height: 780px;
+        padding: 22px 16px 18px;
+    }
+
+    .staff-cart-panel h2 {
+        font-size: 22px;
+    }
+
+    .staff-cart-item {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        padding: 9px 0;
+    }
+
+    .staff-cart-item-name {
+        font-size: 16px;
+        overflow-wrap: anywhere;
+    }
+
+    .staff-cart-control {
+        gap: 6px;
+        font-size: 18px;
+    }
+
+    .staff-cart-total-row {
+        font-size: 22px;
+    }
+
+    .staff-order-submit-button {
+        width: min(100%, 240px);
+        height: 52px;
+        font-size: 16px;
+    }
 }
 

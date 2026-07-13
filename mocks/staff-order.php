@@ -9,17 +9,35 @@ declare(strict_types=1);
  *
  * CSS … mocks/css を参照（ここを編集すると即反映）
  * JS  … 本物の public/assets/js を流用
+ *
+ * 本体のStaffController::orderEntry() / orderMenu()がビューへ渡す変数と同じものを用意する。
  */
 
 require __DIR__ . '/_data.php';
 
 $orders = mock_orders();
 $products = mock_products();
+$productCategories = mock_product_categories();
+
+// メニュー画面（staff_order_menu.php）が必要とする変数。
+// 本体ではDBから取得するが、mocksではダミーデータを使う。
+$categories = mock_categories();
+$menus = mock_menus();
+$staffOrderError = '';
+
+// 利用中セッション。本体ではDBから取得する。
+// nullにすると「セッションが見つかりません」の表示になるため、ダミーを入れておく。
+$activeSession = [
+    'session_id' => 1,
+    'customer_id' => 1000001,
+    'store_id' => 'MH',
+    'table_number' => (string)($_GET['tableNo'] ?? '5'),
+    'session_status' => 'ACTIVE',
+];
+
+$storeName = '本店';
 
 $title = 'スタッフ注文 (mock)';
-
-// mock情報パネルで現在の画面に対応する変更ログを強調表示するための識別子
-$mockArea = 'staff-order';
 
 $cssFiles = [
     '/MOS_A/mocks/css/common/base.css',

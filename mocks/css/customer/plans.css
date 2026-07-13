@@ -2,7 +2,6 @@
  * 客側 プラン選択画面CSS。
  * コース画像バナー(.plan-banner)、単品注文ボタン、タイトル装飾、
  * 画面全体の縦配置（タイトル上部／コース群中央）を定義。
- * ※本体 public/assets/css/customer/plans.css と同期（レイアウト確認用コピー）。
  * ============================================================ */
 
 /* コース選択画面：タイトルは上部、コース群は残りスペースの中央に */
@@ -78,6 +77,17 @@
     cursor: pointer;
 }
 
+/*
+    DBに有効な価格が無い（全ての制限時間が利用不可の）プランは選ばせない。
+    バナーはPHPが静的に出力しているため、押せない状態にして選択済みと誤解させないようにする。
+*/
+.plan-banner.is-disabled,
+.plan-banner:disabled {
+    filter: grayscale(1);
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .plan-image-frame {
     position: absolute;
     inset: 8px;
@@ -123,43 +133,3 @@
     font-size: 11px;
 }
 
-/* =========================
-   ▼ mocks 専用の追加分（本体には未反映）
-   プラン確認モーダル：制限時間トグル
-   飲み放題プランで 120分／180分 を選ばせるための 2択。
-   選択中（.is-active）は黒背景で強調し、確定後の見た目を確認できるようにする。
-========================= */
-.modal-time-select {
-    margin: 4px 0 14px;
-}
-
-.modal-time-label {
-    display: block;
-    font-size: 13px;
-    color: #555555;
-    margin-bottom: 6px;
-}
-
-.time-toggle {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-
-.time-option {
-    padding: 12px 0;
-    border: 1px solid #cccccc;
-    border-radius: 6px;
-    background: #ffffff;
-    font-size: 16px;
-    font-weight: bold;
-    color: #333333;
-    cursor: pointer;
-}
-
-/* 選択中の時間。実装後はクリックでこの状態が切り替わる */
-.time-option.is-active {
-    border-color: #000000;
-    background: #000000;
-    color: var(--mos-panel-bg);
-}

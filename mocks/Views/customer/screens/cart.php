@@ -1,3 +1,8 @@
+<?php /**
+ * 客側：カート画面。
+ * カート内の商品一覧と合計金額を表示し、「注文確認」で注文確認モーダルを開く。
+ * 一覧と合計は cart-history.js が描画する。
+ */ ?>
 <section id="cartScreen" class="screen gray-screen">
     <header class="page-header">
         <div class="header-label">カート</div>

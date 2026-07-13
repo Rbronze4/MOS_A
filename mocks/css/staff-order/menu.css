@@ -1,4 +1,8 @@
-﻿.staff-order-menu-page {
+﻿/* ============================================================
+ * スタッフ注文 メニュー画面CSS。
+ * ヘッダ（卓番号表示）、カテゴリタブ、メニューカードのグリッドレイアウト。
+ * ============================================================ */
+.staff-order-menu-page {
     color: #000000;
     overflow: hidden;
 }
@@ -127,5 +131,53 @@
 
 .staff-menu-card:hover {
     opacity: 0.9;
+}
+
+@media (min-width: 1024px) {
+    .staff-order-header {
+        height: 68px;
+        grid-template-columns: 72px 1fr 300px;
+        padding: 0 28px;
+    }
+
+    .staff-category-tabs {
+        width: calc(100% - 56px);
+        height: 58px;
+        margin-left: 28px;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+
+    .staff-category-tabs a {
+        height: 58px;
+        font-size: 16px;
+    }
+
+    .staff-order-main {
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 24px;
+        padding: 22px 36px 28px;
+    }
+
+    .staff-menu-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+        max-height: calc(100vh - 176px);
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .staff-menu-card {
+        aspect-ratio: 150 / 176;
+        min-height: 168px;
+        max-height: none;
+    }
+
+    .staff-menu-name {
+        font-size: 14px;
+    }
+
+    .staff-menu-price {
+        font-size: 13px;
+    }
 }
 
