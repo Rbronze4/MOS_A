@@ -1,0 +1,108 @@
+[2026-06-28 13:35:11] [PDOException] SQLSTATE[HY000]: General error: 2006 MySQL server has gone away
+File: C:\xampp\htdocs\regi\src\Models\StoreModel.php:30
+Trace:
+#0 C:\xampp\htdocs\regi\src\Models\StoreModel.php(30): PDO->query('\r\n            S...')
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(37): App\Models\StoreModel->findActiveStores()
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\CustomerController->showSelect()
+#3 {main}
+[2026-06-28 13:35:24] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(22): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CustomerController->__construct()
+#3 {main}
+[2026-06-28 13:35:28] [PDOException] SQLSTATE[HY000] [2006] MySQL server has gone away
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(22): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CustomerController->__construct()
+#3 {main}
+[2026-06-28 13:35:32] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(22): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CustomerController->__construct()
+#3 {main}
+[2026-06-28 13:38:39] [PDOException] SQLSTATE[42S02]: Base table or view not found: 1932 Table 'regi_system.stores' doesn't exist in engine
+File: C:\xampp\htdocs\regi\src\Models\StoreModel.php:30
+Trace:
+#0 C:\xampp\htdocs\regi\src\Models\StoreModel.php(30): PDO->query('\r\n            S...')
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(37): App\Models\StoreModel->findActiveStores()
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\CustomerController->showSelect()
+#3 {main}
+[2026-06-28 13:38:41] [PDOException] SQLSTATE[42S02]: Base table or view not found: 1932 Table 'regi_system.stores' doesn't exist in engine
+File: C:\xampp\htdocs\regi\src\Models\StoreModel.php:30
+Trace:
+#0 C:\xampp\htdocs\regi\src\Models\StoreModel.php(30): PDO->query('\r\n            S...')
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(37): App\Models\StoreModel->findActiveStores()
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\CustomerController->showSelect()
+#3 {main}
+[2026-06-28 13:38:41] [PDOException] SQLSTATE[42S02]: Base table or view not found: 1932 Table 'regi_system.stores' doesn't exist in engine
+File: C:\xampp\htdocs\regi\src\Models\StoreModel.php:30
+Trace:
+#0 C:\xampp\htdocs\regi\src\Models\StoreModel.php(30): PDO->query('\r\n            S...')
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(37): App\Models\StoreModel->findActiveStores()
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\CustomerController->showSelect()
+#3 {main}
+[2026-06-28 13:38:42] [PDOException] SQLSTATE[42S02]: Base table or view not found: 1932 Table 'regi_system.stores' doesn't exist in engine
+File: C:\xampp\htdocs\regi\src\Models\StoreModel.php:30
+Trace:
+#0 C:\xampp\htdocs\regi\src\Models\StoreModel.php(30): PDO->query('\r\n            S...')
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(37): App\Models\StoreModel->findActiveStores()
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\CustomerController->showSelect()
+#3 {main}
+[2026-06-28 13:38:42] [PDOException] SQLSTATE[42S02]: Base table or view not found: 1932 Table 'regi_system.stores' doesn't exist in engine
+File: C:\xampp\htdocs\regi\src\Models\StoreModel.php:30
+Trace:
+#0 C:\xampp\htdocs\regi\src\Models\StoreModel.php(30): PDO->query('\r\n            S...')
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(37): App\Models\StoreModel->findActiveStores()
+#2 C:\xampp\htdocs\regi\public\index.php(285): App\Controllers\CustomerController->showSelect()
+#3 {main}
+[2026-06-28 13:45:41] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(22): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CustomerController->__construct()
+#3 {main}
+[2026-06-28 13:45:49] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(22): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CustomerController->__construct()
+#3 {main}
+[2026-06-28 13:49:06] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Services\BillingService.php(37): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\src\Controllers\CheckoutController.php(16): App\Services\BillingService->__construct()
+#3 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CheckoutController->__construct()
+#4 {main}
+[2026-06-28 13:49:18] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Services\BillingService.php(37): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\src\Controllers\CheckoutController.php(16): App\Services\BillingService->__construct()
+#3 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CheckoutController->__construct()
+#4 {main}
+[2026-06-28 13:54:12] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Services\BillingService.php(37): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\src\Controllers\CheckoutController.php(16): App\Services\BillingService->__construct()
+#3 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CheckoutController->__construct()
+#4 {main}
+[2026-06-28 13:54:19] [PDOException] SQLSTATE[HY000] [2002] 対象のコンピューターによって拒否されたため、接続できませんでした。
+File: C:\xampp\htdocs\regi\src\Database\db.php:19
+Trace:
+#0 C:\xampp\htdocs\regi\src\Database\db.php(19): PDO->__construct('mysql:host=loca...', 'root', Object(SensitiveParameterValue), Array)
+#1 C:\xampp\htdocs\regi\src\Controllers\CustomerController.php(22): require('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\regi\public\index.php(271): App\Controllers\CustomerController->__construct()
+#3 {main}

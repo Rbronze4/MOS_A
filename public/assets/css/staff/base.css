@@ -11,7 +11,7 @@ body {
 
 .staff-app {
     width: 100%;
-    max-width: 900px;
+    max-width: 1366px;
     min-height: 100vh;
     margin: 0 auto;
     background: var(--mos-page-bg);
@@ -148,5 +148,34 @@ body {
     padding: 16px 10px;
     color: #888888;
     font-size: 14px;
+}
+
+@media (min-width: 1024px) {
+    .screen {
+        min-height: 100vh;
+        padding: 34px 56px 72px;
+    }
+
+    .screen-header h1 {
+        font-size: 36px;
+    }
+
+    .home-menu {
+        width: min(720px, 70vw);
+        grid-template-columns: repeat(3, 1fr);
+        gap: 28px;
+        margin-top: 64px;
+    }
+
+    .home-menu button {
+        height: 72px;
+        font-size: 17px;
+    }
+
+    .data-table th,
+    .data-table td {
+        height: 34px;
+        padding: 4px 12px;
+    }
 }
 

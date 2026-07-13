@@ -63,6 +63,18 @@ switch ($path) {
         $controller->orderMenu();
         break;
 
+    case '/staff/order/submit':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->submitStaffOrder();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
     case '/staff/customer/detail':
         $controller = new StaffController();
         $controller->customerDetail();
@@ -126,6 +138,18 @@ switch ($path) {
 
         if ($method === 'POST') {
             $controller->restoreOrderDetails();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
+    case '/staff/qr/issue':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->issueQr();
             break;
         }
 

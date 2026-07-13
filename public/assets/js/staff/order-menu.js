@@ -1,11 +1,3 @@
-/**
- * スタッフ代理注文：メニュー画面のスクリプト。
- * window.staffOrderInfo（卓番号・プラン・戻り先）を読み、カート（sessionStorageに
- * 卓番号＋プラン単位で保存）への追加・数量変更・合計計算・送信を担当する。
- * 戻るボタンやサイドメニュー初期化も行う。
- *
- * 主な関数: renderCart() / addCart() / changeQty() / clearCart()
- */
 document.addEventListener('DOMContentLoaded', () => {
     if (window.MOS?.initSideMenu) {
         window.MOS.initSideMenu();
@@ -16,11 +8,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitButton = document.getElementById('staffOrderSubmitButton');
 
     const tableNo = window.staffOrderInfo?.tableNo ?? '';
-    const plan = window.staffOrderInfo?.plan ?? '';
+    const customerId = window.staffOrderInfo?.customerId ?? '';
     const returnRef = window.staffOrderInfo?.returnRef ?? 'home';
-
-    // 卓番号・プランごとにカートを分けて保存
-    const cartStorageKey = `staffOrderCart_${tableNo}_${plan}`;
+    const submitUrl = window.staffOrderInfo?.submitUrl ?? '/MOS_A/public/staff/order/submit';
+    const cartStorageKey = `staffOrderCart_${tableNo}_${customerId}`;
 
     let cart = loadCart();
 
@@ -60,10 +51,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const row = document.createElement('div');
             row.className = 'staff-cart-item';
-
             row.innerHTML = `
                 <div class="staff-cart-item-name">${escapeHtml(item.name)}</div>
-
                 <div class="staff-cart-control">
                     <button type="button" class="cart-minus" data-id="${item.id}">−</button>
                     <span>${item.qty}</span>
@@ -139,6 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.staff-menu-card').forEach(card => {
         card.addEventListener('click', () => {
+            if (card.disabled) return;
+
             addCart({
                 id: Number(card.dataset.menuId),
                 name: card.dataset.menuName,
@@ -150,6 +141,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const entryBackButton = document.getElementById('staffOrderBackButton');
     if (entryBackButton) {
         entryBackButton.addEventListener('click', () => {
+            const params = new URLSearchParams(window.location.search);
+            const entryCustomerId = params.get('customer_id') || '';
+            const entryReturnRef = params.get('ref') || '';
+
+            if (entryReturnRef === 'customerDetail' && entryCustomerId !== '') {
+                location.href = `/MOS_A/public/staff/customer/detail?customer_id=${encodeURIComponent(entryCustomerId)}`;
+                return;
+            }
+
+            if (entryReturnRef === 'customerList') {
+                location.href = '/MOS_A/public/staff?ref=customerList';
+                return;
+            }
+
             location.href = '/MOS_A/public/staff?ref=home';
         });
     }
@@ -157,6 +162,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuBackButton = document.getElementById('staffOrderMenuBackButton');
     if (menuBackButton) {
         menuBackButton.addEventListener('click', () => {
+            if (returnRef === 'customerDetail' && customerId !== '') {
+                location.href = `/MOS_A/public/staff/customer/detail?customer_id=${encodeURIComponent(customerId)}`;
+                return;
+            }
+
+            if (returnRef === 'customerList') {
+                location.href = '/MOS_A/public/staff?ref=customerList';
+                return;
+            }
+
             if (returnRef === 'detail') {
                 location.href = '/MOS_A/public/staff?ref=orderDetail';
                 return;
@@ -167,26 +182,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (submitButton) {
-        submitButton.addEventListener('click', () => {
+        submitButton.addEventListener('click', async () => {
             if (cart.length === 0) {
-                alert('商品を選択してください');
+                alert('商品を選択してください。');
                 return;
             }
 
-            console.log({
-                tableNo,
-                plan,
-                items: cart
-            });
+            submitButton.disabled = true;
 
-            alert('注文を受け付けました');
+            try {
+                const response = await fetch(submitUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        table_number: tableNo,
+                        customer_id: customerId,
+                        items: cart.map(item => ({
+                            product_id: item.id,
+                            quantity: item.qty
+                        }))
+                    })
+                });
+                const result = await response.json();
 
-            // 注文完了後にカートを空にする
-            clearCart();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.message || '注文登録に失敗しました。');
+                }
+
+                alert('注文を受け付けました。');
+                clearCart();
+            } catch (error) {
+                alert(error instanceof Error ? error.message : '注文登録に失敗しました。');
+            } finally {
+                submitButton.disabled = false;
+            }
         });
     }
 
-    // カート内の一括削除（確認ダイアログ付き）
     const clearButton = document.getElementById('staffCartClearButton');
     if (clearButton) {
         clearButton.addEventListener('click', () => {
@@ -194,7 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (confirm('カート内の商品をすべて削除しますか？')) {
+            if (confirm('注文かごの商品をすべて削除しますか？')) {
                 clearCart();
             }
         });

@@ -116,6 +116,35 @@
     font-size: 15px;
 }
 
+/* 商品種類が多いときも「注文」ボタンに必ず到達できるよう、
+   注文確認モーダルはカード全体ではなく明細リストだけを内部スクロールさせる */
+#orderModal .modal-card {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#orderModal .modal-back,
+#orderModal .modal-title,
+#orderModal .modal-total,
+#submitOrderButton {
+    flex-shrink: 0;
+}
+
+/* flexアイテム化で幅いっぱいに伸び、ボタン既定のtext-align:centerで
+   中央寄せに見えてしまうため、左上の元の見た目に戻す */
+#orderModal .modal-back {
+    align-self: flex-start;
+    text-align: left;
+}
+
+#modalOrderList {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 /* =========================
    トースト
 ========================= */

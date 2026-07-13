@@ -5,6 +5,8 @@ require_once dirname(__DIR__) . '/Database/db.php';
 require_once dirname(__DIR__) . '/Models/StaffCustomerModel.php';
 require_once dirname(__DIR__) . '/Models/StaffOrderModel.php';
 require_once dirname(__DIR__) . '/Models/StaffProductModel.php';
+require_once dirname(__DIR__) . '/Models/MenuModel.php';
+require_once dirname(__DIR__) . '/Models/CustomerSessionModel.php';
 
 /**
  * スタッフ側画面のコントローラー。
@@ -199,12 +201,114 @@ final class StaffController
             '/MOS_A/public/assets/js/staff/order-menu.js?v=' . $assetVersion,
         ];
 
-        $orders = $this->orders();
-        $products = $this->products();
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $tableNo = trim((string)($_GET['tableNo'] ?? ''));
+        $customerId = filter_input(INPUT_GET, 'customer_id', FILTER_VALIDATE_INT);
+        $planKey = trim((string)($_GET['plan'] ?? ''));
+        $staffOrderError = '';
+        $activeSession = null;
+        $planTypeId = null;
+        $categories = [];
+        $menus = [];
+
+        if ($storeId === '') {
+            http_response_code(403);
+            echo '店舗情報を取得できません。再度ログインしてください。';
+            return;
+        }
+
+        if ($tableNo !== '' && !preg_match('/^\d{1,2}$/', $tableNo)) {
+            $staffOrderError = '卓番号は1〜2桁の数字で入力してください。';
+            $tableNo = '';
+        }
+
+        try {
+            $orderModel = new StaffOrderModel();
+
+            if ($customerId !== false && $customerId !== null && $customerId > 0) {
+                $activeSession = $orderModel->activeSessionByCustomer(
+                    $storeId,
+                    (int)$customerId,
+                    $tableNo === '' ? null : $tableNo
+                );
+            } elseif ($tableNo !== '') {
+                $activeSession = $orderModel->activeSessionByTable($storeId, $tableNo);
+            }
+
+            if (
+                $activeSession === null
+                && $customerId !== false
+                && $customerId !== null
+                && $customerId > 0
+                && $tableNo !== ''
+                && $planKey !== ''
+            ) {
+                $customerModel = new StaffCustomerModel();
+                $customerModel->customerDetail($storeId, (int)$customerId);
+
+                $sessionModel = new CustomerSessionModel();
+                $sessionResult = $sessionModel->startForStaff((int)$customerId, $tableNo, $planKey, 120, $storeId);
+
+                if ((string)($sessionResult['store_id'] ?? '') !== $storeId) {
+                    throw new RuntimeException('注文対象の顧客がログイン中の店舗と一致しません。');
+                }
+
+                $activeSession = $orderModel->activeSessionByCustomer($storeId, (int)$customerId, $tableNo);
+            }
+
+            if ($activeSession !== null) {
+                $planTypeId = $orderModel->planTypeIdForSession((int)$activeSession['session_id']);
+            }
+
+            $menuModel = new MenuModel();
+            $categories = $menuModel->categoriesForStore($storeId, $planTypeId !== null);
+            $menus = $menuModel->menusForStore($storeId, $planTypeId);
+        } catch (Throwable $exception) {
+            error_log('[staff-order-menu] ' . $exception->getMessage());
+            $staffOrderError = $exception->getMessage();
+        }
 
         $view = dirname(__DIR__) . '/Views/staff/screens/staff_order_menu.php';
 
         require dirname(__DIR__) . '/Views/layouts/app.php';
+    }
+
+    public function submitStaffOrder(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報を取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $result = $model->submitStaffOrder($storeId, $this->jsonPayload());
+
+            $this->json([
+                'ok' => true,
+                'order' => $result,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-order-submit] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
     }
 
     public function customerDetail(): void
@@ -767,12 +871,79 @@ final class StaffController
         exit;
     }
 
+    /**
+     * QR発行：ログイン中店舗で新しい顧客を連番で作成し、customer_idを返す。
+     * 返したcustomer_idで客側画面を利用できる。
+     */
+    public function issueQr(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            echo '405 Method Not Allowed';
+            return;
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 401);
+        }
+
+        $peopleCount = filter_input(INPUT_POST, 'people_count', FILTER_VALIDATE_INT);
+        if ($peopleCount === false || $peopleCount === null || $peopleCount < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '人数を正しく入力してください。',
+            ], 422);
+        }
+        $peopleCount = min(99, (int)$peopleCount);
+
+        try {
+            $model = new StaffCustomerModel();
+            $result = $model->issueCustomer($storeId, $peopleCount);
+
+            $this->json([
+                'ok' => true,
+                'message' => 'QRを発行しました。',
+                'customer_id' => $result['customer_id'],
+                'store_id' => $result['store_id'],
+                'people_count' => $result['people_count'],
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-qr-issue] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => 'QR発行に失敗しました。',
+            ], 500);
+        }
+    }
+
     private function json(array $payload, int $statusCode = 200): void
     {
         http_response_code($statusCode);
         header('Content-Type: application/json; charset=UTF-8');
         echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
+    }
+
+    private function jsonPayload(): array
+    {
+        $rawPayload = file_get_contents('php://input');
+
+        if ($rawPayload === false || trim($rawPayload) === '') {
+            return $_POST;
+        }
+
+        $payload = json_decode($rawPayload, true);
+
+        if (!is_array($payload)) {
+            throw new InvalidArgumentException('送信データの形式が正しくありません。');
+        }
+
+        return $payload;
     }
 
     private function customers(): array

@@ -249,3 +249,52 @@
     cursor: pointer;
 }
 
+@media (min-width: 1024px) {
+    .order-table {
+        width: min(100%, 1120px);
+    }
+
+    .customer-table {
+        width: min(100%, 900px);
+    }
+
+    .detail-table {
+        width: min(100%, 640px);
+    }
+
+    .customer-detail-card {
+        width: min(100%, 860px);
+        margin-top: 34px;
+    }
+
+    .customer-detail-actions {
+        gap: 18px;
+    }
+
+    .customer-order-summary,
+    .staff-message,
+    .customer-order-error {
+        width: min(100%, 1040px);
+    }
+
+    .customer-orders-scroll,
+    .customer-orders-table {
+        width: min(100%, 1080px);
+    }
+
+    .bottom-buttons {
+        gap: 48px;
+        margin-top: 42px;
+    }
+
+    .bottom-right {
+        right: 56px;
+        bottom: 34px;
+    }
+
+    .qr-panel {
+        width: min(72%, 820px);
+        min-height: 360px;
+    }
+}
+

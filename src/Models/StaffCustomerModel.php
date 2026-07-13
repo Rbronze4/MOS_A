@@ -5,6 +5,57 @@ require_once dirname(__DIR__) . '/Database/db.php';
 
 final class StaffCustomerModel
 {
+    /**
+     * QR発行用に、新しい顧客を1件作成する。
+     *
+     * customer_id は AUTO_INCREMENT に任せて連番で採番する（現在の最大IDの次番号）。
+     * QRトークンのハッシュ化は開発中は見送り、識別しやすい平文プレースホルダを入れる。
+     * 発行された顧客は、そのまま customer_id で客側画面を利用できる。
+     *
+     * @return array{customer_id:int, store_id:string, people_count:int}
+     */
+    public function issueCustomer(string $storeId, int $peopleCount): array
+    {
+        $pdo = db();
+
+        try {
+            $pdo->beginTransaction();
+
+            // customer_id は指定しない（AUTO_INCREMENTで自動連番）。
+            // billing_status は 1:受付中 2:会計済み 4:未収金 8:会計中（tinyint）。新規発行は受付中(1)。
+            $insert = $pdo->prepare(
+                'INSERT INTO customers (store_id, qr_token_hash, people_count, billing_status)
+                 VALUES (:store_id, :placeholder, :people_count, 1)'
+            );
+            $insert->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+            $insert->bindValue(':placeholder', 'pending', PDO::PARAM_STR);
+            $insert->bindValue(':people_count', $peopleCount, PDO::PARAM_INT);
+            $insert->execute();
+
+            $customerId = (int)$pdo->lastInsertId();
+
+            // ハッシュ化は未実装のため、開発中に識別しやすい平文トークンを入れておく。
+            $update = $pdo->prepare('UPDATE customers SET qr_token_hash = :token WHERE customer_id = :customer_id');
+            $update->bindValue(':token', 'dev_qr_token_' . $customerId, PDO::PARAM_STR);
+            $update->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+            $update->execute();
+
+            $pdo->commit();
+
+            return [
+                'customer_id' => $customerId,
+                'store_id' => $storeId,
+                'people_count' => $peopleCount,
+            ];
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
     public function customersForStore(string $storeId): array
     {
         $sql = <<<SQL
@@ -39,14 +90,14 @@ final class StaffCustomerModel
         $customers = [];
 
         foreach ($statement->fetchAll() as $row) {
-            $tableNumbers = (string)($row['table_numbers'] ?? '');
+            $tableNumbers = trim((string)($row['table_numbers'] ?? ''));
 
             $customers[] = [
                 'customer_id' => (int)$row['customer_id'],
                 'customer_no' => (string)$row['customer_id'],
                 'table_no' => $tableNumbers !== '' ? $tableNumbers : 'なし',
                 'people' => (int)$row['people_count'],
-                'billing_status' => (string)$row['billing_status'],
+                'billing_status' => (int)$row['billing_status'],
             ];
         }
 
@@ -69,7 +120,8 @@ final class StaffCustomerModel
             'people_count' => (int)$customer['people_count'],
             'plan_label' => $this->planLabel($plan),
             'table_numbers' => $this->tableNumberLabels($sessions),
-            'billing_status_label' => $this->billingStatusLabel((string)$customer['billing_status']),
+            'has_active_session' => $sessions !== [],
+            'billing_status_label' => $this->billingStatusLabel((int)$customer['billing_status']),
         ];
     }
 
@@ -179,20 +231,21 @@ final class StaffCustomerModel
             $tableNumber = trim((string)$session['table_number']);
 
             if ($tableNumber !== '') {
-                $labels[] = $tableNumber . '番卓';
+                $labels[] = $tableNumber . '番';
             }
         }
 
         return array_values(array_unique($labels));
     }
 
-    private function billingStatusLabel(string $status): string
+    // billing_status（tinyint 1:受付中 2:会計済み 4:未収金 8:会計中）の表示ラベル。
+    private function billingStatusLabel(int $status): string
     {
         return match ($status) {
-            'UNPAID' => '未会計',
-            'PAYMENT_PENDING' => '会計待ち',
-            'PAID' => '会計済み',
-            'CANCELLED', 'CANCELED' => 'キャンセル',
+            1 => '未会計',
+            8 => '会計待ち',
+            2 => '会計済み',
+            4 => '未収金',
             default => '不明',
         };
     }

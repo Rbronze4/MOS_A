@@ -246,3 +246,31 @@
     width: 120px;
     height: 44px;
 }
+
+@media (min-width: 1024px) {
+    .order-list-top {
+        max-width: 1160px;
+    }
+
+    .order-table-scroll {
+        max-width: 1160px;
+        height: calc(100vh - 230px);
+        min-height: 620px;
+        max-height: 720px;
+    }
+
+    .order-table th:nth-child(3),
+    .order-table td:nth-child(3) {
+        width: 300px;
+    }
+
+    .order-table th:nth-child(6),
+    .order-table td:nth-child(6) {
+        width: 360px;
+    }
+
+    .order-detail-buttons {
+        gap: 48px;
+        margin-top: 36px;
+    }
+}

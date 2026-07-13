@@ -143,7 +143,7 @@ const {
     openProductForm
 } = productModule;
 const { setupCustomerSelection } = customerModule;
-const { openQrCompleteModal } = qrModule;
+const { issueCustomer, openQrCompleteModal } = qrModule;
 
 function prepareScreen(target) {
     if (target === 'orderListScreen') {
@@ -285,7 +285,35 @@ if (qrReissueButton) {
             return;
         }
 
-        openQrCompleteModal('QR再発行が完了しました。');
+        // 再発行は新規作成せず、選択中の既存顧客のcustomer_idでQRを再表示する
+        openQrCompleteModal(selectedCustomer.value, 'QR再発行が完了しました。');
+    });
+}
+
+const staffOrderFromCustomerButton = document.getElementById('staffOrderFromCustomerButton');
+if (staffOrderFromCustomerButton) {
+    staffOrderFromCustomerButton.addEventListener('click', () => {
+        const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
+
+        if (!selectedCustomer) {
+            openCompleteModal('顧客を選択してください。');
+            return;
+        }
+
+        const customerId = selectedCustomer.dataset.customerId || selectedCustomer.value;
+
+        if (!customerId) {
+            openCompleteModal('顧客番号を取得できません。');
+            return;
+        }
+
+        const customerRow = selectedCustomer.closest('tr');
+        const cells = customerRow?.querySelectorAll('td') || [];
+        const tableNo = cells.length > 1 ? cells[1].textContent.trim() : '';
+        const hasActiveSession = tableNo !== '' && tableNo !== 'なし';
+        const path = hasActiveSession ? 'order-menu' : 'order-entry';
+
+        location.href = `/MOS_A/public/staff/${path}?customer_id=${encodeURIComponent(customerId)}&ref=customerList`;
     });
 }
 
@@ -370,7 +398,8 @@ if (issueQrButton) {
             return;
         }
 
-        openQrCompleteModal('QR発行が完了しました。');
+        // サーバーで顧客を連番発行し、その customer_id でQRを表示する
+        issueCustomer(people, 'QR発行が完了しました。');
     });
 }
 

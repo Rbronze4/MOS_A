@@ -1,9 +1,3 @@
-<?php
-/**
- * スタッフ側 顧客一覧画面。
- * ログイン中店舗の顧客を表示し、顧客詳細画面へ遷移できるようにします。
- */
-?>
 <section id="customerListScreen" class="screen">
     <div class="screen-header">
         <button class="back-button" type="button">←</button>
@@ -27,7 +21,7 @@
                     <td colspan="5" class="empty-row">顧客情報がありません</td>
                 </tr>
             <?php else: ?>
-                <?php foreach ($customers as $index => $customer): ?>
+                <?php foreach ($customers as $customer): ?>
                     <?php $customerId = (string)($customer['customer_id'] ?? $customer['customer_no'] ?? ''); ?>
                     <tr>
                         <td>
@@ -57,6 +51,7 @@
 
     <div class="bottom-buttons">
         <button id="customerOrderDetailButton" class="white-button" type="button">注文詳細</button>
+        <button id="staffOrderFromCustomerButton" class="white-button" type="button">スタッフ注文</button>
         <button id="qrReissueButton" class="white-button" type="button">QR再発行</button>
     </div>
 </section>
