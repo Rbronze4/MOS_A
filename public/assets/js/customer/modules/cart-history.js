@@ -21,12 +21,15 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         showToast,
         getDisplayPrice,
         openProduct,
-        refreshCategoryScrollButtons
+        refreshCategoryScrollButtons,
+        deleteCartFromServer,
+        submitOrderToServer
     } = context;
 
-    // 人数はスタッフがQR発行時に入力する想定だが、現状はその数値を取得する機会が
-    // ないため、暫定で2名固定とする（コース料金 = プラン料金 × この人数）。
-    const HEADCOUNT = 2;
+    function headcount() {
+        const count = Number(state.peopleCount || 2);
+        return Number.isFinite(count) && count > 0 ? count : 2;
+    }
 
     function cartTotal() {
         return state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -35,13 +38,27 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
     // 選択中のコース（飲み放題プラン）。飲み放題なし(single,料金0)や未選択時は null 扱い。
     function selectedCoursePlan() {
         const plan = findPlan(state.selectedPlanId);
-        return plan && plan.price > 0 ? plan : null;
+        if (!plan) {
+            return null;
+        }
+
+        const dbPlan = state.activeCustomerPlan || null;
+        const unitPrice = Number(dbPlan?.unit_price ?? dbPlan?.price ?? plan.price ?? 0);
+
+        if (unitPrice <= 0) {
+            return null;
+        }
+
+        return {
+            ...plan,
+            price: unitPrice
+        };
     }
 
     // コース料金の合計（プラン料金 × 人数）。コースなしは0。
     function courseTotal() {
         const plan = selectedCoursePlan();
-        return plan ? plan.price * HEADCOUNT : 0;
+        return plan ? plan.price * headcount() : 0;
     }
 
     function historyTotal() {
@@ -51,7 +68,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
     // 一人当たりの金額（合計 ÷ 人数）。端数は切り上げ。
     function perPersonTotal() {
-        return Math.ceil(historyTotal() / HEADCOUNT);
+        return Math.ceil(historyTotal() / headcount());
     }
 
     function addCart(menu, quantity, price) {
@@ -98,7 +115,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         `).join('');
 
         cartList.querySelectorAll('.pill-button').forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 const menuId = button.dataset.menuId;
                 const action = button.dataset.action;
                 const cartItem = state.cart.find(item => String(item.id) === String(menuId));
@@ -111,9 +128,16 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                         return;
                     }
 
-                    state.cart = state.cart.filter(item => String(item.id) !== String(menuId));
-                    renderCart();
-                    showToast(`${cartItem.name}を削除しました`);
+                    try {
+                        const result = await deleteCartFromServer(menuId);
+
+                        state.cart = result.cart_items || [];
+                        renderCart();
+                        showToast(result.message || `${cartItem.name}を削除しました`);
+                    } catch (error) {
+                        showToast(error.message || '削除に失敗しました');
+                    }
+
                     return;
                 }
 
@@ -122,7 +146,6 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                     if (!menu) return;
 
                     state.editingItem = cartItem;
-                    state.cart = state.cart.filter(item => String(item.id) !== String(menuId));
                     openProduct(menu, cartItem.quantity, false);
                 }
             });
@@ -161,7 +184,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         }
         const headcountEl = document.getElementById('historyHeadcount');
         if (headcountEl) {
-            headcountEl.textContent = String(HEADCOUNT);
+            headcountEl.textContent = String(headcount());
         }
 
         const historyList = document.getElementById('historyList');
@@ -175,8 +198,8 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                 <div class="history-row">
                     <span class="history-status">[コース]</span>
                     <span>${coursePlan.name}</span>
-                    <span>${HEADCOUNT}名</span>
-                    <span>${formatYen(coursePlan.price * HEADCOUNT)}</span>
+                    <span>${headcount()}名</span>
+                    <span>${formatYen(coursePlan.price * headcount())}</span>
                 </div>
             `);
         }
@@ -246,17 +269,34 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
             closeOrderModal();
         });
 
-        document.getElementById('submitOrderButton').addEventListener('click', () => {
-            state.history.push(...state.cart.map(item => ({ ...item })));
-            state.cart = [];
+        document.getElementById('submitOrderButton').addEventListener('click', async () => {
+            if (!state.sessionId) {
+                showToast('卓番号とプランを選択してください');
+                return;
+            }
 
-            closeOrderModal();
-            renderCart();
-            renderHistory();
+            if (state.cart.length === 0) {
+                showToast('商品が選択されていません');
+                return;
+            }
 
-            showToast('注文を送信しました');
-            showScreen('menuScreen');
-            requestAnimationFrame(refreshCategoryScrollButtons);
+            try {
+                const result = await submitOrderToServer();
+
+                // 注文履歴はDBのorders/order_detailsから、顧客ID単位で再取得した結果を使う。
+                state.history = result.history_items || [];
+                state.cart = result.cart_items || [];
+
+                closeOrderModal();
+                renderCart();
+                renderHistory();
+
+                showToast(result.message || '注文を送信しました');
+                showScreen('menuScreen');
+                requestAnimationFrame(refreshCategoryScrollButtons);
+            } catch (error) {
+                showToast(error.message || '注文送信に失敗しました');
+            }
         });
     }
 

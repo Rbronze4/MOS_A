@@ -40,16 +40,18 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
     function openQrCompleteModal(messagePrefix = 'QR発行が完了しました') {
         const number = issueCustomerNumber();
 
-        // 【変更】login.php で保存された店舗識別コードを取得する
-        // localStorage から取得することで、ログインしている店舗に応じたQRコードを生成できる
+        // login.php の送信時に保存された店舗識別コードを取得する
+        // サーバー側から都度データを取得する通信コストを削減し、画面描画を高速化するため localStorage を利用します。
         const savedStoreId = localStorage.getItem('mos_current_store_id');
         
-        // 取得できなかった場合（デバッグ時や直接画面を開いた場合）のフェイルセーフ
-        // URLが不正になって注文画面が開けなくなるのを防ぐため、デフォルト店舗(MB: 緑橋本店)を設定する
-        const storeId = savedStoreId ? savedStoreId : 'MB';
+        // 取得できなかった場合（キャッシュクリア後や直接画面を開いた場合など）のフェイルセーフ
+        // URLの storeId が空になって注文画面自体が開けなくなる致命的エラーを防ぐため、
+        // デフォルト店舗として「緑橋本店（MH）」を設定します。
+        // ※データベース（storesテーブル）の定義上、緑橋本店のstore_idは 'MH' となっています。
+        const storeId = savedStoreId ? savedStoreId : 'MH';
 
         // お客様がスマートフォンで読み取るための客側注文画面URLを生成
-        // 動的に取得した店舗ID（storeId）をURLパラメータに組み込む
+        // 動的に取得した店舗ID（storeId）をURLパラメータに組み込むことで、正しい店舗のメニューが表示されるようにします。
         const orderUrl = `${window.location.origin}/customer?storeId=${storeId}&customerId=${number}`;
 
         // 既存のモーダルUIに、QRコード表示用のcanvas要素を追加して展開します。

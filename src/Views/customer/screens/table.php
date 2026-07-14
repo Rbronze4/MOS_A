@@ -12,6 +12,13 @@
         入力してください
     </p>
 
+    <?php if (!empty($hasActiveCustomerPlan)): ?>
+        <p class="screen-message">
+            このQRコードではすでにプランが選択されています。<br>
+            卓番号を入力して注文を開始してください。
+        </p>
+    <?php endif; ?>
+
     <input
         id="tableNumberInput"
         class="number-input"
