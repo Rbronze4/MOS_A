@@ -129,7 +129,11 @@ final class StaffController
         ];
 
         $storeName = (string)($_SESSION['store_name'] ?? '');
-        $customers = $this->customers();
+
+        // 顧客一覧の絞り込み（会計前/会計済み/未収金/全体）。未指定・不正値は「会計前」に落とす。
+        $customerFilter = StaffCustomerModel::normalizeFilter($_GET['status'] ?? null);
+
+        $customers = $this->customers($customerFilter);
         $orders = $this->orders();
         $products = $this->products();
         $productCategories = $this->productCategories();
@@ -1008,7 +1012,7 @@ final class StaffController
         return $payload;
     }
 
-    private function customers(): array
+    private function customers(string $filter = StaffCustomerModel::DEFAULT_FILTER): array
     {
         $storeId = trim((string)($_SESSION['store_id'] ?? ''));
 
@@ -1020,18 +1024,12 @@ final class StaffController
         try {
             $model = new StaffCustomerModel();
 
-            return $model->customersForStore($storeId);
+            return $model->customersForStore($storeId, $filter);
         } catch (Throwable $exception) {
             error_log('[staff-customers] DB error: ' . $exception->getMessage());
 
             return [];
         }
-
-        return [
-            ['table_no' => '1番', 'customer_no' => '1234567', 'people' => 4],
-            ['table_no' => '2番', 'customer_no' => '1234567', 'people' => 5],
-            ['table_no' => '3番', 'customer_no' => '1234567', 'people' => 3],
-        ];
     }
 
     private function orders(): array
