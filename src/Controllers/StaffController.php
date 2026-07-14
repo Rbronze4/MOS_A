@@ -167,21 +167,41 @@ final class StaffController
             try {
                 $pdo = db();
                 $service = new StaffOrderEntryService($pdo, new StaffOrderEntryRepository($pdo));
-
+                /*
+                * POST時は、先に卓番号とコースを登録する。
+                */
                 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
-                    $selection = $service->register($storeId, (int)$customerId, $oldTableNumber, $oldPlanChoice);
+                    $service->register(
+                        $storeId,
+                        (int)$customerId,
+                        $oldTableNumber,
+                        $oldPlanChoice
+                    );
+
                     $this->redirect(
-                        '/MOS_A/public/staff/order-menu?customer_id=' . (int)$customerId . '&ref=' . urlencode($returnRef),
+                        '/MOS_A/public/staff/order-menu'
+                        . '?customer_id=' . (int)$customerId
+                        . '&ref=' . urlencode($returnRef),
                         303
                     );
                 }
 
+                /*
+                * GET時は現在の卓・コース情報を取得する。
+                */
                 $entryData = $service->entryData($storeId, (int)$customerId);
                 $plans = $entryData['plans'];
 
-                // 卓と有効なコース（または単品セッション）が揃っていれば選択画面を省略する。
+                /*
+                * 卓番号と有効なコース、または単品セッションが揃っていれば
+                * 卓・コース選択画面を省略する。
+                */
                 if ($entryData['selection'] !== null) {
-                    $this->redirect('/MOS_A/public/staff/order-menu?customer_id=' . (int)$customerId . '&ref=' . urlencode($returnRef));
+                    $this->redirect(
+                        '/MOS_A/public/staff/order-menu'
+                        . '?customer_id=' . (int)$customerId
+                        . '&ref=' . urlencode($returnRef)
+                    );
                 }
             } catch (InvalidArgumentException $exception) {
                 $entryError = $exception->getMessage();
@@ -268,9 +288,22 @@ final class StaffController
                 $pdo = db();
                 $entryService = new StaffOrderEntryService($pdo, new StaffOrderEntryRepository($pdo));
                 $entryData = $entryService->entryData($storeId, (int)$customerId);
+                $entryData = $entryService->entryData(
+                    $storeId,
+                    (int)$customerId
+                );
+
                 if ($entryData['selection'] === null) {
-                    $this->redirect('/MOS_A/public/staff/order-entry?customer_id=' . (int)$customerId . '&ref=' . urlencode((string)($_GET['ref'] ?? 'customerList')));
+                    $this->redirect(
+                        '/MOS_A/public/staff/order-entry'
+                        . '?customer_id=' . (int)$customerId
+                        . '&ref=' . urlencode(
+                            (string)($_GET['ref'] ?? 'customerList')
+                        )
+                    );
                 }
+
+                $tableNo = (string)$entryData['selection']['table_number'];
                 $tableNo = (string)$entryData['selection']['table_number'];
                 $activeSession = $orderModel->activeSessionByCustomer($storeId, (int)$customerId, $tableNo);
                 if ($activeSession !== null) {

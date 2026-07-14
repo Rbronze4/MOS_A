@@ -78,42 +78,83 @@ final class StaffOrderEntryRepository
         return $row === false ? null : $row;
     }
 
-    /** 最新の利用中セッションと、それに対応する有効なプランを取得する。 */
-    public function currentSelection(string $storeId, int $customerId, bool $forUpdate = false): ?array
-    {
+    /**
+     * 顧客の最新の利用中セッションと、
+     * 現在有効なコース情報を取得する。
+     *
+     * セッション開始時刻ではなく、現在時刻を基準に
+     * 有効なcustomer_plansを判定する。
+     */
+    public function currentSelection(
+        string $storeId,
+        int $customerId,
+        bool $forUpdate = false
+    ): ?array {
         $lock = $forUpdate ? ' FOR UPDATE' : '';
+
         $sql = <<<'SQL'
             SELECT
                 s.session_id,
                 s.customer_id,
+                s.store_id,
                 s.table_number,
+                s.session_status,
                 s.started_at AS session_started_at,
                 s.expired_at,
+                s.ended_at AS session_ended_at,
+
                 cp.customer_plan_id,
                 cp.plan_id,
                 cp.started_at AS plan_started_at,
                 cp.ended_at AS plan_ended_at,
+
                 p.plan_type_id,
                 pt.plan_type_name,
                 p.is_active AS plan_is_active
+
             FROM sessions AS s
+
+            /*
+            * セッション開始時点のプランではなく、
+            * 現在利用中の最新プランを取得する。
+            */
             LEFT JOIN customer_plans AS cp
-                ON cp.customer_id = s.customer_id
-               AND cp.started_at <= s.started_at
-               AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
+                ON cp.customer_plan_id = (
+                    SELECT cp2.customer_plan_id
+                    FROM customer_plans AS cp2
+                    WHERE cp2.customer_id = s.customer_id
+                    AND cp2.started_at <= NOW()
+                    AND cp2.ended_at > NOW()
+                    ORDER BY
+                        cp2.started_at DESC,
+                        cp2.customer_plan_id DESC
+                    LIMIT 1
+                )
+
             LEFT JOIN plans AS p
                 ON p.plan_id = cp.plan_id
-               AND p.store_id = s.store_id
-            LEFT JOIN plan_types AS pt ON pt.plan_type_id = p.plan_type_id
+            AND p.store_id = s.store_id
+
+            LEFT JOIN plan_types AS pt
+                ON pt.plan_type_id = p.plan_type_id
+
             WHERE s.customer_id = :customer_id
-              AND s.store_id = :store_id
-              AND s.session_status = 'ACTIVE'
-            ORDER BY s.session_id DESC, cp.customer_plan_id DESC
+            AND s.store_id = :store_id
+            AND s.session_status = 'ACTIVE'
+            AND s.ended_at IS NULL
+
+            ORDER BY s.session_id DESC
             LIMIT 1
         SQL;
+
         $statement = $this->pdo->prepare($sql . $lock);
-        $statement->execute([':customer_id' => $customerId, ':store_id' => $storeId]);
-        $row = $statement->fetch();
+
+        $statement->execute([
+            ':customer_id' => $customerId,
+            ':store_id' => $storeId,
+        ]);
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
 
         return $row === false ? null : $row;
     }

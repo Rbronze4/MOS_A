@@ -79,11 +79,24 @@ $oldPlanChoice = $oldPlanChoice ?? '';
 <script>
 (() => {
     const input = document.getElementById('tableNumber');
-    if (!input) return;
+    const form = document.querySelector('.staff-order-entry-form');
+    const submitButton = form?.querySelector('.staff-order-decision-button');
+
+    if (!input || !form || !submitButton) return;
 
     input.addEventListener('input', () => {
         // number入力でも貼り付け等を考慮し、数字以外を除去する。
         input.value = input.value.replace(/\D/g, '').slice(0, 2);
+    });
+
+    form.addEventListener('submit', () => {
+        // ネイティブ検証を通過した送信だけを一度に制限する。
+        submitButton.disabled = true;
+    });
+
+    window.addEventListener('pageshow', () => {
+        // ブラウザの戻る操作で復元された場合も再送信できるようにする。
+        submitButton.disabled = false;
     });
 })();
 </script>
