@@ -95,6 +95,21 @@ function performLogout() {
 }
 
 function confirmLogout() {
+    // サイドメニューを開いたままだと、その暗い膜が確認モーダルの上に重なって
+    // ボタンを押せなくなるため、確認を出す前にサイドメニューを閉じる。
+    sideMenuLayer?.classList.remove('show');
+
+    // スタッフ注文画面のように確認モーダル(#modalLayer)を持たないページでは
+    // openModal が何もせず、ログアウトが無反応になってしまう。
+    // その場合はブラウザ標準の確認にフォールバックする。
+    if (!modalCard || !modalLayer) {
+        if (confirm('ログアウトしますか？')) {
+            performLogout();
+        }
+
+        return;
+    }
+
     openModal(`
         <h2>ログアウトしますか？</h2>
         <p class="modal-note">ログイン画面に戻ります。</p>
