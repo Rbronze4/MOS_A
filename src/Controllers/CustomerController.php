@@ -171,7 +171,7 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, 'セッションの開始に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -295,7 +295,7 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '注文の送信に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -415,6 +415,29 @@ final class CustomerController
         }
 
         return min(99, max(1, (int)$quantity));
+    }
+
+    /**
+     * 例外メッセージを客へ出してよい形に落とす。
+     *
+     * Model が投げる InvalidArgumentException / RuntimeException は
+     * 「プランを選択してください。」のように客へ見せる前提の日本語メッセージなので
+     * そのまま返す。それ以外（DB接続失敗・SQLエラー等）はSQL文やテーブル構造が
+     * 混ざるため定型文に差し替える。詳細は error_log 側にだけ残す。
+     *
+     * PDOException は RuntimeException を継承しているため、必ず先に弾くこと。
+     */
+    private function safeMessage(Throwable $exception, string $fallback): string
+    {
+        if ($exception instanceof PDOException) {
+            return $fallback;
+        }
+
+        if ($exception instanceof InvalidArgumentException || $exception instanceof RuntimeException) {
+            return $exception->getMessage();
+        }
+
+        return $fallback;
     }
 
     private function json(array $payload, int $statusCode = 200): void

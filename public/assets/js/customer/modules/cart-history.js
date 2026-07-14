@@ -26,6 +26,18 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         submitOrderToServer
     } = context;
 
+    // 商品名はスタッフが商品管理画面から自由に登録でき、そのままDB経由で
+    // ここに届く。innerHTMLへ差し込む値は必ずエスケープする。
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
+    }
+
     function headcount() {
         const count = Number(state.peopleCount || 2);
         return Number.isFinite(count) && count > 0 ? count : 2;
@@ -102,15 +114,15 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         cartList.innerHTML = state.cart.map(item => `
             <div class="cart-row">
-                <span>${item.name}</span>
-                <span>${item.quantity}</span>
+                <span>${escapeHtml(item.name)}</span>
+                <span>${escapeHtml(item.quantity)}</span>
                 <span>${formatYen(item.price)}</span>
 
-                <button class="pill-button change-button" data-action="change" data-menu-id="${item.id}">
+                <button class="pill-button change-button" data-action="change" data-menu-id="${escapeHtml(item.id)}">
                     変更
                 </button>
 
-                <button class="pill-button delete-button" data-action="delete" data-menu-id="${item.id}">
+                <button class="pill-button delete-button" data-action="delete" data-menu-id="${escapeHtml(item.id)}">
                     削除
                 </button>
             </div>
@@ -199,7 +211,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
             rows.push(`
                 <div class="history-row">
                     <span class="history-status">[コース]</span>
-                    <span>${coursePlan.name}</span>
+                    <span>${escapeHtml(coursePlan.name)}</span>
                     <span>${headcount()}名</span>
                     <span>${formatYen(coursePlan.price * headcount())}</span>
                 </div>
@@ -210,11 +222,11 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
             rows.push(`
                 <div class="history-row">
                     <span class="history-status">[注文済み]</span>
-                    <span>${item.name}</span>
-                    <span>${item.quantity}</span>
+                    <span>${escapeHtml(item.name)}</span>
+                    <span>${escapeHtml(item.quantity)}</span>
                     <span>${formatYen(item.price)}</span>
 
-                    <button class="reorder-button" data-menu-id="${item.id}">
+                    <button class="reorder-button" data-menu-id="${escapeHtml(item.id)}">
                         再注文
                     </button>
                 </div>

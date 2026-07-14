@@ -121,6 +121,18 @@ switch ($path) {
         echo '405 Method Not Allowed';
         break;
 
+    case '/staff/order/quantity':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->updateOrderQuantity();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
     case '/staff/order/cancel':
         $controller = new StaffController();
 

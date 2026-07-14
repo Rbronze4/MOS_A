@@ -80,6 +80,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 画像未設定時の代替画像。menu.js のメニュー一覧と同じものを使う。
+    const NO_IMAGE_PATH = '/MOS_A/public/assets/images/menu/no_image.png';
+
+    // innerHTMLへ差し込む値のエスケープ。商品名などDB由来の文字列は必ず通す。
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
+    }
+
     function formatYen(value) {
         return '¥' + Number(value || 0).toLocaleString('ja-JP');
     }
@@ -246,8 +260,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const imageFrame = document.getElementById('productImageFrame');
-        const imageSrc = menu.image_path || '/assets/images/no-image.png';
-        imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+        // 商品名・画像パスはDB由来（スタッフが商品管理画面から登録する）。
+        // innerHTMLへ差し込むため必ずエスケープする。
+        const imageSrc = menu.image_path || NO_IMAGE_PATH;
+        imageFrame.innerHTML = `<img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(menu.name)}" style="width: 100%; height: 100%; object-fit: cover;">`;
 
         document.getElementById('productName').textContent = menu.name;
         document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
