@@ -400,13 +400,47 @@ if (deleteProductButton) {
     });
 }
 
+// QR発行の人数・枚数は 1〜99 に制限する。
+// type="number" は max を付けてもキーボードでは上限超えの値を打ててしまうため、
+// 入力時に数字以外を除去し、2桁までに切り詰めることで実際に入力できないようにする。
+const QR_INPUT_MAX = 99;
+
+function limitQrNumberInput(input) {
+    if (!input) return;
+
+    const normalize = value => String(value || '').replace(/\D/g, '').slice(0, 2);
+
+    input.addEventListener('input', () => {
+        const normalized = normalize(input.value);
+
+        if (input.value !== normalized) {
+            input.value = normalized;
+        }
+    });
+
+    // 数字以外のキー（e, +, -, . など type=number が許すもの）は入力させない
+    input.addEventListener('keydown', event => {
+        if (event.ctrlKey || event.metaKey || event.altKey) {
+            return;
+        }
+
+        if (event.key.length === 1 && !/\d/.test(event.key)) {
+            event.preventDefault();
+        }
+    });
+}
+
+limitQrNumberInput(document.getElementById('peopleInput'));
+limitQrNumberInput(document.getElementById('countInput'));
+
 const issueQrButton = document.getElementById('issueQrButton');
 if (issueQrButton) {
     issueQrButton.addEventListener('click', () => {
         const people = Number(document.getElementById('peopleInput')?.value || 0);
 
-        if (people <= 0) {
-            openCompleteModal('人数を入力してください。');
+        // 貼り付け等で範囲外が入り込む場合に備え、発行時にも 1〜99 を検証する
+        if (!Number.isInteger(people) || people < 1 || people > QR_INPUT_MAX) {
+            openCompleteModal(`人数は1〜${QR_INPUT_MAX}で入力してください。`);
             return;
         }
 
