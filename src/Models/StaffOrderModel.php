@@ -290,6 +290,9 @@ final class StaffOrderModel
         return $orders;
     }
 
+    /**
+     * 顧客別注文詳細画面からの数量変更。顧客スコープで明細を特定する。
+     */
     public function updateCustomerOrderDetailQuantity(
         string $storeId,
         int $customerId,
@@ -306,49 +309,7 @@ final class StaffOrderModel
             $pdo->beginTransaction();
 
             $detail = $this->findCustomerOrderDetailForUpdate($storeId, $customerId, $orderDetailId);
-
-            if ($detail === null) {
-                throw new RuntimeException('注文詳細が見つかりません。');
-            }
-
-            if ((string)$detail['detail_status'] === 'CANCELLED') {
-                throw new RuntimeException('キャンセル済みの商品は数量変更できません。');
-            }
-
-            $providedQuantity = (int)$detail['provided_quantity'];
-            $minimumQuantity = max(1, $providedQuantity);
-
-            if ($quantity < $minimumQuantity) {
-                throw new RuntimeException('提供済み数より少ない数量には変更できません。');
-            }
-
-            $detailStatus = $providedQuantity >= $quantity ? 'PROVIDED' : 'ORDERED';
-            $providedAt = $detailStatus === 'PROVIDED'
-                ? ((string)($detail['provided_at'] ?? '') !== '' ? (string)$detail['provided_at'] : date('Y-m-d H:i:s'))
-                : ($providedQuantity > 0 ? ($detail['provided_at'] ?? null) : null);
-
-            $sql = <<<SQL
-                UPDATE order_details
-                SET
-                    quantity = :quantity,
-                    detail_status = :detail_status,
-                    provided_at = :provided_at,
-                    updated_at = NOW()
-                WHERE order_detail_id = :order_detail_id
-            SQL;
-
-            $statement = $pdo->prepare($sql);
-            $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
-            $statement->bindValue(':detail_status', $detailStatus, PDO::PARAM_STR);
-
-            if ($providedAt === null || $providedAt === '') {
-                $statement->bindValue(':provided_at', null, PDO::PARAM_NULL);
-            } else {
-                $statement->bindValue(':provided_at', (string)$providedAt, PDO::PARAM_STR);
-            }
-
-            $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
-            $statement->execute();
+            $this->applyQuantityChange($pdo, $detail, $orderDetailId, $quantity);
 
             $updated = $this->findCustomerOrderDetailForUpdate($storeId, $customerId, $orderDetailId);
 
@@ -366,6 +327,98 @@ final class StaffOrderModel
 
             throw $exception;
         }
+    }
+
+    /**
+     * スタッフダッシュボードの注文詳細（注文編集モーダル）からの数量変更。
+     *
+     * ダッシュボード側は顧客を選ばずに明細を操作するため、店舗スコープで特定する。
+     * ガードの中身は顧客別画面と同じ（applyQuantityChange）。
+     */
+    public function updateOrderDetailQuantity(string $storeId, int $orderDetailId, int $quantity): array
+    {
+        if ($quantity < 1) {
+            throw new InvalidArgumentException('数量は1以上で入力してください。');
+        }
+
+        $pdo = db();
+
+        try {
+            $pdo->beginTransaction();
+
+            $detail = $this->findOrderDetailForUpdate($storeId, $orderDetailId);
+            $this->applyQuantityChange($pdo, $detail, $orderDetailId, $quantity);
+
+            $updated = $this->findOrderDetailForUpdate($storeId, $orderDetailId);
+
+            if ($updated === null) {
+                throw new RuntimeException('更新後の注文明細が見つかりません。');
+            }
+
+            $pdo->commit();
+
+            return $this->formatOrderRow($updated);
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * 数量変更の共通処理。呼び出し側のトランザクション内で実行する前提。
+     *
+     * 提供済み数を下回る数量には変更させない。提供数が新しい数量に達していれば
+     * PROVIDED、足りなければ ORDERED に落とす。
+     *
+     * @param array<string, mixed>|null $detail ロック済みの明細（見つからない場合はnull）
+     */
+    private function applyQuantityChange(PDO $pdo, ?array $detail, int $orderDetailId, int $quantity): void
+    {
+        if ($detail === null) {
+            throw new RuntimeException('注文詳細が見つかりません。');
+        }
+
+        if ((string)$detail['detail_status'] === 'CANCELLED') {
+            throw new RuntimeException('キャンセル済みの商品は数量変更できません。');
+        }
+
+        $providedQuantity = (int)$detail['provided_quantity'];
+        $minimumQuantity = max(1, $providedQuantity);
+
+        if ($quantity < $minimumQuantity) {
+            throw new RuntimeException('提供済み数より少ない数量には変更できません。');
+        }
+
+        $detailStatus = $providedQuantity >= $quantity ? 'PROVIDED' : 'ORDERED';
+        $providedAt = $detailStatus === 'PROVIDED'
+            ? ((string)($detail['provided_at'] ?? '') !== '' ? (string)$detail['provided_at'] : date('Y-m-d H:i:s'))
+            : ($providedQuantity > 0 ? ($detail['provided_at'] ?? null) : null);
+
+        $sql = <<<SQL
+            UPDATE order_details
+            SET
+                quantity = :quantity,
+                detail_status = :detail_status,
+                provided_at = :provided_at,
+                updated_at = NOW()
+            WHERE order_detail_id = :order_detail_id
+        SQL;
+
+        $statement = $pdo->prepare($sql);
+        $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
+        $statement->bindValue(':detail_status', $detailStatus, PDO::PARAM_STR);
+
+        if ($providedAt === null || $providedAt === '') {
+            $statement->bindValue(':provided_at', null, PDO::PARAM_NULL);
+        } else {
+            $statement->bindValue(':provided_at', (string)$providedAt, PDO::PARAM_STR);
+        }
+
+        $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+        $statement->execute();
     }
 
     public function cancelCustomerOrderDetail(string $storeId, int $customerId, int $orderDetailId): array
@@ -496,14 +549,9 @@ final class StaffOrderModel
 
         $pdo = db();
         $placeholders = [];
-        $params = [
-            ':store_id' => $storeId,
-        ];
 
         foreach ($ids as $index => $id) {
-            $placeholder = ':order_detail_id_' . $index;
-            $placeholders[] = $placeholder;
-            $params[$placeholder] = $id;
+            $placeholders[] = ':order_detail_id_' . $index;
         }
 
         $inSql = implode(', ', $placeholders);
@@ -511,7 +559,27 @@ final class StaffOrderModel
         try {
             $pdo->beginTransaction();
 
+            // キャンセル前に対象をロックして状態を確認する。
+            // 顧客別画面のcancelCustomerOrderDetail()と同じガードをかけないと、
+            // 一覧からの一括キャンセルだけ提供済みの明細を提供数ごと消せてしまう。
+            $targets = $this->lockOrderDetailsForStore($pdo, $storeId, $ids, $inSql);
+
+            if (count($targets) !== count($ids)) {
+                throw new RuntimeException('キャンセル対象の注文明細が見つかりません。');
+            }
+
+            foreach ($targets as $target) {
+                if ((string)$target['detail_status'] === 'CANCELLED') {
+                    throw new RuntimeException('すでにキャンセル済みの注文が含まれています。');
+                }
+
+                if ((int)$target['provided_quantity'] > 0) {
+                    throw new RuntimeException('提供済みの商品はキャンセルできません。先に提供取消を行ってください。');
+                }
+            }
+
             // ログイン中の店舗に紐づく注文明細だけをキャンセル対象にします。
+            // 上のガードを通っていても、SQL側でも未提供・未キャンセルの明細だけに限定する。
             $updateSql = <<<SQL
                 UPDATE order_details AS od
                 INNER JOIN orders AS o
@@ -521,9 +589,10 @@ final class StaffOrderModel
                 SET
                     od.detail_status = 'CANCELLED',
                     od.cancelled_at = NOW(),
-                    od.provided_quantity = 0,
                     od.provided_at = NULL
                 WHERE s.store_id = :store_id
+                  AND od.detail_status <> 'CANCELLED'
+                  AND od.provided_quantity = 0
                   AND od.order_detail_id IN ($inSql)
             SQL;
 
@@ -881,6 +950,8 @@ final class StaffOrderModel
                 od.plan_applied_flag,
                 od.detail_status,
                 od.ordered_at,
+                od.provided_at,
+                od.cancelled_at,
                 o.session_id,
                 o.ordered_at AS order_ordered_at,
                 s.store_id,
@@ -949,6 +1020,44 @@ final class StaffOrderModel
         $detail = $statement->fetch();
 
         return $detail === false ? null : $detail;
+    }
+
+    /**
+     * 一括操作の対象明細を、ログイン中店舗のものだけロックして取得する。
+     *
+     * 状態確認とUPDATEの間に他の操作が割り込むと、提供済みの明細を
+     * キャンセルしてしまうため、確認前にFOR UPDATEで押さえる。
+     *
+     * @param  list<int> $ids
+     * @return list<array<string, mixed>>
+     */
+    private function lockOrderDetailsForStore(PDO $pdo, string $storeId, array $ids, string $inSql): array
+    {
+        $sql = <<<SQL
+            SELECT
+                od.order_detail_id,
+                od.detail_status,
+                od.provided_quantity
+            FROM order_details AS od
+            INNER JOIN orders AS o
+                ON o.order_id = od.order_id
+            INNER JOIN sessions AS s
+                ON s.session_id = o.session_id
+            WHERE s.store_id = :store_id
+              AND od.order_detail_id IN ($inSql)
+            FOR UPDATE
+        SQL;
+
+        $statement = $pdo->prepare($sql);
+        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+
+        foreach ($ids as $index => $id) {
+            $statement->bindValue(':order_detail_id_' . $index, $id, PDO::PARAM_INT);
+        }
+
+        $statement->execute();
+
+        return $statement->fetchAll();
     }
 
     private function assertCustomerBelongsToStore(string $storeId, int $customerId): void

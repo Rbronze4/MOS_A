@@ -70,9 +70,20 @@ function closeModal() {
     modalCard.innerHTML = '';
 }
 
+// メッセージにはサーバーの例外メッセージが入る。innerHTMLへ差し込むためエスケープする。
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    }[char]));
+}
+
 function openCompleteModal(message) {
     openModal(`
-        <h2>${message}</h2>
+        <h2>${escapeHtml(message)}</h2>
         <button class="white-button" id="closeModalButton">閉じる</button>
     `);
 

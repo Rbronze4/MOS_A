@@ -277,7 +277,7 @@ final class StaffController
             $menus = $menuModel->menusForStore($storeId, $planTypeId);
         } catch (Throwable $exception) {
             error_log('[staff-order-menu] ' . $exception->getMessage());
-            $staffOrderError = $exception->getMessage();
+            $staffOrderError = $this->safeMessage($exception, 'メニューの取得に失敗しました。時間をおいて再度お試しください。');
         }
 
         $view = dirname(__DIR__) . '/Views/staff/screens/staff_order_menu.php';
@@ -318,7 +318,7 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '注文登録に失敗しました。時間をおいて再度お試しください。'),
             ], 422);
         }
     }
@@ -349,7 +349,7 @@ final class StaffController
         } catch (Throwable $exception) {
             error_log('[staff-customer-detail] ' . $exception->getMessage());
             $customerDetail = null;
-            $customerDetailError = $exception->getMessage();
+            $customerDetailError = $this->safeMessage($exception, '顧客情報の取得に失敗しました。時間をおいて再度お試しください。');
         }
 
         $title = '顧客詳細';
@@ -401,7 +401,7 @@ final class StaffController
             error_log('[staff-customer-orders] ' . $exception->getMessage());
             $customerDetail = null;
             $customerOrders = [];
-            $customerOrderError = $exception->getMessage();
+            $customerOrderError = $this->safeMessage($exception, '注文詳細の取得に失敗しました。時間をおいて再度お試しください。');
         }
 
         $title = '注文詳細';
@@ -464,7 +464,7 @@ final class StaffController
             $_SESSION['staff_customer_order_message'] = '注文数量を変更しました。';
         } catch (Throwable $exception) {
             error_log('[staff-customer-order-update] ' . $exception->getMessage());
-            $_SESSION['staff_customer_order_message'] = $exception->getMessage();
+            $_SESSION['staff_customer_order_message'] = $this->safeMessage($exception, '注文数量の変更に失敗しました。時間をおいて再度お試しください。');
         }
 
         $this->redirect($redirectPath);
@@ -507,7 +507,7 @@ final class StaffController
             $_SESSION['staff_customer_order_message'] = '注文をキャンセルしました。';
         } catch (Throwable $exception) {
             error_log('[staff-customer-order-cancel] ' . $exception->getMessage());
-            $_SESSION['staff_customer_order_message'] = $exception->getMessage();
+            $_SESSION['staff_customer_order_message'] = $this->safeMessage($exception, '注文のキャンセルに失敗しました。時間をおいて再度お試しください。');
         }
 
         $this->redirect($redirectPath);
@@ -555,8 +555,68 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '提供数の更新に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
+        }
+    }
+
+    /**
+     * 注文詳細（注文編集モーダル）からの数量変更。
+     *
+     * 従来はフロントのstateだけ書き換えて「変更が完了しました」と表示しており、
+     * リロードすると元に戻っていた。DBのorder_detailsを実際に更新する。
+     */
+    public function updateOrderQuantity(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $orderDetailId = filter_input(INPUT_POST, 'order_detail_id', FILTER_VALIDATE_INT);
+        $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        if ($orderDetailId === false || $orderDetailId === null || $orderDetailId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '注文明細IDが正しくありません。',
+            ], 422);
+        }
+
+        if ($quantity === false || $quantity === null || $quantity < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '数量は1以上の整数で入力してください。',
+            ], 422);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $order = $model->updateOrderDetailQuantity($storeId, (int)$orderDetailId, (int)$quantity);
+
+            $this->json([
+                'ok' => true,
+                'order' => $order,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-order-quantity] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $this->safeMessage($exception, '注文数量の変更に失敗しました。時間をおいて再度お試しください。'),
+            ], 422);
         }
     }
 
@@ -610,7 +670,7 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '注文のキャンセルに失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -669,7 +729,7 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '取消解除に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -707,7 +767,7 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '商品の追加に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -753,7 +813,7 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '商品の更新に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -985,6 +1045,31 @@ final class StaffController
 
         // 単独の印刷用ページのため、共通レイアウト(app.php)は使わない
         require dirname(__DIR__) . '/Views/staff/screens/qr_print.php';
+    }
+
+    /**
+     * 例外メッセージを画面・APIへ出してよい形に落とす。
+     *
+     * Model が投げる InvalidArgumentException / RuntimeException は
+     * 「卓番号は1〜99の数字で入力してください。」のように利用者へ見せる前提の
+     * 日本語メッセージなので、そのまま返す。
+     *
+     * それ以外（DB接続失敗・SQLエラー・TypeError など）はSQL文やテーブル構造が
+     * 混ざるため、定型文に差し替える。詳細は error_log 側にだけ残す。
+     *
+     * PDOException は RuntimeException を継承しているため、必ず先に弾くこと。
+     */
+    private function safeMessage(Throwable $exception, string $fallback): string
+    {
+        if ($exception instanceof PDOException) {
+            return $fallback;
+        }
+
+        if ($exception instanceof InvalidArgumentException || $exception instanceof RuntimeException) {
+            return $exception->getMessage();
+        }
+
+        return $fallback;
     }
 
     private function json(array $payload, int $statusCode = 200): void
