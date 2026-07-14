@@ -2,8 +2,8 @@
 
 > 作成日: 2026-07-14
 > 対象: MOS ⇔ レジ（POS）システム間の注文連携 API
-> 目的: 実装前に契約・マッピング・リスク・未決定事項をチームで共有する
-> ステータス: **設計のみ（未実装）**
+> 目的: 契約・マッピング・リスク・決定事項をチームで共有する
+> ステータス: **実装済み**（`src/Controllers/ApiOrderController.php` / `src/Models/ApiOrderModel.php`）
 
 ## 前提
 
@@ -143,9 +143,9 @@ customers c
 
 | レジの項目 | MOS の取得元 | 変換 |
 | --- | --- | --- |
-| `storeId` | `sessions.store_id` | そのまま（2 文字） |
+| `storeId` | **`customers.store_id`** | そのまま（2 文字） |
 | `customerId` | `customers.customer_id` | **7 桁ゼロ埋めの文字列** |
-| `entryTime` | `sessions.started_at` の最小値 | ISO8601 `Y-m-d\TH:i:s` |
+| `entryTime` | **`customers.created_at`**（QR 発行 ＝ 来店受付時刻） | ISO8601 `Y-m-d\TH:i:s` |
 | `billStatus` | `customers.billing_status` | int（既にビットマスク） |
 | `hash` | — | 第 5 章の規則で計算 |
 | `items[].orderTime` | `order_details.ordered_at` | ISO8601 |
@@ -268,27 +268,54 @@ MOS の DB には **10 店舗**（深江橋・本町・今里・京橋・緑橋�
 
 ## 9. 未決定事項（実装前に確定させたい）
 
-| # | 論点 | 推奨案 |
+### 決定済み（実装に反映）
+
+| # | 論点 | 決定 |
 | --- | --- | --- |
 | 1 | キャンセル済み明細（`detail_status = CANCELLED`）を `items` に含めるか | **除外**（会計対象外のため） |
-| 2 | 注文ゼロの顧客（QR 発行しただけ）を返すか | **`items: []` で含める**（レジが「受付中の卓一覧」を見たいはずのため） |
-| 3 | `fromTime` / `toTime` を何のカラムで絞るか | **`entryTime`（来店時刻）基準** |
-| 4 | API に認証を付けるか | 契約に API キー等が一切ないため、現状は **無認証**。本番はホストが分かれる（第 0 章）ため、同一 LAN の第三者が全注文を読み、会計済みに更新できてしまう。Apache の IP 制限（`Require ip`）が現実的な防衛線。 |
-| 5 | レジ側 `base_url` の変更（第 1 章） | レジ担当者との調整が必要 |
-| 6 | 全店舗を返す方針（第 8-2 章）をレジ側が受け入れるか | レジ担当者との合意が必要 |
+| 2 | 注文ゼロの顧客（QR 発行しただけ）を返すか | **`items: []` で含める**。現在 54 名中 46 名がセッション未開始のため、`storeId` / `entryTime` は `sessions` ではなく `customers` から取る |
+| 3 | `fromTime` / `toTime` を何のカラムで絞るか | **`entryTime`（＝ `customers.created_at`）基準** |
+| 4 | API に認証を付けるか | **付けない**。契約に API キー等が無いため無認証で実装した |
+
+### レジ担当者との調整が必要
+
+| # | 論点 |
+| --- | --- |
+| 5 | レジ側 `base_url` を `http://localhost/MOS_A/public` へ変更（第 1 章） |
+| 6 | 全店舗を返す方針（第 8-2 章）をレジ側が受け入れるか |
+
+### 認証について（将来の検討事項）
+
+契約に API キー等が一切ないため、現状は **無認証**。本番はホストが分かれる（第 0 章）ため、
+同一 LAN の第三者が全注文を読み、会計済みに更新できてしまう。
+必要になった時点で、Apache の IP 制限（`Require ip`）が現実的な防衛線になる。
 
 ---
 
-## 10. 検証方法
+## 10. 検証方法と結果
 
-`参照用/api_test_tool` に pytest の契約テストが用意されている。実装後はこれで契約適合を確認する。
+### pytest（未実施 — 環境に Python が無い）
+
+`参照用/api_test_tool` に pytest の契約テストがあるが、**この開発機に Python が入っていない**
+（`py` → "No installed Python found!"）ため実行できていない。Python を導入すれば下記で実行できる。
 
 ```
 MOS_BASE_URL=http://localhost/MOS_A/public pytest -m contract
 ```
 
-主な検証内容:
+### 実施済みの検証（実 DB ＋ 実エンドポイントに対して確認）
 
-- `getOrders` のレスポンスが配列で、必須キーと型（特に `taxRate` が int）を満たすか
-- `updateStatus` の正常系レスポンスボディが空か
-- ハッシュを 1 文字改ざんした `updateStatus` が HTTP 400 ＋ `ORDER_NOT_FOUND` を返すか
+`smoke_cases.json` および `test_contract_updateStatus.py` と同じケースを curl で再現し、全て期待どおりだった。
+
+| ケース | 結果 |
+| --- | --- |
+| `getOrders`（全件） | HTTP 200・54 件返却。`validators.py` 相当の型チェックで違反ゼロ（`taxRate` は int の `10`） |
+| 壊れた JSON `{` | HTTP 400 `INVALID_JSON_FORMAT` |
+| `{"method":"xxx"}` | HTTP 400 `INVALID_REQUEST` |
+| `getOrders` に `customerId: "ABC"` | HTTP 400 `INVALID_PARAMETER` |
+| `updateStatus` に `billStatus: 999` | HTTP 400 `INVALID_BILL_STATUS` |
+| ハッシュを 1 文字改ざんした `updateStatus` | HTTP 400 `ORDER_NOT_FOUND` |
+| 正しいハッシュの `updateStatus` | HTTP 200 ＋ 空ボディ。`billing_status` と `order_hash` が更新される |
+| `billStatus` によるフィルタ | ビットマスクで正しく絞り込める |
+| 既存画面（スタッフ／顧客） | セッション Cookie が従来どおり発行される（リグレッションなし） |
+| `/api/orders` | セッション Cookie を発行しない（ステートレス） |
