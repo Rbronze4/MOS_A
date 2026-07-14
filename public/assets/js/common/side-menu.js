@@ -1,7 +1,11 @@
 /**
  * 共通モジュール：サイドメニュー（ハンバーガー）の開閉制御。
- * window.MOS.initSideMenu() を呼ぶと、.hamburger-button で開き、×ボタンや
- * 背景クリックで閉じるイベントを設定する。スタッフ系の各画面から利用される。
+ * .hamburger-button で開き、×ボタンや背景クリックで閉じる。
+ *
+ * このファイルを読み込んだページでは自動で初期化される。
+ * 以前は dashboard.js / order-menu.js からの呼び出しに依存していたため、
+ * それらを読み込まないページ（顧客詳細・注文詳細）ではハンバーガーが反応せず、
+ * また呼び出し元のJSがエラーで止まると連鎖してハンバーガーも効かなくなっていた。
  */
 window.MOS = window.MOS || {};
 
@@ -12,6 +16,13 @@ window.MOS.initSideMenu = function initSideMenu() {
     if (!sideMenuLayer) {
         return;
     }
+
+    // 自動初期化と既存の明示呼び出しが重なってもイベントを二重登録しない
+    if (sideMenuLayer.dataset.sideMenuInitialized === 'true') {
+        return;
+    }
+
+    sideMenuLayer.dataset.sideMenuInitialized = 'true';
 
     document.querySelectorAll('.hamburger-button').forEach(button => {
         button.addEventListener('click', () => {
@@ -31,3 +42,12 @@ window.MOS.initSideMenu = function initSideMenu() {
         }
     });
 };
+
+// 呼び出し側の実装に依存せず、読み込まれたページで必ず初期化する。
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        window.MOS.initSideMenu();
+    });
+} else {
+    window.MOS.initSideMenu();
+}
