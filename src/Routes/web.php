@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Controllers/StaffController.php';
 require_once dirname(__DIR__) . '/Controllers/CustomerController.php';
+require_once dirname(__DIR__) . '/Controllers/ApiOrderController.php';
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -191,6 +192,18 @@ switch ($path) {
 
         if ($method === 'POST') {
             $controller->updateProduct();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
+    case '/api/orders':
+        // レジ（他社システム）との連携API。JSONで受けてJSONで返す。
+        if ($method === 'POST') {
+            $controller = new ApiOrderController();
+            $controller->handle();
             break;
         }
 
