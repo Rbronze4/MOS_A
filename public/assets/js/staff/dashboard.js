@@ -319,13 +319,8 @@ if (staffOrderFromCustomerButton) {
             return;
         }
 
-        const customerRow = selectedCustomer.closest('tr');
-        const cells = customerRow?.querySelectorAll('td') || [];
-        const tableNo = cells.length > 1 ? cells[1].textContent.trim() : '';
-        const hasActiveSession = tableNo !== '' && tableNo !== 'なし';
-        const path = hasActiveSession ? 'order-menu' : 'order-entry';
-
-        location.href = `/MOS_A/public/staff/${path}?customer_id=${encodeURIComponent(customerId)}&ref=customerList`;
+        // 卓・プランの登録状況は、表示中の文字列ではなくサーバー側でDBから判定する。
+        location.href = `/MOS_A/public/staff/order-entry?customer_id=${encodeURIComponent(customerId)}&ref=customerList`;
     });
 }
 

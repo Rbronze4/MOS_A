@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/Models/StaffOrderModel.php';
 require_once dirname(__DIR__) . '/Models/StaffProductModel.php';
 require_once dirname(__DIR__) . '/Models/MenuModel.php';
 require_once dirname(__DIR__) . '/Models/CustomerSessionModel.php';
+require_once dirname(__DIR__) . '/Services/StaffOrderEntryService.php';
 
 /**
  * スタッフ側画面のコントローラー。
@@ -147,6 +148,49 @@ final class StaffController
     {
         $this->requireStaffLogin();
 
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $customerId = filter_input(
+            ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? INPUT_POST : INPUT_GET,
+            'customer_id',
+            FILTER_VALIDATE_INT
+        );
+        $returnRef = trim((string)((($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? $_POST : $_GET)['ref'] ?? 'customerList'));
+        $entryError = '';
+        $plans = [];
+        $oldTableNumber = trim((string)($_POST['table_number'] ?? ''));
+        $oldPlanChoice = trim((string)($_POST['plan_choice'] ?? ''));
+
+        if ($storeId === '' || $customerId === false || $customerId === null || $customerId < 1) {
+            http_response_code(422);
+            $entryError = '顧客情報が見つかりません。';
+        } else {
+            try {
+                $pdo = db();
+                $service = new StaffOrderEntryService($pdo, new StaffOrderEntryRepository($pdo));
+
+                if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+                    $selection = $service->register($storeId, (int)$customerId, $oldTableNumber, $oldPlanChoice);
+                    $this->redirect(
+                        '/MOS_A/public/staff/order-menu?customer_id=' . (int)$customerId . '&ref=' . urlencode($returnRef),
+                        303
+                    );
+                }
+
+                $entryData = $service->entryData($storeId, (int)$customerId);
+                $plans = $entryData['plans'];
+
+                // 卓と有効なコース（または単品セッション）が揃っていれば選択画面を省略する。
+                if ($entryData['selection'] !== null) {
+                    $this->redirect('/MOS_A/public/staff/order-menu?customer_id=' . (int)$customerId . '&ref=' . urlencode($returnRef));
+                }
+            } catch (InvalidArgumentException $exception) {
+                $entryError = $exception->getMessage();
+            } catch (Throwable $exception) {
+                error_log('[staff-order-entry] ' . $exception->getMessage());
+                $entryError = '登録処理に失敗しました。もう一度お試しください。';
+            }
+        }
+
         $title = 'スタッフ注文';
 
         $assetVersion = time();
@@ -169,9 +213,6 @@ final class StaffController
             '/MOS_A/public/assets/js/staff/dashboard.js?v=' . $assetVersion,
             '/MOS_A/public/assets/js/staff/order-menu.js?v=' . $assetVersion,
         ];
-
-        $orders = $this->orders();
-        $products = $this->products();
 
         $view = dirname(__DIR__) . '/Views/staff/screens/staff_order_entry.php';
 
@@ -206,9 +247,8 @@ final class StaffController
         ];
 
         $storeId = trim((string)($_SESSION['store_id'] ?? ''));
-        $tableNo = trim((string)($_GET['tableNo'] ?? ''));
         $customerId = filter_input(INPUT_GET, 'customer_id', FILTER_VALIDATE_INT);
-        $planKey = trim((string)($_GET['plan'] ?? ''));
+        $tableNo = '';
         $staffOrderError = '';
         $activeSession = null;
         $planTypeId = null;
@@ -221,51 +261,22 @@ final class StaffController
             return;
         }
 
-        if ($tableNo !== '') {
-            // 「01」→「1」のように先頭ゼロを正規化する。
-            // 「0」「00」は全て削れて空になるため、無効値として下の検証で弾けるよう元の値を残す
-            $trimmed = ltrim($tableNo, '0');
-            $tableNo = $trimmed === '' ? $tableNo : $trimmed;
-        }
-
-        // 卓番号は1〜99のみ有効。「0」「00」は卓として存在しないため弾く
-        if ($tableNo !== '' && !preg_match('/^[1-9]\d?$/', $tableNo)) {
-            $staffOrderError = '卓番号は1〜99の数字で入力してください。';
-            $tableNo = '';
-        }
-
         try {
             $orderModel = new StaffOrderModel();
 
             if ($customerId !== false && $customerId !== null && $customerId > 0) {
-                $activeSession = $orderModel->activeSessionByCustomer(
-                    $storeId,
-                    (int)$customerId,
-                    $tableNo === '' ? null : $tableNo
-                );
-            } elseif ($tableNo !== '') {
-                $activeSession = $orderModel->activeSessionByTable($storeId, $tableNo);
-            }
-
-            if (
-                $activeSession === null
-                && $customerId !== false
-                && $customerId !== null
-                && $customerId > 0
-                && $tableNo !== ''
-                && $planKey !== ''
-            ) {
-                $customerModel = new StaffCustomerModel();
-                $customerModel->customerDetail($storeId, (int)$customerId);
-
-                $sessionModel = new CustomerSessionModel();
-                $sessionResult = $sessionModel->startForStaff((int)$customerId, $tableNo, $planKey, 120, $storeId);
-
-                if ((string)($sessionResult['store_id'] ?? '') !== $storeId) {
-                    throw new RuntimeException('注文対象の顧客がログイン中の店舗と一致しません。');
+                $pdo = db();
+                $entryService = new StaffOrderEntryService($pdo, new StaffOrderEntryRepository($pdo));
+                $entryData = $entryService->entryData($storeId, (int)$customerId);
+                if ($entryData['selection'] === null) {
+                    $this->redirect('/MOS_A/public/staff/order-entry?customer_id=' . (int)$customerId . '&ref=' . urlencode((string)($_GET['ref'] ?? 'customerList')));
                 }
-
+                $tableNo = (string)$entryData['selection']['table_number'];
                 $activeSession = $orderModel->activeSessionByCustomer($storeId, (int)$customerId, $tableNo);
+                if ($activeSession !== null) {
+                    // 商品選択画面でも顧客・卓・プラン・開始終了時刻を参照可能にする。
+                    $activeSession = array_merge($activeSession, $entryData['selection']);
+                }
             }
 
             if ($activeSession !== null) {
@@ -937,9 +948,9 @@ final class StaffController
             && $_SESSION['role'] === self::ROLE_STAFF;
     }
 
-    private function redirect(string $path): void
+    private function redirect(string $path, int $statusCode = 302): void
     {
-        header('Location: ' . $path);
+        header('Location: ' . $path, true, $statusCode);
         exit;
     }
 

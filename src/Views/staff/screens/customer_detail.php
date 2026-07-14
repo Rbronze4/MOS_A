@@ -20,10 +20,8 @@ $tableNumbers = is_array($customerDetail['table_numbers'] ?? null)
         <?php else: ?>
             <?php
             $customerId = (string)$customerDetail['customer_id'];
-            $hasActiveSession = !empty($customerDetail['has_active_session']);
-            $staffOrderHref = $hasActiveSession
-                ? '/MOS_A/public/staff/order-menu?customer_id=' . urlencode($customerId) . '&ref=customerDetail'
-                : '/MOS_A/public/staff/order-entry?customer_id=' . urlencode($customerId) . '&ref=customerDetail';
+            // 登録状況は画面表示値ではなく、注文開始ServiceがDBから再判定する。
+            $staffOrderHref = '/MOS_A/public/staff/order-entry?customer_id=' . urlencode($customerId) . '&ref=customerDetail';
             ?>
             <div class="customer-detail-card">
                 <table class="data-table customer-detail-table">
