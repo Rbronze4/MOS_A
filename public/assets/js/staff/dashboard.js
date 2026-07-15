@@ -90,6 +90,22 @@ function openCompleteModal(message) {
     document.getElementById('closeModalButton')?.addEventListener('click', closeModal);
 }
 
+function getSelectedCustomerId(selectedCustomer) {
+    if (!selectedCustomer) return '';
+
+    const customerId = String(
+        selectedCustomer.dataset.customerId || selectedCustomer.value || ''
+    ).trim();
+
+    if (customerId !== '') return customerId;
+
+    // 古いキャッシュなどでラジオボタンの属性が空でも、一覧に表示された顧客番号を利用する。
+    const customerRow = selectedCustomer.closest('tr');
+    const displayedCustomerId = customerRow?.querySelector('td:nth-child(3)')?.textContent || '';
+
+    return displayedCustomerId.trim();
+}
+
 function performLogout() {
     location.href = '/MOS_A/public/staff/logout';
 }
@@ -290,7 +306,7 @@ if (customerOrderDetailButton) {
             return;
         }
 
-        const customerId = selectedCustomer.dataset.customerId || selectedCustomer.value;
+        const customerId = getSelectedCustomerId(selectedCustomer);
 
         if (!customerId) {
             openCompleteModal('顧客番号が取得できません。');
@@ -313,7 +329,14 @@ if (qrReissueButton) {
 
         // 再発行は新規作成せず、選択中の既存顧客のcustomer_idでQRを再表示する。
         // 第3引数trueで、印刷ページに「再発行」ラベルを表示する。
-        openQrCompleteModal(selectedCustomer.value, 'QR再発行が完了しました。', true);
+        const customerId = getSelectedCustomerId(selectedCustomer);
+
+        if (!customerId) {
+            openCompleteModal('顧客番号が取得できません。');
+            return;
+        }
+
+        openQrCompleteModal(customerId, 'QR再発行が完了しました。', true);
     });
 }
 
@@ -327,7 +350,7 @@ if (staffOrderFromCustomerButton) {
             return;
         }
 
-        const customerId = selectedCustomer.dataset.customerId || selectedCustomer.value;
+        const customerId = getSelectedCustomerId(selectedCustomer);
 
         if (!customerId) {
             openCompleteModal('顧客番号を取得できません。');
