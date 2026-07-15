@@ -5,6 +5,7 @@
 - 利用客画面：`http://localhost/MOS_A/public/customer`
 - スタッフ画面：`http://localhost/MOS_A/public/staff`
 - （参照用）レジシステム：`http://localhost/regi/public/`　※htdocs直下に`regi`を配置している想定
+- レジ連携API（レジが叩く）：`http://localhost:8080/api/orders`　※セットアップは「レジ連携（regi）のローカルセットアップ」を参照
 
 ---
 
@@ -359,3 +360,147 @@ MOSを動かす前に、必要に応じてデータベースを作成し、SQL�
 * インポート先のデータベースを間違えないように、必ず `mos_a_system` を選択してからインポートしてください
 * 文字コードは `utf8mb4_unicode_ci` を選択してください
 * インポート時にエラーが出た場合は、同じテーブルがすでに存在していないか確認してください
+
+---
+
+# レジ連携（regi）のローカルセットアップ
+
+MOSとレジ（regi）は、**`POST /api/orders` のHTTP APIだけ**で連携します。両者はDBもコードも共有しません。
+（MOS側のAPI仕様や設計の詳細は `docs/regi-api-orders-design.md` を参照）
+
+本番ではMOSとレジは別ホストに置かれ、レジは「MOS専用のアドレス」に対してAPIを叩きます。
+ローカルでもこの形に近づけるため、**MOSを専用ポート `:8080` でも配信**し、
+レジのデフォルト設定（`base_url = http://localhost:8080`）を変えずに連携できるようにしています。
+
+## ⚠️ 最初に読んでください（cloneしただけでは動きません）
+
+このリポジトリを clone / pull しても、**レジ連携はそのままでは動きません**。
+Apacheの設定はリポジトリの外（`xampp/apache/conf/`）にあり、各自の環境ごとに手作業が必要だからです。
+
+| 手に入るもの（リポジトリ内） | 各自でやること（リポジトリ外） |
+| --- | --- |
+| APIコード（`src/Controllers/ApiOrderController.php` ほか） | Apacheに `Listen 8080` とvhostを追加（本セクションの手順） |
+| このセットアップ手順（README） | DBのインポート（「DBのインポート方法」を参照） |
+| DBのSQL（`DB/developing/*.sql`） | Apacheの再起動 |
+
+とくに **vhostの `DocumentRoot` は各自のパスに書き換えが必須**です（後述）。
+コピペしただけでは動かない点に注意してください。
+
+## アクセス経路の整理
+
+| 用途 | URL | ポート |
+| --- | --- | --- |
+| 人間が使うMOSの画面 | `http://localhost/MOS_A/public/...` | 80（従来どおり） |
+| レジが叩くMOSのAPI | `http://localhost:8080/api/orders` | 8080（サーバー間通信用） |
+| レジ本体 | `http://localhost/regi/public/` | 80 |
+
+> ポート80とポート8080は同じMOSを配信しますが、MOSの画面は `/MOS_A/public` を前提に
+> 作られているため、**人間はポート80、レジ（API）はポート8080**を使い分けます。
+
+## セットアップ手順（初回のみ）
+
+### 1. Apacheに `:8080` を追加する
+
+`apache/conf/httpd.conf` の `Listen 80` の下に1行追加する。
+
+```apache
+Listen 80
+Listen 8080
+```
+
+### 2. `:8080` の仮想ホストを追加する
+
+まず、**自分の環境でのMOSの `public` フォルダの絶対パス**を確認する。これはXAMPPの置き場所によって人それぞれ違う。
+
+| XAMPPの場所 | `public` の絶対パスの例 |
+| --- | --- |
+| `C:\xampp`（既定） | `C:/xampp/htdocs/MOS_A/public` |
+| デスクトップ等に配置 | `C:/Users/自分の名前/Desktop/xampp/htdocs/MOS_A/public` |
+
+> 分からない場合は、エクスプローラーで `MOS_A/public` フォルダを開き、アドレスバーのパスを確認する。
+> Apacheの設定では区切りを **`/`（スラッシュ）** で書く（`\` ではない）。
+
+次に `apache/conf/extra/httpd-vhosts.conf` の末尾に以下を追加する。
+
+> 🔴 **必ず書き換えること**：下の `★ここを自分のパスに★` の**2箇所**を、上で確認した絶対パスに置き換える。
+> この2箇所を変えないと、他人のパスのままになり **動きません**（`AH00112` などのエラーになる）。
+
+```apache
+<VirtualHost *:8080>
+    DocumentRoot "★ここを自分のパスに★/MOS_A/public"
+
+    <Directory "★ここを自分のパスに★/MOS_A/public">
+        Options FollowSymLinks
+        AllowOverride None
+        Require all granted
+
+        DirectoryIndex index.php
+
+        # public/.htaccess は RewriteBase が /MOS_A/public/ 固定で
+        # 8080ルートでは破綻するため、.htaccess を無効化し（AllowOverride None）
+        # RewriteBase / のルーティングをここに直接書く。
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^$ index.php [QSA,L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^ index.php [QSA,L]
+    </Directory>
+</VirtualHost>
+```
+
+例：XAMPPが `C:\xampp` にある場合は、2箇所とも `"C:/xampp/htdocs/MOS_A/public"` になる。
+
+> **なぜ `.htaccess` を無効化するのか**
+> MOSの `public/.htaccess` は `RewriteBase /MOS_A/public/` に固定されており、ポート80の
+> `/MOS_A/public` アクセスがこれに依存している。この `.htaccess` を8080ルートに流用すると
+> リライト先が狂うため、8080側は `.htaccess` を無効化し、`RewriteBase /` のルールを
+> vhostに直接書く。ポート80側は従来どおり `.htaccess` を使うので無影響。
+
+### 3. 設定を反映する（Apache再起動）
+
+- 反映前に必ず構文チェックする：`apache/bin/httpd.exe -t` が `Syntax OK` を返すこと
+- **XAMPP Control Panel** で Apache を **Stop → Start**（または Restart）する
+  - XAMPPのApacheはWindowsサービスではないため、`httpd -k restart` は使えない
+
+### 4. 動作確認
+
+```bash
+# レジ用APIが 8080 で応答する（200が返り、注文のJSON配列が返る）
+curl -X POST http://localhost:8080/api/orders -H "Content-Type: application/json" -d "{\"method\":\"getOrders\"}"
+
+# ポート80の画面が従来どおり動く（影響が無いこと）
+curl -o /dev/null -w "%{http_code}\n" http://localhost/MOS_A/public/
+```
+
+そのうえで、レジ（`http://localhost/regi/public/`）から注文履歴を開き、MOSの注文が表示されれば連携成功。
+
+## レジ側の設定
+
+`regi/src/Config/mos.php` の `base_url` は **`http://localhost:8080` のままでよい**（変更不要）。
+上記のとおりMOSを8080で配信することで、レジのデフォルト設定のまま届く。
+
+## 契約テスト（任意）
+
+レジ側が用意した契約テスト（`参照用/api_test_tool`）で、MOSのAPIが仕様に沿っているか確認できる。
+実行にはPythonが必要（Python 3 と `pytest` / `requests`）。
+
+```bash
+python -m pip install pytest requests
+cd 参照用/api_test_tool
+# MOS_BASE_URL で対象を指定する（8080でも /MOS_A/public でも可）
+MOS_BASE_URL=http://localhost:8080 python -m pytest -v
+```
+
+`getOrders` は注文が1件以上ある状態で実行すること（テストが「注文が存在すること」を前提にしているため）。
+
+## うまくいかないとき
+
+| 症状 | 原因と対処 |
+| --- | --- |
+| `httpd.exe -t` でパスのエラー（`AH00112` 等） | vhostの `★ここを自分のパスに★` を書き換えていない、または `\` で書いている。`/` の絶対パスに直す。 |
+| Apacheが起動しない／すぐ落ちる | 手順1・2の設定ミスの可能性。まず `apache/bin/httpd.exe -t` で構文チェックし、`Syntax OK` になるまで直す。 |
+| `:8080` につながらない（他は正常） | ポート8080を別アプリが使用中。`Listen 8080` を空いている別ポートに変え、レジ側 `base_url` もそのポートに合わせる。 |
+| `:8080/api/orders` が404 | vhostのリライト設定（`RewriteEngine On` 以下）が抜けている。手順2のブロックをそのまま入れる。 |
+| 設定したのに反映されない | Apacheの再起動忘れ。**XAMPP Control Panel** で Stop → Start する（`httpd -k restart` は不可）。 |
+| レジ側で注文が出ない（APIは200） | レジ本体（`htdocs/regi/`）が未配置・未設定の可能性。regiは別システムなので各自で用意する。 |
