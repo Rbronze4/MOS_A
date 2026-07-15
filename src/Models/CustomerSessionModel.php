@@ -16,6 +16,8 @@ final class CustomerSessionModel
         'premium' => 2,
     ];
 
+    private const BILLING_STATUS_ACCEPTING = 1;
+
     /**
      * customer_id + table_number単位でACTIVEセッションを作成または再利用する。
      *
@@ -37,7 +39,7 @@ final class CustomerSessionModel
                 throw new RuntimeException('顧客情報が見つかりません。');
             }
 
-            if (!in_array((string)$customer['billing_status'], ['UNPAID', 'PAYMENT_PENDING'], true)) {
+            if ((int)$customer['billing_status'] !== self::BILLING_STATUS_ACCEPTING) {
                 throw new RuntimeException('このQRコードは利用できない状態です。');
             }
 
