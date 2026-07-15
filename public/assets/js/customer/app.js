@@ -409,7 +409,8 @@ document.addEventListener('DOMContentLoaded', () => {
         onPlanConfirmed,
         startCustomerSession,
         syncMenuData,
-        showToast
+        showToast,
+        planIdFromActiveCustomerPlan
     });
 
     cartHistoryModule = window.MOS.customer.createCartHistoryModule({

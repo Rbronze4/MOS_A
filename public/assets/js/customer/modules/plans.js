@@ -22,7 +22,8 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
         onPlanConfirmed,
         startCustomerSession,
         syncMenuData,
-        showToast
+        showToast,
+        planIdFromActiveCustomerPlan
     } = context;
 
     // 制限時間の選択値（飲み放題プラン用）。既定は120分。
@@ -40,6 +41,59 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
         return typeof category === 'object' && category !== null
             ? String(category.id)
             : String(category);
+    }
+
+    /**
+     * 有効なプラン情報から表示用のコース名を作る。
+     * 例）「プレミアムプラン（180分）」。単品など該当が無ければ空文字。
+     */
+    function planLabelFrom(activePlan) {
+        if (!activePlan) {
+            return '';
+        }
+
+        const planId = typeof planIdFromActiveCustomerPlan === 'function'
+            ? planIdFromActiveCustomerPlan(activePlan)
+            : null;
+        const plan = planId ? findPlan(planId) : null;
+        const name = plan ? plan.name : 'コース';
+        const minutes = Number(activePlan.time_limit_minutes);
+
+        return minutes > 0 ? `${name}（${minutes}分）` : name;
+    }
+
+    /**
+     * すでに別のコースが確定していることを、画面上部のバナーで知らせる。
+     * QRを複数端末で読み、他端末が先にコースを確定していた場合に呼ぶ。
+     * OKを押すまで残す（自動では消さない）ことで、コースの取り違えに気づかせる。
+     */
+    function showPlanConflictBanner(activePlan) {
+        const banner = document.getElementById('planConflictBanner');
+        const message = document.getElementById('planConflictMessage');
+
+        if (!banner || !message) {
+            return;
+        }
+
+        const label = planLabelFrom(activePlan);
+
+        message.textContent = label !== ''
+            ? `すでにコースは選択されています。現在のコースは「${label}」です。`
+            : 'すでにコースは選択されています。';
+
+        banner.classList.add('show');
+        banner.setAttribute('aria-hidden', 'false');
+    }
+
+    function hidePlanConflictBanner() {
+        const banner = document.getElementById('planConflictBanner');
+
+        if (!banner) {
+            return;
+        }
+
+        banner.classList.remove('show');
+        banner.setAttribute('aria-hidden', 'true');
     }
 
     // 実際の利用人数。DBのpeople_countがstate.peopleCountに入っている。
@@ -239,11 +293,17 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
             });
         });
 
+        const planConflictOkButton = document.getElementById('planConflictOkButton');
+        if (planConflictOkButton) {
+            planConflictOkButton.addEventListener('click', hidePlanConflictBanner);
+        }
+
         document.getElementById('planConfirmButton').addEventListener('click', async event => {
             if (state.hasActiveCustomerPlan) {
-                showToast('このQRコードではすでにプランが選択されています');
+                // この端末は既にコース確定済み。取り違え防止にコース名を明示して知らせる。
+                showPlanConflictBanner(state.activeCustomerPlan);
                 closePlanModal();
-                showScreen('tableScreen');
+                showScreen('menuScreen');
                 return;
             }
 
@@ -283,9 +343,23 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
                 if (typeof syncMenuData === 'function') {
                     syncMenuData(result);
                 }
+
+                // サーバーは「先に確定したコース」を返す（先勝ち）。
+                // 自分が選んだコースと食い違う場合は、他端末が先に別コースを確定していたということ。
+                // その場合はバナーで知らせ、実際に有効なコースの方でメニューを表示する。
+                const serverPlanId = typeof planIdFromActiveCustomerPlan === 'function'
+                    ? planIdFromActiveCustomerPlan(result.active_customer_plan)
+                    : null;
+                const planConflict = serverPlanId !== null && serverPlanId !== planId;
+
+                const effectivePlanId = serverPlanId || planId;
+                const effectiveMinutes = result.active_customer_plan
+                    ? Number(result.active_customer_plan.time_limit_minutes)
+                    : minutes;
+
                 state.hasActiveCustomerPlan = true;
-                state.selectedPlanId = planId;
-                state.planMinutes = minutes;
+                state.selectedPlanId = effectivePlanId;
+                state.planMinutes = effectiveMinutes;
 
                 const url = new URL(window.location.href);
                 url.searchParams.set('customer_id', String(result.customer_id));
@@ -294,11 +368,15 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
 
                 closePlanModal();
 
+                if (planConflict) {
+                    showPlanConflictBanner(result.active_customer_plan);
+                }
+
                 state.activeCategory = categories.length > 0 ? categoryId(categories[0]) : '';
 
-                // タイマー開始・卓番号/残り時間表示の更新（app.js 側）
+                // タイマー開始・卓番号/残り時間表示の更新（app.js 側）。実際に有効なコースで動かす。
                 if (typeof onPlanConfirmed === 'function') {
-                    onPlanConfirmed(planId, minutes);
+                    onPlanConfirmed(effectivePlanId, effectiveMinutes);
                 }
 
                 renderMenu();
