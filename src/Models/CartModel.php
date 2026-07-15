@@ -278,12 +278,14 @@ final class CartModel
             FROM sessions AS s
             INNER JOIN customer_plans AS cp
                 ON cp.customer_id = s.customer_id
+               AND cp.started_at <= NOW()
             INNER JOIN plans AS p
                 ON p.plan_id = cp.plan_id
             WHERE s.session_id = :session_id
               AND s.session_status = 'ACTIVE'
-              AND cp.ended_at IS NULL
+              AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
               AND p.is_active = 1
+            ORDER BY cp.started_at DESC, cp.customer_plan_id DESC
             LIMIT 1
         SQL;
 

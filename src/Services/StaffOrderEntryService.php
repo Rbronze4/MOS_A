@@ -95,7 +95,13 @@ final class StaffOrderEntryService
                 $existingSelection
             );
 
-            if ($existingSelection !== null) {
+            if (
+                $existingSelection !== null
+                && (
+                    $existingSelection['customer_plan_id'] !== null
+                    || $choice === 'single'
+                )
+            ) {
                 $this->pdo->commit();
 
                 return $existingSelection;
@@ -126,8 +132,9 @@ final class StaffOrderEntryService
              * customer_plansとsessionsで同じ開始日時を使用する。
              * Repositoryでは、この日時を使って両者を関連付ける。
              */
-            $start = new DateTimeImmutable('now');
-            $startedAt = $start->format('Y-m-d H:i:s');
+            $startedAt = $this->repository->currentTimestamp();
+            // DBの壁時計を基準に加算する。PHPのデフォルトタイムゾーンは使わない。
+            $start = new DateTimeImmutable($startedAt, new DateTimeZone('UTC'));
 
             $endedAt = null;
 
@@ -146,15 +153,21 @@ final class StaffOrderEntryService
                 );
             }
 
-            $sessionId = $this->repository->insertSession(
-                $customerId,
-                $storeId,
-                $tableNumber,
-                $startedAt,
-                $endedAt
-            );
+            if ($existingSelection !== null) {
+                // コース未設定の既存セッションには、選択したコースだけを追加する。
+                // 注文・カートとの関連を維持するためセッションは作り直さない。
+                $sessionId = (int)$existingSelection['session_id'];
+            } else {
+                $sessionId = $this->repository->insertSession(
+                    $customerId,
+                    $storeId,
+                    $tableNumber,
+                    $startedAt,
+                    $endedAt
+                );
 
-            $this->repository->insertCart($sessionId);
+                $this->repository->insertCart($sessionId);
+            }
 
             $this->pdo->commit();
 
@@ -251,25 +264,7 @@ final class StaffOrderEntryService
             return null;
         }
 
-        /*
-        * コース終了日時が存在し、現在より後であること。
-        */
-        if (
-            $planEndedAt === null
-            || trim((string)$planEndedAt) === ''
-        ) {
-            return null;
-        }
-
-        $planEndedTimestamp = strtotime((string)$planEndedAt);
-
-        if (
-            $planEndedTimestamp === false
-            || $planEndedTimestamp <= time()
-        ) {
-            return null;
-        }
-
+        // currentSelection() がDBのNOW()を基準に有効期限を判定済み。
         return $selection;
     }
 }

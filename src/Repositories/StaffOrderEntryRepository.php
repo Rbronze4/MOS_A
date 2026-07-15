@@ -10,6 +10,14 @@ final class StaffOrderEntryRepository
     {
     }
 
+    /**
+     * PHP側のタイムゾーン設定に依存せず、DBと同じ現在時刻を取得する。
+     */
+    public function currentTimestamp(): string
+    {
+        return (string)$this->pdo->query("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')")->fetchColumn();
+    }
+
     public function findCustomerForUpdate(string $storeId, int $customerId): ?array
     {
         $sql = <<<'SQL'
@@ -124,7 +132,7 @@ final class StaffOrderEntryRepository
                     FROM customer_plans AS cp2
                     WHERE cp2.customer_id = s.customer_id
                     AND cp2.started_at <= NOW()
-                    AND cp2.ended_at > NOW()
+                    AND (cp2.ended_at IS NULL OR cp2.ended_at > NOW())
                     ORDER BY
                         cp2.started_at DESC,
                         cp2.customer_plan_id DESC

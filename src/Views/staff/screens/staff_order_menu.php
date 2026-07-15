@@ -14,6 +14,12 @@ if ($currentCategory === '' && $categories !== []) {
 }
 
 $filteredMenus = array_values(array_filter($menus, static function (array $menu) use ($currentCategory): bool {
+    // 「飲み放題」はDB上の商品カテゴリではなく、契約中プランの対象商品を
+    // まとめて表示する仮想カテゴリ。
+    if ($currentCategory === 'all_you_can_drink') {
+        return (int)($menu['plan_applied_flag'] ?? 0) === 1;
+    }
+
     return (string)$menu['category_id'] === $currentCategory;
 }));
 

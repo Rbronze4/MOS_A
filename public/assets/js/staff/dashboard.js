@@ -365,36 +365,24 @@ if (staffOrderFromCustomerButton) {
 const staffOrderFromDetailButton = document.getElementById('staffOrderFromDetailButton');
 if (staffOrderFromDetailButton) {
     staffOrderFromDetailButton.addEventListener('click', () => {
-        let tableNo = '';
-        const selectedCustomer = document.querySelector('input[name="selectedCustomer"]:checked');
+        const selectedOrder = document.querySelector('input[name="selectedOrderDetail"]:checked');
 
-        if (selectedCustomer) {
-            const customerRow = selectedCustomer.closest('tr');
-            const cells = customerRow?.querySelectorAll('td') || [];
-            tableNo = cells.length > 1 ? cells[1].textContent.trim() : '';
-        }
-
-        if (!tableNo) {
-            const selectedOrder = document.querySelector('input[name="selectedOrderDetail"]:checked');
-
-            if (selectedOrder) {
-                const order = state.orders.find(item => String(item.id) === String(selectedOrder.value));
-                tableNo = order?.table_no || '';
-            }
-        }
-
-        if (!tableNo) {
-            location.href = '/MOS_A/public/staff/order-entry?ref=detail';
+        if (!selectedOrder) {
+            openCompleteModal('注文を選択してください。');
             return;
         }
 
-        tableNo = String(tableNo).replace('番', '').replace('逡ｪ', '').trim();
+        const order = state.orders.find(item => String(item.id) === String(selectedOrder.value));
+        const customerId = String(order?.customer_id ?? '').trim();
 
-        const plan = 'single';
-        const cartStorageKey = `staffOrderCart_${tableNo}_${plan}`;
-        sessionStorage.removeItem(cartStorageKey);
+        if (!customerId) {
+            openCompleteModal('顧客番号を取得できません。');
+            return;
+        }
 
-        location.href = `/MOS_A/public/staff/order-menu?tableNo=${encodeURIComponent(tableNo)}&plan=${encodeURIComponent(plan)}&mode=add&ref=detail`;
+        // 顧客番号を必ず引き継ぎ、サーバー側でその顧客に紐づくDBセッションを
+        // 作成または再利用してから注文メニューへ進む。
+        location.href = `/MOS_A/public/staff/order-entry?customer_id=${encodeURIComponent(customerId)}&ref=detail`;
     });
 }
 

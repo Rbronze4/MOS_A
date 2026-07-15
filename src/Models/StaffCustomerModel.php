@@ -275,7 +275,8 @@ final class StaffCustomerModel
             LEFT JOIN plan_types AS pt
                 ON p.plan_type_id = pt.plan_type_id
             WHERE cp.customer_id = :customer_id
-              AND cp.ended_at IS NULL
+              AND cp.started_at <= NOW()
+              AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
             ORDER BY cp.started_at DESC, cp.customer_plan_id DESC
             LIMIT 1
         SQL;

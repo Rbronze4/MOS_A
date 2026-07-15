@@ -84,7 +84,7 @@ final class StaffOrderModel
             FROM sessions AS s
             INNER JOIN customer_plans AS cp
                 ON cp.customer_id = s.customer_id
-               AND cp.started_at <= s.started_at
+               AND cp.started_at <= NOW()
             INNER JOIN plans AS p
                 ON p.plan_id = cp.plan_id
             WHERE s.session_id = :session_id
