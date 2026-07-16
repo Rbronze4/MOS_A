@@ -72,6 +72,7 @@ final class MenuModel
                 p.product_id,
                 p.product_name,
                 p.price,
+                p.tax_rate,
                 p.image_path,
                 p.category_id,
                 c.category_name,
@@ -109,6 +110,7 @@ final class MenuModel
         foreach ($rows as $row) {
             $planApplied = (int)$row['plan_applied_flag'] === 1;
             $productId = (int)$row['product_id'];
+            $taxIncludedPrice = $this->taxIncludedPrice((int)$row['price'], (float)$row['tax_rate']);
 
             $menus[] = [
                 'id' => $productId,
@@ -116,7 +118,9 @@ final class MenuModel
                 'category' => (string)$row['category_name'],
                 'name' => (string)$row['product_name'],
                 'price' => (int)$row['price'],
-                'display_price' => $planApplied ? 0 : (int)$row['price'],
+                'tax_rate' => (float)$row['tax_rate'],
+                'tax_included_price' => $taxIncludedPrice,
+                'display_price' => $planApplied ? 0 : $taxIncludedPrice,
                 'plan_applied_flag' => $planApplied ? 1 : 0,
                 'image_path' => $this->imagePath($row['image_path'] ?? null),
                 'has_options' => isset($optionGroupsByProduct[$productId]),
@@ -125,6 +129,16 @@ final class MenuModel
         }
 
         return $menus;
+    }
+
+    /**
+     * DBの税抜価格へ税率を適用し、税込価格の1円未満を切り捨てる。
+     */
+    private function taxIncludedPrice(int $price, float $taxRate): int
+    {
+        $taxRateBasisPoints = (int)round($taxRate * 100);
+
+        return intdiv($price * (10000 + $taxRateBasisPoints), 10000);
     }
 
     /**

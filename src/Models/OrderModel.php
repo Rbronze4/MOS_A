@@ -60,6 +60,9 @@ final class OrderModel
                 $unitPrice = (int)$item['display_unit_price'];
                 $optionAdditionalPrice = (int)$item['option_additional_price'];
                 $planAppliedFlag = $unitPrice === 0 ? 1 : 0;
+                $taxIncludedUnitPrice = $planAppliedFlag === 1
+                    ? 0
+                    : $this->taxIncludedPrice($unitPrice, (float)$item['tax_rate']);
 
                 $orderDetailId = $this->insertOrderDetail(
                     $orderId,
@@ -72,7 +75,7 @@ final class OrderModel
                 $this->copyCartOptionsToOrder((int)$item['cart_detail_id'], $orderDetailId);
 
                 $totalQuantity += $quantity;
-                $totalAmount += ($unitPrice + $optionAdditionalPrice) * $quantity;
+                $totalAmount += ($taxIncludedUnitPrice + $optionAdditionalPrice) * $quantity;
             }
 
             $this->deleteCartDetails($cartId);
@@ -112,6 +115,7 @@ final class OrderModel
                 od.ordered_product_name,
                 od.quantity,
                 od.ordered_unit_price,
+                p.tax_rate,
                 COALESCE((
                     SELECT SUM(odo.ordered_additional_price)
                     FROM order_detail_options AS odo
@@ -129,6 +133,8 @@ final class OrderModel
                 ON s.session_id = o.session_id
             INNER JOIN order_details AS od
                 ON od.order_id = o.order_id
+            INNER JOIN products AS p
+                ON p.product_id = od.product_id
             WHERE s.customer_id = :customer_id
               AND od.detail_status <> 'CANCELLED'
             ORDER BY
@@ -148,7 +154,10 @@ final class OrderModel
                 'order_detail_id' => (int)$row['order_detail_id'],
                 'order_id' => (int)$row['order_id'],
                 'name' => (string)$row['ordered_product_name'],
-                'price' => (int)$row['ordered_unit_price'] + (int)$row['option_additional_price'],
+                'price' => $this->taxIncludedPrice(
+                    (int)$row['ordered_unit_price'],
+                    (float)$row['tax_rate']
+                ) + (int)$row['option_additional_price'],
                 'quantity' => (int)$row['quantity'],
                 'option_summary' => $row['option_summary'] === null ? '' : (string)$row['option_summary'],
                 'status' => (string)$row['detail_status'],
@@ -157,6 +166,16 @@ final class OrderModel
         }
 
         return $items;
+    }
+
+    /**
+     * 注文履歴など顧客向け表示用の税込価格を、税抜価格と税率から算出する。
+     */
+    private function taxIncludedPrice(int $price, float $taxRate): int
+    {
+        $taxRateBasisPoints = (int)round($taxRate * 100);
+
+        return intdiv($price * (10000 + $taxRateBasisPoints), 10000);
     }
 
     /**

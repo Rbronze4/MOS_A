@@ -202,9 +202,9 @@ final class CartModel
                           AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
                           AND pl.is_active = 1
                     ) THEN 0
-                    ELSE p.price
+                    ELSE FLOOR(p.price * (1 + (p.tax_rate / 100)))
                 END AS display_unit_price,
-                p.price AS normal_price,
+                FLOOR(p.price * (1 + (p.tax_rate / 100))) AS normal_price,
                 CASE
                     WHEN EXISTS (
                         SELECT 1
