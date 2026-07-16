@@ -16,6 +16,8 @@ final class CustomerSessionModel
         'premium' => 2,
     ];
 
+    private const BILLING_STATUS_ACCEPTING = 1;
+
     /**
      * customer_id + table_number単位でACTIVEセッションを作成または再利用する。
      *
@@ -37,11 +39,7 @@ final class CustomerSessionModel
                 throw new RuntimeException('顧客情報が見つかりません。');
             }
 
-            // billing_status は 1:受付中 2:会計済み 4:未収金 8:会計中（tinyint）。
-            // セッションを開始できるのは受付中(1)と会計中(8)のみ（旧enumのUNPAID/PAYMENT_PENDINGに対応）。
-            if (!in_array((int)$customer['billing_status'], [1, 8], true)) {
-                throw new RuntimeException('このQRコードは利用できない状態です。');
-            }
+
 
             $storeId = (string)$customer['store_id'];
             $activeCustomerPlan = $this->findActiveCustomerPlanForUpdate($customerId);
