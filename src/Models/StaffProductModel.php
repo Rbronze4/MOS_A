@@ -19,21 +19,19 @@ final class StaffProductModel
                 p.image_path,
                 pc.category_id,
                 pc.category_name,
-                sp.store_id,
-                sp.sale_status AS store_sale_status,
-                sp.display_order,
+                p.store_id,
+                p.sale_status AS store_sale_status,
+                p.product_id AS display_order,
                 MAX(CASE
                     WHEN pog.product_id IS NULL THEN 0
                     ELSE 1
                 END) AS has_options
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON sp.product_id = p.product_id
+            FROM products AS p
             INNER JOIN product_categories AS pc
                 ON p.category_id = pc.category_id
             LEFT JOIN product_option_groups AS pog
                 ON pog.product_id = p.product_id
-            WHERE sp.store_id = :store_id
+            WHERE p.store_id = :store_id
             GROUP BY
                 p.product_id,
                 p.product_name,
@@ -43,12 +41,9 @@ final class StaffProductModel
                 p.image_path,
                 pc.category_id,
                 pc.category_name,
-                sp.store_id,
-                sp.sale_status,
-                sp.display_order
+                p.store_id
             ORDER BY
                 pc.category_id ASC,
-                sp.display_order ASC,
                 p.product_id ASC
         SQL;
 
@@ -133,6 +128,7 @@ final class StaffProductModel
 
             $productSql = <<<SQL
                 INSERT INTO products (
+                    store_id,
                     product_name,
                     category_id,
                     price,
@@ -142,6 +138,7 @@ final class StaffProductModel
                     created_at,
                     updated_at
                 ) VALUES (
+                    :store_id,
                     :product_name,
                     :category_id,
                     :price,
@@ -154,6 +151,7 @@ final class StaffProductModel
             SQL;
 
             $statement = $pdo->prepare($productSql);
+            $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
             $statement->bindValue(':product_name', $productName, PDO::PARAM_STR);
             $statement->bindValue(':category_id', (int)$categoryId, PDO::PARAM_INT);
             $statement->bindValue(':price', (int)$price, PDO::PARAM_INT);
@@ -168,32 +166,6 @@ final class StaffProductModel
 
             $statement->execute();
             $productId = (int)$pdo->lastInsertId();
-            $displayOrder = $this->nextDisplayOrder($storeId);
-
-            $storeProductSql = <<<SQL
-                INSERT INTO store_products (
-                    store_id,
-                    product_id,
-                    sale_status,
-                    display_order,
-                    created_at,
-                    updated_at
-                ) VALUES (
-                    :store_id,
-                    :product_id,
-                    :sale_status,
-                    :display_order,
-                    NOW(),
-                    NOW()
-                )
-            SQL;
-
-            $statement = $pdo->prepare($storeProductSql);
-            $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
-            $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
-            $statement->bindValue(':sale_status', $saleStatus, PDO::PARAM_STR);
-            $statement->bindValue(':display_order', $displayOrder, PDO::PARAM_INT);
-            $statement->execute();
 
             if ($hasOptions) {
                 $this->insertOptionGroups($productId, $optionGroups);
@@ -269,6 +241,7 @@ final class StaffProductModel
                     image_path = :image_path,
                     updated_at = NOW()
                 WHERE product_id = :product_id
+                  AND store_id = :store_id
             SQL;
 
             $statement = $pdo->prepare($productSql);
@@ -285,21 +258,7 @@ final class StaffProductModel
             }
 
             $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
-            $statement->execute();
-
-            $storeProductSql = <<<SQL
-                UPDATE store_products
-                SET
-                    sale_status = :sale_status,
-                    updated_at = NOW()
-                WHERE store_id = :store_id
-                  AND product_id = :product_id
-            SQL;
-
-            $statement = $pdo->prepare($storeProductSql);
-            $statement->bindValue(':sale_status', $saleStatus, PDO::PARAM_STR);
             $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
-            $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
             $statement->execute();
 
             if ($hasOptions && $optionGroups !== []) {
@@ -330,21 +289,19 @@ final class StaffProductModel
                 p.image_path,
                 pc.category_id,
                 pc.category_name,
-                sp.store_id,
-                sp.sale_status AS store_sale_status,
-                sp.display_order,
+                p.store_id,
+                p.sale_status AS store_sale_status,
+                p.product_id AS display_order,
                 MAX(CASE
                     WHEN pog.product_id IS NULL THEN 0
                     ELSE 1
                 END) AS has_options
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON sp.product_id = p.product_id
+            FROM products AS p
             INNER JOIN product_categories AS pc
                 ON p.category_id = pc.category_id
             LEFT JOIN product_option_groups AS pog
                 ON pog.product_id = p.product_id
-            WHERE sp.store_id = :store_id
+            WHERE p.store_id = :store_id
               AND p.product_id = :product_id
             GROUP BY
                 p.product_id,
@@ -355,9 +312,7 @@ final class StaffProductModel
                 p.image_path,
                 pc.category_id,
                 pc.category_name,
-                sp.store_id,
-                sp.sale_status,
-                sp.display_order
+                p.store_id
             LIMIT 1
         SQL;
 
@@ -430,21 +385,6 @@ final class StaffProductModel
         }
 
         return array_values($groups);
-    }
-
-    private function nextDisplayOrder(string $storeId): int
-    {
-        $sql = <<<SQL
-            SELECT COALESCE(MAX(display_order), 0) + 1 AS next_display_order
-            FROM store_products
-            WHERE store_id = :store_id
-        SQL;
-
-        $statement = db()->prepare($sql);
-        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
-        $statement->execute();
-
-        return (int)$statement->fetchColumn();
     }
 
     private function insertOptionGroups(int $productId, array $optionGroups): void

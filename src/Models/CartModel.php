@@ -36,10 +36,6 @@ final class CartModel
             throw new RuntimeException('この店舗で販売中の商品ではありません。');
         }
 
-        $displayUnitPrice = ((int)$product['plan_applied_flag'] === 1)
-            ? 0
-            : (int)$product['price'];
-
         try {
             $pdo->beginTransaction();
 
@@ -50,12 +46,12 @@ final class CartModel
                 throw new RuntimeException('指定されたsession_idに紐づくカートが見つかりません。');
             }
 
-            $cartDetail = $this->findCartDetailForDisplayPrice($cartId, $productId, $displayUnitPrice);
+            $cartDetail = $this->findCartDetail($cartId, $productId);
 
             if ($cartDetail !== null) {
                 $this->incrementCartDetailQuantity((int)$cartDetail['cart_detail_id'], $quantity);
             } else {
-                $this->insertCartDetail($cartId, $productId, $quantity, $displayUnitPrice);
+                $this->insertCartDetail($cartId, $productId, $quantity);
             }
 
             $pdo->commit();
@@ -168,13 +164,42 @@ final class CartModel
                 p.product_id,
                 p.product_name,
                 cd.quantity,
-                cd.display_unit_price,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM customer_plans AS cp
+                        INNER JOIN plans AS pl
+                            ON pl.plan_id = cp.plan_id
+                        INNER JOIN plan_type_products AS ptp
+                            ON ptp.plan_type_id = pl.plan_type_id
+                           AND ptp.product_id = p.product_id
+                        WHERE cp.customer_id = s.customer_id
+                          AND cp.started_at <= NOW()
+                          AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
+                          AND pl.is_active = 1
+                    ) THEN 0
+                    ELSE p.price
+                END AS display_unit_price,
                 p.price AS normal_price,
                 CASE
-                    WHEN cd.display_unit_price = 0 THEN 1
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM customer_plans AS cp
+                        INNER JOIN plans AS pl
+                            ON pl.plan_id = cp.plan_id
+                        INNER JOIN plan_type_products AS ptp
+                            ON ptp.plan_type_id = pl.plan_type_id
+                           AND ptp.product_id = p.product_id
+                        WHERE cp.customer_id = s.customer_id
+                          AND cp.started_at <= NOW()
+                          AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
+                          AND pl.is_active = 1
+                    ) THEN 1
                     ELSE 0
                 END AS plan_applied_flag
             FROM carts AS c
+            INNER JOIN sessions AS s
+                ON s.session_id = c.session_id
             INNER JOIN cart_details AS cd
                 ON cd.cart_id = c.cart_id
             INNER JOIN products AS p
@@ -242,15 +267,12 @@ final class CartModel
                     WHEN ptp.product_id IS NOT NULL THEN 1
                     ELSE 0
                 END AS plan_applied_flag
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON sp.product_id = p.product_id
+            FROM products AS p
             LEFT JOIN plan_type_products AS ptp
                 ON ptp.product_id = p.product_id
                AND ptp.plan_type_id = :plan_type_id
-            WHERE sp.store_id = :store_id
-              AND sp.product_id = :product_id
-              AND sp.sale_status = 'ON_SALE'
+            WHERE p.store_id = :store_id
+              AND p.product_id = :product_id
               AND p.sale_status = 'ON_SALE'
             LIMIT 1
         SQL;
@@ -348,31 +370,6 @@ final class CartModel
         return $cartDetail === false ? null : $cartDetail;
     }
 
-    private function findCartDetailForDisplayPrice(int $cartId, int $productId, int $displayUnitPrice): ?array
-    {
-        $sql = <<<SQL
-            SELECT
-                cart_detail_id,
-                quantity
-            FROM cart_details
-            WHERE cart_id = :cart_id
-              AND product_id = :product_id
-              AND display_unit_price = :display_unit_price
-            LIMIT 1
-            FOR UPDATE
-        SQL;
-
-        $statement = db()->prepare($sql);
-        $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
-        $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
-        $statement->bindValue(':display_unit_price', $displayUnitPrice, PDO::PARAM_INT);
-        $statement->execute();
-
-        $cartDetail = $statement->fetch();
-
-        return $cartDetail === false ? null : $cartDetail;
-    }
-
     /**
      * 既存明細がある場合は数量だけ増やす。
      */
@@ -425,20 +422,18 @@ final class CartModel
     /**
      * まだ同じ商品がない場合は、新しい cart_details 行を作成する。
      */
-    private function insertCartDetail(int $cartId, int $productId, int $quantity, int $displayUnitPrice): void
+    private function insertCartDetail(int $cartId, int $productId, int $quantity): void
     {
         $sql = <<<SQL
             INSERT INTO cart_details (
                 cart_id,
                 product_id,
-                quantity,
-                display_unit_price
+                quantity
             )
             VALUES (
                 :cart_id,
                 :product_id,
-                :quantity,
-                :display_unit_price
+                :quantity
             )
         SQL;
 
@@ -446,7 +441,6 @@ final class CartModel
         $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
         $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
         $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
-        $statement->bindValue(':display_unit_price', $displayUnitPrice, PDO::PARAM_INT);
         $statement->execute();
     }
 }

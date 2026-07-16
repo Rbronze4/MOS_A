@@ -219,7 +219,7 @@ final class OrderModel
      * 注文登録に使う商品情報をDBから取得する。
      *
      * POST値は信用せず、商品名と単価は products / cart_details から取得する。
-     * store_products と products の販売状態もここで確認する。
+     * products の店舗所属と販売状態もここで確認する。
      */
     private function cartItemsForOrder(int $cartId, string $storeId): array
     {
@@ -229,18 +229,34 @@ final class OrderModel
                 cd.cart_id,
                 cd.product_id,
                 cd.quantity,
-                cd.display_unit_price,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM customer_plans AS cp
+                        INNER JOIN plans AS pl
+                            ON pl.plan_id = cp.plan_id
+                        INNER JOIN plan_type_products AS ptp
+                            ON ptp.plan_type_id = pl.plan_type_id
+                           AND ptp.product_id = p.product_id
+                        WHERE cp.customer_id = s.customer_id
+                          AND cp.started_at <= NOW()
+                          AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
+                          AND pl.is_active = 1
+                    ) THEN 0
+                    ELSE p.price
+                END AS display_unit_price,
                 p.product_name,
                 p.price,
                 p.tax_rate
             FROM cart_details AS cd
+            INNER JOIN carts AS c
+                ON c.cart_id = cd.cart_id
+            INNER JOIN sessions AS s
+                ON s.session_id = c.session_id
             INNER JOIN products AS p
                 ON p.product_id = cd.product_id
-            INNER JOIN store_products AS sp
-                ON sp.product_id = cd.product_id
             WHERE cd.cart_id = :cart_id
-              AND sp.store_id = :store_id
-              AND sp.sale_status = 'ON_SALE'
+              AND p.store_id = :store_id
               AND p.sale_status = 'ON_SALE'
             ORDER BY cd.cart_detail_id ASC
             FOR UPDATE

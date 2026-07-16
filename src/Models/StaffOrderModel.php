@@ -841,15 +841,12 @@ final class StaffOrderModel
                     WHEN ptp.product_id IS NOT NULL THEN 1
                     ELSE 0
                 END AS plan_applied_flag
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON p.product_id = sp.product_id
+            FROM products AS p
             LEFT JOIN plan_type_products AS ptp
                 ON ptp.product_id = p.product_id
                AND ptp.plan_type_id = :plan_type_id
-            WHERE sp.store_id = :store_id
-              AND sp.product_id IN ($inSql)
-              AND sp.sale_status = 'ON_SALE'
+            WHERE p.store_id = :store_id
+              AND p.product_id IN ($inSql)
               AND p.sale_status = 'ON_SALE'
             FOR UPDATE
         SQL;

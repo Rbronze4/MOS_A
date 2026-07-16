@@ -18,7 +18,7 @@ final class MenuModel
     /**
      * 指定店舗で販売中の商品が存在するカテゴリだけを取得する。
      *
-     * 店舗ごとの販売設定は store_products にあるため、必ず store_products を起点にする。
+     * 店舗所属と販売状態は products に集約されているため、products を起点にする。
      */
     public function categoriesForStore(string $storeId, bool $hasActivePlan = false): array
     {
@@ -26,13 +26,10 @@ final class MenuModel
             SELECT DISTINCT
                 c.category_id,
                 c.category_name
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON p.product_id = sp.product_id
+            FROM products AS p
             INNER JOIN product_categories AS c
                 ON c.category_id = p.category_id
-            WHERE sp.store_id = :store_id
-              AND sp.sale_status = 'ON_SALE'
+            WHERE p.store_id = :store_id
               AND p.sale_status = 'ON_SALE'
             ORDER BY
                 c.category_id ASC
@@ -78,25 +75,21 @@ final class MenuModel
                 p.image_path,
                 p.category_id,
                 c.category_name,
-                sp.display_order,
+                p.product_id AS display_order,
                 CASE
                     WHEN ptp.product_id IS NOT NULL THEN 1
                     ELSE 0
                 END AS plan_applied_flag
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON p.product_id = sp.product_id
+            FROM products AS p
             INNER JOIN product_categories AS c
                 ON c.category_id = p.category_id
             LEFT JOIN plan_type_products AS ptp
                 ON ptp.product_id = p.product_id
                AND ptp.plan_type_id = :plan_type_id
-            WHERE sp.store_id = :store_id
-              AND sp.sale_status = 'ON_SALE'
+            WHERE p.store_id = :store_id
               AND p.sale_status = 'ON_SALE'
             ORDER BY
                 c.category_id ASC,
-                sp.display_order ASC,
                 p.product_id ASC
         SQL;
 
