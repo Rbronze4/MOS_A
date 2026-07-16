@@ -1,3 +1,7 @@
+<?php /**
+ * 客側：卓番号入力画面（最初に表示）。
+ * 入力した卓番号は app.js で検証され state.tableNumber に保持、プラン選択画面へ進む。
+ */ ?>
 <section id="tableScreen" class="screen active">
     <div class="logo-frame" style="width: 124px; height: 124px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.14);">
         <img src="/MOS_A/public/assets/images/common/logo.png" alt="店舗ロゴ" style="width: 124px; height: 124px; object-fit: cover;">
@@ -8,12 +12,19 @@
         入力してください
     </p>
 
+    <?php if (!empty($hasActiveCustomerPlan)): ?>
+        <p class="screen-message">
+            このQRコードではすでにプランが選択されています。<br>
+            卓番号を入力して注文を開始してください。
+        </p>
+    <?php endif; ?>
+
     <input
         id="tableNumberInput"
         class="number-input"
         type="text"
         inputmode="numeric"
-        maxlength="3"
+        maxlength="2"
         value=""
     >
 

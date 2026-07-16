@@ -500,6 +500,7 @@ final class StaffProductModel
 
             foreach ($group['options'] as $optionIndex => $option) {
                 $optionName = is_array($option) ? (string)$option['option_name'] : (string)$option;
+                $additionalPrice = is_array($option) ? (int)($option['additional_price'] ?? 0) : 0;
 
                 $optionSql = <<<SQL
                     INSERT INTO options (
@@ -512,7 +513,7 @@ final class StaffProductModel
                     ) VALUES (
                         :option_group_id,
                         :option_name,
-                        0,
+                        :additional_price,
                         :display_order,
                         NOW(),
                         NOW()
@@ -522,6 +523,7 @@ final class StaffProductModel
                 $statement = $pdo->prepare($optionSql);
                 $statement->bindValue(':option_group_id', $optionGroupId, PDO::PARAM_INT);
                 $statement->bindValue(':option_name', $optionName, PDO::PARAM_STR);
+                $statement->bindValue(':additional_price', $additionalPrice, PDO::PARAM_INT);
                 $statement->bindValue(':display_order', $optionIndex + 1, PDO::PARAM_INT);
                 $statement->execute();
             }
@@ -601,12 +603,14 @@ final class StaffProductModel
         foreach ($options as $optionIndex => $option) {
             $optionId = (int)($option['option_id'] ?? 0);
             $optionName = is_array($option) ? (string)$option['option_name'] : (string)$option;
+            $additionalPrice = is_array($option) ? (int)($option['additional_price'] ?? 0) : 0;
 
             if ($optionId > 0 && $this->optionBelongsToGroup($optionGroupId, $optionId)) {
                 $sql = <<<SQL
                     UPDATE options
                     SET
                         option_name = :option_name,
+                        additional_price = :additional_price,
                         display_order = :display_order,
                         updated_at = NOW()
                     WHERE option_id = :option_id
@@ -615,6 +619,7 @@ final class StaffProductModel
 
                 $statement = $pdo->prepare($sql);
                 $statement->bindValue(':option_name', $optionName, PDO::PARAM_STR);
+                $statement->bindValue(':additional_price', $additionalPrice, PDO::PARAM_INT);
                 $statement->bindValue(':display_order', $optionIndex + 1, PDO::PARAM_INT);
                 $statement->bindValue(':option_id', $optionId, PDO::PARAM_INT);
                 $statement->bindValue(':option_group_id', $optionGroupId, PDO::PARAM_INT);
@@ -633,7 +638,7 @@ final class StaffProductModel
                 ) VALUES (
                     :option_group_id,
                     :option_name,
-                    0,
+                    :additional_price,
                     :display_order,
                     NOW(),
                     NOW()
@@ -643,6 +648,7 @@ final class StaffProductModel
             $statement = $pdo->prepare($sql);
             $statement->bindValue(':option_group_id', $optionGroupId, PDO::PARAM_INT);
             $statement->bindValue(':option_name', $optionName, PDO::PARAM_STR);
+            $statement->bindValue(':additional_price', $additionalPrice, PDO::PARAM_INT);
             $statement->bindValue(':display_order', $optionIndex + 1, PDO::PARAM_INT);
             $statement->execute();
         }
@@ -696,10 +702,17 @@ final class StaffProductModel
             foreach ($rawOptions as $rawOption) {
                 $optionId = 0;
                 $optionName = '';
+                $additionalPrice = 0;
 
                 if (is_array($rawOption)) {
                     $optionId = (int)($rawOption['option_id'] ?? 0);
                     $optionName = trim((string)($rawOption['option_name'] ?? ''));
+                    $validatedPrice = filter_var(
+                        $rawOption['additional_price'] ?? 0,
+                        FILTER_VALIDATE_INT,
+                        ['options' => ['min_range' => 0]]
+                    );
+                    $additionalPrice = $validatedPrice === false ? 0 : (int)$validatedPrice;
                 } else {
                     $optionName = trim((string)$rawOption);
                 }
@@ -708,6 +721,7 @@ final class StaffProductModel
                     $options[] = [
                         'option_id' => $optionId,
                         'option_name' => $optionName,
+                        'additional_price' => $additionalPrice,
                     ];
                 }
             }

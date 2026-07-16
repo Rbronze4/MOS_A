@@ -140,7 +140,7 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
         const isRequired = Number(group.is_required || 0) === 1 ? '1' : '0';
         const options = Array.isArray(group.options) && group.options.length > 0
             ? group.options
-            : [{ option_id: 0, option_name: '' }, { option_id: 0, option_name: '' }];
+            : [{ option_id: 0, option_name: '', additional_price: 0 }];
 
         return `
             <div class="option-group-box" data-option-group-index="${index}" data-option-group-id="${groupId}">
@@ -178,6 +178,10 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                             <input type="hidden" name="option_id" value="${Number(option.option_id || 0)}">
                             <input type="text" name="option_value" value="${escapeHtml(option.option_name || '')}" placeholder="例：なし">
                         </label>
+                        <label>
+                            <span>追加料金</span>
+                            <input type="number" name="option_additional_price" value="${Number(option.additional_price || 0)}" min="0" step="1" placeholder="0">
+                        </label>
                     `).join('')}
                 </div>
 
@@ -196,9 +200,11 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
             const isRequired = groupBox.querySelector('[name="option_is_required"]').value;
             const optionValueInputs = Array.from(groupBox.querySelectorAll('[name="option_value"]'));
             const optionIdInputs = Array.from(groupBox.querySelectorAll('[name="option_id"]'));
+            const additionalPriceInputs = Array.from(groupBox.querySelectorAll('[name="option_additional_price"]'));
             const options = optionValueInputs.map((input, index) => ({
                 optionId: Number(optionIdInputs[index]?.value || 0),
-                optionName: input.value.trim()
+                optionName: input.value.trim(),
+                additionalPrice: Math.max(0, Number(additionalPriceInputs[index]?.value || 0))
             })).filter(option => option.optionName !== '');
 
             if (groupName !== '' || options.length > 0) {
@@ -225,6 +231,7 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
             group.options.forEach((option, optionIndex) => {
                 formData.append(`option_groups[${groupIndex}][options][${optionIndex}][option_id]`, String(option.optionId));
                 formData.append(`option_groups[${groupIndex}][options][${optionIndex}][option_name]`, option.optionName);
+                formData.append(`option_groups[${groupIndex}][options][${optionIndex}][additional_price]`, String(option.additionalPrice));
             });
         });
     }
@@ -300,6 +307,10 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                         <span>選択肢</span>
                         <input type="hidden" name="option_id" value="0">
                         <input type="text" name="option_value" placeholder="例：多め">
+                    </label>
+                    <label>
+                        <span>追加料金</span>
+                        <input type="number" name="option_additional_price" min="0" step="1" placeholder="0">
                     </label>
                 `);
             }

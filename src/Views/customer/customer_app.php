@@ -18,6 +18,15 @@
 
     <div id="toast" class="toast"></div>
 
+    <!--
+        コース重複バナー。QRを複数端末で読み、他端末が先にコースを確定していた場合に
+        「すでにコースは選択されています」と画面上部に固定表示する。OKで閉じるまで残る。
+    -->
+    <div id="planConflictBanner" class="plan-conflict-banner" role="alert" aria-hidden="true">
+        <p id="planConflictMessage" class="plan-conflict-banner__message"></p>
+        <button id="planConflictOkButton" class="plan-conflict-banner__button" type="button">OK</button>
+    </div>
+
     <?php if (!empty($cartFlash) && is_array($cartFlash)): ?>
         <script>
             window.MOS_CART_FLASH = <?= json_encode($cartFlash, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;

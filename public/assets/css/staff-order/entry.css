@@ -92,20 +92,24 @@
 
 .staff-plan-row {
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
     gap: clamp(10px, 2vw, 16px);
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px clamp(24px, 8vw, 84px) 16px;
     margin-bottom: clamp(36px, 6vw, 46px);
-    color: #000000;
+    color: var(--mos-panel-bg);
     font-size: clamp(14px, 2.2vw, 16px);
     font-weight: 600;
-    flex-wrap: wrap;
 }
 
 .staff-plan-row label {
     display: flex;
     align-items: center;
     gap: 6px;
+    width: 100%;
     cursor: pointer;
 }
 

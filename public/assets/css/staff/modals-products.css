@@ -9,7 +9,10 @@
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 50;
+    /* サイドメニュー(.side-menu-layer は z-index:80)より前面に出す。
+       これより低いと、サイドメニューを開いたまま出したモーダルが
+       暗い膜の下に隠れてボタンを押せなくなる。 */
+    z-index: 100;
 }
 
 .modal-layer.show {

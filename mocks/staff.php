@@ -7,6 +7,8 @@ declare(strict_types=1);
  *
  * CSS … mocks/css を参照（ここを編集すると即反映）
  * JS  … 本物の public/assets/js を流用
+ *
+ * 本体のStaffController::index()がビューへ渡す変数と同じものを用意する。
  */
 
 require __DIR__ . '/_data.php';
@@ -15,10 +17,13 @@ $customers = mock_customers();
 $orders = mock_orders();
 $products = mock_products();
 
-$title = 'MOS 店員画面 (mock)';
+// 商品追加・編集モーダルのカテゴリ選択で使う（window.STAFF_DATAへ渡る）
+$productCategories = mock_product_categories();
 
-// mock情報パネルで現在の画面に対応する変更ログを強調表示するための識別子
-$mockArea = 'staff';
+// ログイン中の店舗。本体ではセッションから取得する。
+$storeName = '本店';
+
+$title = 'MOS 店員画面 (mock)';
 
 $cssFiles = [
     '/MOS_A/mocks/css/common/base.css',

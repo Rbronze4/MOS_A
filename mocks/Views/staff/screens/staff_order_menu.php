@@ -1,155 +1,101 @@
 <?php
-$tableNo = $_GET['tableNo'] ?? '';
-$plan = $_GET['plan'] ?? '';
+$tableNo = trim((string)($tableNo ?? ($_GET['tableNo'] ?? '')));
+$customerIdValue = $_GET['customer_id'] ?? '';
+$returnRef = (string)($_GET['ref'] ?? 'home');
+$categories = $categories ?? [];
+$menus = $menus ?? [];
+$staffOrderError = (string)($staffOrderError ?? '');
+$activeSession = $activeSession ?? null;
 
-// 飲み放題プラン(standard/premium)のときは「ドリンク」カテゴリを0円にする
-$planFree = in_array($plan, ['standard', 'premium'], true);
+$currentCategory = (string)($_GET['category'] ?? '');
 
-$categories = [
-    'ドリンク',
-    'ご飯もの',
-    '串',
-    '一品',
-    '揚げ物',
-    '限定',
-];
+if ($currentCategory === '' && $categories !== []) {
+    $currentCategory = (string)$categories[0]['id'];
+}
 
-$menus = [
-    [
-        'id' => 1,
-        'category' => 'ドリンク',
-        'name' => 'ビール',
-        'price' => 200,
-        'image_path' => '/MOS_A/public/assets/images/menu/beer.png',
-    ],
-    [
-        'id' => 2,
-        'category' => 'ドリンク',
-        'name' => 'ハイボール',
-        'price' => 200,
-        'image_path' => '/MOS_A/public/assets/images/menu/highball.png',
-    ],
-    [
-        'id' => 3,
-        'category' => 'ドリンク',
-        'name' => '焼酎',
-        'price' => 200,
-        'image_path' => '/MOS_A/public/assets/images/menu/shochu.png',
-    ],
-    [
-        'id' => 4,
-        'category' => 'ドリンク',
-        'name' => 'レモンサワー',
-        'price' => 200,
-        'image_path' => '/MOS_A/public/assets/images/menu/lemonsour.png',
-    ],
-    [
-        'id' => 5,
-        'category' => 'ドリンク',
-        'name' => 'カクテル',
-        'price' => 200,
-        'image_path' => '/MOS_A/public/assets/images/menu/cocktail.png',
-    ],
-    [
-        'id' => 6,
-        'category' => 'ドリンク',
-        'name' => 'ウーロン茶',
-        'price' => 100,
-        'image_path' => '/MOS_A/public/assets/images/menu/oolongtea.png',
-    ],
-    [
-        'id' => 7,
-        'category' => '串',
-        'name' => 'もも串しお',
-        'price' => 100,
-        'image_path' => '/MOS_A/public/assets/images/menu/Chicken_thigh.png',
-    ],
-    [
-        'id' => 8,
-        'category' => '串',
-        'name' => '鳥皮たれ',
-        'price' => 100,
-        'image_path' => '/MOS_A/public/assets/images/menu/Chicken_skin.png',
-    ],
-    [
-        'id' => 9,
-        'category' => 'ご飯もの',
-        'name' => '白ごはん',
-        'price' => 150,
-        'image_path' => '/MOS_A/public/assets/images/menu/rice.png',
-    ],
-    [
-        'id' => 10,
-        'category' => '一品',
-        'name' => '枝豆',
-        'price' => 250,
-        'image_path' => '/MOS_A/public/assets/images/menu/edamame.png',
-    ],
-    [
-        'id' => 11,
-        'category' => '揚げ物',
-        'name' => '唐揚げ',
-        'price' => 400,
-        'image_path' => '/MOS_A/public/assets/images/menu/karage.png',
-    ],
-];
-
-$currentCategory = $_GET['category'] ?? 'ドリンク';
-
-$filteredMenus = array_values(array_filter($menus, function ($menu) use ($currentCategory) {
-    return $menu['category'] === $currentCategory;
+$filteredMenus = array_values(array_filter($menus, static function (array $menu) use ($currentCategory): bool {
+    return (string)$menu['category_id'] === $currentCategory;
 }));
+
+$targetLabel = $tableNo !== ''
+    ? '卓番号：' . $tableNo . '番'
+    : ((string)$customerIdValue !== '' ? '顧客番号：' . (string)$customerIdValue : '注文対象未指定');
 ?>
 
 <section class="staff-order-menu-page">
     <header class="staff-order-header">
-
         <button id="staffOrderMenuBackButton" class="back-button" type="button">←</button>
 
         <div class="staff-order-title">スタッフ注文</div>
 
         <div class="staff-order-header-right">
             <div class="staff-table-box">
-                卓番号：<?= htmlspecialchars((string)$tableNo, ENT_QUOTES, 'UTF-8') ?>番
+                <?= htmlspecialchars($targetLabel, ENT_QUOTES, 'UTF-8') ?>
             </div>
 
             <button class="hamburger-button" type="button">☰</button>
         </div>
     </header>
 
+    <?php if ($staffOrderError !== ''): ?>
+        <div class="staff-order-message staff-order-message-error">
+            <?= htmlspecialchars($staffOrderError, ENT_QUOTES, 'UTF-8') ?>
+        </div>
+    <?php elseif ($activeSession === null): ?>
+        <div class="staff-order-message staff-order-message-error">
+            指定された卓番号または顧客番号の利用中セッションが見つかりません。
+        </div>
+    <?php endif; ?>
+
     <nav class="staff-category-tabs">
         <?php foreach ($categories as $category): ?>
+            <?php
+            $categoryId = (string)$category['id'];
+            $href = '/MOS_A/public/staff/order-menu?tableNo=' . urlencode($tableNo)
+                . '&customer_id=' . urlencode((string)$customerIdValue)
+                . '&category=' . urlencode($categoryId)
+                . '&ref=' . urlencode($returnRef);
+            ?>
             <a
-                href="/MOS_A/public/staff/order-menu?tableNo=<?= urlencode((string)$tableNo) ?>&plan=<?= urlencode((string)$plan) ?>&category=<?= urlencode($category) ?>&ref=<?= urlencode($_GET['ref'] ?? 'home') ?>"
-                class="<?= $category === $currentCategory ? 'active' : '' ?>"
+                href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>"
+                class="<?= $categoryId === $currentCategory ? 'active' : '' ?>"
             >
-                <?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8') ?>
+                <?= htmlspecialchars((string)$category['name'], ENT_QUOTES, 'UTF-8') ?>
             </a>
         <?php endforeach; ?>
     </nav>
 
     <div class="staff-order-main">
         <div class="staff-menu-grid">
+            <?php if ($filteredMenus === []): ?>
+                <p class="empty-cart-text">表示できる商品がありません。</p>
+            <?php endif; ?>
+
             <?php foreach ($filteredMenus as $menu): ?>
-                <?php $displayPrice = ($planFree && $menu['category'] === 'ドリンク') ? 0 : (int)$menu['price']; ?>
                 <button
                     type="button"
                     class="staff-menu-card"
                     data-menu-id="<?= htmlspecialchars((string)$menu['id'], ENT_QUOTES, 'UTF-8') ?>"
-                    data-menu-name="<?= htmlspecialchars($menu['name'], ENT_QUOTES, 'UTF-8') ?>"
-                    data-menu-price="<?= htmlspecialchars((string)$displayPrice, ENT_QUOTES, 'UTF-8') ?>"
+                    data-menu-name="<?= htmlspecialchars((string)$menu['name'], ENT_QUOTES, 'UTF-8') ?>"
+                    data-menu-price="<?= htmlspecialchars((string)$menu['display_price'], ENT_QUOTES, 'UTF-8') ?>"
+                    <?= $activeSession === null ? 'disabled' : '' ?>
                 >
                     <img
-                        src="<?= htmlspecialchars($menu['image_path'], ENT_QUOTES, 'UTF-8') ?>"
-                        alt="<?= htmlspecialchars($menu['name'], ENT_QUOTES, 'UTF-8') ?>"
+                        src="<?= htmlspecialchars((string)$menu['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                        alt="<?= htmlspecialchars((string)$menu['name'], ENT_QUOTES, 'UTF-8') ?>"
                     >
 
                     <div class="staff-menu-name">
-                        <?= htmlspecialchars($menu['name'], ENT_QUOTES, 'UTF-8') ?>
+                        <?= htmlspecialchars((string)$menu['name'], ENT_QUOTES, 'UTF-8') ?>
                     </div>
 
                     <div class="staff-menu-price">
-                        ￥<?= number_format($displayPrice) ?>
+                        <?php if ((int)$menu['plan_applied_flag'] === 1): ?>
+                            飲み放題対象 ￥0
+                        <?php else: ?>
+                            税抜 ￥<?= number_format((int)$menu['price']) ?><br>
+                            税込 ￥<?= number_format((int)floor((int)$menu['price'] * 1.1)) ?>
+                        <?php endif; ?>
                     </div>
                 </button>
             <?php endforeach; ?>
@@ -157,7 +103,7 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
 
         <aside class="staff-cart-panel">
             <div class="staff-cart-header">
-                <h2>カート内容</h2>
+                <h2>注文かご</h2>
                 <button id="staffCartClearButton" type="button" class="staff-cart-clear-button">
                     すべて削除
                 </button>
@@ -172,12 +118,16 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
                 <strong id="staffCartTotal">￥0</strong>
             </div>
 
-            <button id="staffOrderSubmitButton" type="button" class="staff-order-submit-button">
+            <button
+                id="staffOrderSubmitButton"
+                type="button"
+                class="staff-order-submit-button"
+                <?= $activeSession === null ? 'disabled' : '' ?>
+            >
                 この内容で注文する
             </button>
         </aside>
     </div>
-    
 </section>
 
 <?php require dirname(__DIR__) . '/parts/side_menu.php'; ?>
@@ -185,7 +135,8 @@ $filteredMenus = array_values(array_filter($menus, function ($menu) use ($curren
 <script>
     window.staffOrderInfo = {
         tableNo: <?= json_encode($tableNo, JSON_UNESCAPED_UNICODE) ?>,
-        plan: <?= json_encode($plan, JSON_UNESCAPED_UNICODE) ?>,
-        returnRef: <?= json_encode($_GET['ref'] ?? 'home', JSON_UNESCAPED_UNICODE) ?>
+        customerId: <?= json_encode((string)$customerIdValue, JSON_UNESCAPED_UNICODE) ?>,
+        returnRef: <?= json_encode($returnRef, JSON_UNESCAPED_UNICODE) ?>,
+        submitUrl: '/MOS_A/public/staff/order/submit'
     };
 </script>

@@ -22,6 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasActiveCustomerPlan = window.MOS_DATA.hasActiveCustomerPlan === true;
     const activeCustomerPlan = window.MOS_DATA.activeCustomerPlan || null;
 
+    // 店舗別・制限時間別のプラン単価（DBのplans由来）。
+    // 形: { standard: { "120": 2200, "180": 3000 }, premium: { "120": 3200, "180": 4200 } }
+    const planUnitPrices = window.MOS_DATA.planUnitPrices || {};
+
     function categoryId(category) {
         return typeof category === 'object' && category !== null
             ? String(category.id)
@@ -74,6 +78,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             screen.classList.toggle('active', id === screenId);
         });
+    }
+
+    // 画像未設定時の代替画像。menu.js のメニュー一覧と同じものを使う。
+    const NO_IMAGE_PATH = '/MOS_A/public/assets/images/menu/no_image.png';
+
+    // innerHTMLへ差し込む値のエスケープ。商品名などDB由来の文字列は必ず通す。
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
     }
 
     function formatYen(value) {
@@ -242,8 +260,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const imageFrame = document.getElementById('productImageFrame');
-        const imageSrc = menu.image_path || '/assets/images/no-image.png';
-        imageFrame.innerHTML = `<img src="${imageSrc}" alt="${menu.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+        // 商品名・画像パスはDB由来（スタッフが商品管理画面から登録する）。
+        // innerHTMLへ差し込むため必ずエスケープする。
+        const imageSrc = menu.image_path || NO_IMAGE_PATH;
+        imageFrame.innerHTML = `<img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(menu.name)}" style="width: 100%; height: 100%; object-fit: cover;">`;
 
         document.getElementById('productName').textContent = menu.name;
         document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
@@ -377,6 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const planModule = window.MOS.customer.createPlanModule({
         plans,
+        planUnitPrices,
         state,
         categories,
         formatYen,
@@ -388,7 +409,8 @@ document.addEventListener('DOMContentLoaded', () => {
         onPlanConfirmed,
         startCustomerSession,
         syncMenuData,
-        showToast
+        showToast,
+        planIdFromActiveCustomerPlan
     });
 
     cartHistoryModule = window.MOS.customer.createCartHistoryModule({
@@ -408,12 +430,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tableSubmitButton').addEventListener('click', async () => {
         const input = document.getElementById('tableNumberInput');
         const error = document.getElementById('tableError');
-        const value = normalizeTableNumberInput(input.value);
+        // 「01」のような先頭ゼロは「1」に正規化してから検証する
+        const value = normalizeTableNumberInput(input.value).replace(/^0+(?=\d)/, '');
 
         input.value = value;
 
-        if (!/^\d{1,2}$/.test(value)) {
-            error.textContent = '卓番号は1〜2桁の数字で入力してください';
+        // 卓番号は1〜99のみ有効。「0」「00」は卓として存在しないため弾く
+        if (!/^[1-9]\d?$/.test(value)) {
+            error.textContent = '卓番号は1〜99の数字で入力してください';
             return;
         }
 

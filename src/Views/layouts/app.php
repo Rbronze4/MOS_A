@@ -64,7 +64,10 @@ $jsFile = $jsFile ?? '';
             storeId: <?= json_encode($storeId ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             peopleCount: <?= json_encode($peopleCount ?? 2, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             hasActiveCustomerPlan: <?= json_encode($hasActiveCustomerPlan ?? false, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
-            activeCustomerPlan: <?= json_encode($activeCustomerPlan ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+            activeCustomerPlan: <?= json_encode($activeCustomerPlan ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            // 店舗別・制限時間別のプラン単価（DBのplans）。
+            // 形: { standard: { "120": 2200, "180": 3000 }, premium: { ... } }
+            planUnitPrices: <?= json_encode($planUnitPrices ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
         };
     </script>
 <?php endif; ?>

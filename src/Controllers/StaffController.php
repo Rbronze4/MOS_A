@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/Models/StaffOrderModel.php';
 require_once dirname(__DIR__) . '/Models/StaffProductModel.php';
 require_once dirname(__DIR__) . '/Models/MenuModel.php';
 require_once dirname(__DIR__) . '/Models/CustomerSessionModel.php';
+require_once dirname(__DIR__) . '/Services/StaffOrderEntryService.php';
 
 /**
  * スタッフ側画面のコントローラー。
@@ -129,7 +130,11 @@ final class StaffController
         ];
 
         $storeName = (string)($_SESSION['store_name'] ?? '');
-        $customers = $this->customers();
+
+        // 顧客一覧の絞り込み（会計前/会計済み/未収金/全体）。未指定・不正値は「会計前」に落とす。
+        $customerFilter = StaffCustomerModel::normalizeFilter($_GET['status'] ?? null);
+
+        $customers = $this->customers($customerFilter);
         $orders = $this->orders();
         $products = $this->products();
         $productCategories = $this->productCategories();
@@ -142,6 +147,78 @@ final class StaffController
     public function orderEntry(): void
     {
         $this->requireStaffLogin();
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $customerId = filter_input(
+            ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? INPUT_POST : INPUT_GET,
+            'customer_id',
+            FILTER_VALIDATE_INT
+        );
+        $returnRef = trim((string)((($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? $_POST : $_GET)['ref'] ?? 'customerList'));
+        $entryError = '';
+        $plans = [];
+        $oldTableNumber = trim((string)($_POST['table_number'] ?? ''));
+        $oldPlanChoice = trim((string)($_POST['plan_choice'] ?? ''));
+
+        if ($storeId === '' || $customerId === false || $customerId === null || $customerId < 1) {
+            http_response_code(422);
+            $entryError = '顧客情報が見つかりません。';
+        } else {
+            try {
+                $pdo = db();
+                $service = new StaffOrderEntryService($pdo, new StaffOrderEntryRepository($pdo));
+                /*
+                * POST時は、先に卓番号とコースを登録する。
+                */
+                if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+                    $service->register(
+                        $storeId,
+                        (int)$customerId,
+                        $oldTableNumber,
+                        $oldPlanChoice
+                    );
+
+                    $this->redirect(
+                        '/MOS_A/public/staff/order-menu'
+                        . '?customer_id=' . (int)$customerId
+                        . '&ref=' . urlencode($returnRef),
+                        303
+                    );
+                }
+
+                /*
+                * GET時は現在の卓・コース情報を取得する。
+                */
+                $entryData = $service->entryData($storeId, (int)$customerId);
+                $plans = $entryData['plans'];
+
+                /*
+                * 卓番号と有効なコース、または単品セッションが揃っていれば
+                * 卓・コース選択画面を省略する。
+                */
+                if (
+                    $entryData['selection'] !== null
+                    && $entryData['selection']['customer_plan_id'] !== null
+                ) {
+                    $this->redirect(
+                        '/MOS_A/public/staff/order-menu'
+                        . '?customer_id=' . (int)$customerId
+                        . '&ref=' . urlencode($returnRef)
+                    );
+                }
+
+                // コースなし（期限切れを含む）の既存セッションでは、卓番号を
+                // 引き継いだうえでコース選択画面を表示する。
+                if ($entryData['selection'] !== null && $oldTableNumber === '') {
+                    $oldTableNumber = (string)$entryData['selection']['table_number'];
+                }
+            } catch (InvalidArgumentException $exception) {
+                $entryError = $exception->getMessage();
+            } catch (Throwable $exception) {
+                error_log('[staff-order-entry] ' . $exception->getMessage());
+                $entryError = '登録処理に失敗しました。もう一度お試しください。';
+            }
+        }
 
         $title = 'スタッフ注文';
 
@@ -165,9 +242,6 @@ final class StaffController
             '/MOS_A/public/assets/js/staff/dashboard.js?v=' . $assetVersion,
             '/MOS_A/public/assets/js/staff/order-menu.js?v=' . $assetVersion,
         ];
-
-        $orders = $this->orders();
-        $products = $this->products();
 
         $view = dirname(__DIR__) . '/Views/staff/screens/staff_order_entry.php';
 
@@ -202,9 +276,8 @@ final class StaffController
         ];
 
         $storeId = trim((string)($_SESSION['store_id'] ?? ''));
-        $tableNo = trim((string)($_GET['tableNo'] ?? ''));
         $customerId = filter_input(INPUT_GET, 'customer_id', FILTER_VALIDATE_INT);
-        $planKey = trim((string)($_GET['plan'] ?? ''));
+        $tableNo = '';
         $staffOrderError = '';
         $activeSession = null;
         $planTypeId = null;
@@ -217,43 +290,35 @@ final class StaffController
             return;
         }
 
-        if ($tableNo !== '' && !preg_match('/^\d{1,2}$/', $tableNo)) {
-            $staffOrderError = '卓番号は1〜2桁の数字で入力してください。';
-            $tableNo = '';
-        }
-
         try {
             $orderModel = new StaffOrderModel();
 
             if ($customerId !== false && $customerId !== null && $customerId > 0) {
-                $activeSession = $orderModel->activeSessionByCustomer(
+                $pdo = db();
+                $entryService = new StaffOrderEntryService($pdo, new StaffOrderEntryRepository($pdo));
+                $entryData = $entryService->entryData($storeId, (int)$customerId);
+                $entryData = $entryService->entryData(
                     $storeId,
-                    (int)$customerId,
-                    $tableNo === '' ? null : $tableNo
+                    (int)$customerId
                 );
-            } elseif ($tableNo !== '') {
-                $activeSession = $orderModel->activeSessionByTable($storeId, $tableNo);
-            }
 
-            if (
-                $activeSession === null
-                && $customerId !== false
-                && $customerId !== null
-                && $customerId > 0
-                && $tableNo !== ''
-                && $planKey !== ''
-            ) {
-                $customerModel = new StaffCustomerModel();
-                $customerModel->customerDetail($storeId, (int)$customerId);
-
-                $sessionModel = new CustomerSessionModel();
-                $sessionResult = $sessionModel->startForStaff((int)$customerId, $tableNo, $planKey, 120, $storeId);
-
-                if ((string)($sessionResult['store_id'] ?? '') !== $storeId) {
-                    throw new RuntimeException('注文対象の顧客がログイン中の店舗と一致しません。');
+                if ($entryData['selection'] === null) {
+                    $this->redirect(
+                        '/MOS_A/public/staff/order-entry'
+                        . '?customer_id=' . (int)$customerId
+                        . '&ref=' . urlencode(
+                            (string)($_GET['ref'] ?? 'customerList')
+                        )
+                    );
                 }
 
+                $tableNo = (string)$entryData['selection']['table_number'];
+                $tableNo = (string)$entryData['selection']['table_number'];
                 $activeSession = $orderModel->activeSessionByCustomer($storeId, (int)$customerId, $tableNo);
+                if ($activeSession !== null) {
+                    // 商品選択画面でも顧客・卓・プラン・開始終了時刻を参照可能にする。
+                    $activeSession = array_merge($activeSession, $entryData['selection']);
+                }
             }
 
             if ($activeSession !== null) {
@@ -265,7 +330,7 @@ final class StaffController
             $menus = $menuModel->menusForStore($storeId, $planTypeId);
         } catch (Throwable $exception) {
             error_log('[staff-order-menu] ' . $exception->getMessage());
-            $staffOrderError = $exception->getMessage();
+            $staffOrderError = $this->safeMessage($exception, 'メニューの取得に失敗しました。時間をおいて再度お試しください。');
         }
 
         $view = dirname(__DIR__) . '/Views/staff/screens/staff_order_menu.php';
@@ -306,7 +371,7 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '注文登録に失敗しました。時間をおいて再度お試しください。'),
             ], 422);
         }
     }
@@ -337,7 +402,7 @@ final class StaffController
         } catch (Throwable $exception) {
             error_log('[staff-customer-detail] ' . $exception->getMessage());
             $customerDetail = null;
-            $customerDetailError = $exception->getMessage();
+            $customerDetailError = $this->safeMessage($exception, '顧客情報の取得に失敗しました。時間をおいて再度お試しください。');
         }
 
         $title = '顧客詳細';
@@ -389,7 +454,7 @@ final class StaffController
             error_log('[staff-customer-orders] ' . $exception->getMessage());
             $customerDetail = null;
             $customerOrders = [];
-            $customerOrderError = $exception->getMessage();
+            $customerOrderError = $this->safeMessage($exception, '注文詳細の取得に失敗しました。時間をおいて再度お試しください。');
         }
 
         $title = '注文詳細';
@@ -452,7 +517,7 @@ final class StaffController
             $_SESSION['staff_customer_order_message'] = '注文数量を変更しました。';
         } catch (Throwable $exception) {
             error_log('[staff-customer-order-update] ' . $exception->getMessage());
-            $_SESSION['staff_customer_order_message'] = $exception->getMessage();
+            $_SESSION['staff_customer_order_message'] = $this->safeMessage($exception, '注文数量の変更に失敗しました。時間をおいて再度お試しください。');
         }
 
         $this->redirect($redirectPath);
@@ -495,7 +560,7 @@ final class StaffController
             $_SESSION['staff_customer_order_message'] = '注文をキャンセルしました。';
         } catch (Throwable $exception) {
             error_log('[staff-customer-order-cancel] ' . $exception->getMessage());
-            $_SESSION['staff_customer_order_message'] = $exception->getMessage();
+            $_SESSION['staff_customer_order_message'] = $this->safeMessage($exception, '注文のキャンセルに失敗しました。時間をおいて再度お試しください。');
         }
 
         $this->redirect($redirectPath);
@@ -543,8 +608,68 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '提供数の更新に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
+        }
+    }
+
+    /**
+     * 注文詳細（注文編集モーダル）からの数量変更。
+     *
+     * 従来はフロントのstateだけ書き換えて「変更が完了しました」と表示しており、
+     * リロードすると元に戻っていた。DBのorder_detailsを実際に更新する。
+     */
+    public function updateOrderQuantity(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $orderDetailId = filter_input(INPUT_POST, 'order_detail_id', FILTER_VALIDATE_INT);
+        $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        if ($orderDetailId === false || $orderDetailId === null || $orderDetailId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '注文明細IDが正しくありません。',
+            ], 422);
+        }
+
+        if ($quantity === false || $quantity === null || $quantity < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => '数量は1以上の整数で入力してください。',
+            ], 422);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $order = $model->updateOrderDetailQuantity($storeId, (int)$orderDetailId, (int)$quantity);
+
+            $this->json([
+                'ok' => true,
+                'order' => $order,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-order-quantity] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $this->safeMessage($exception, '注文数量の変更に失敗しました。時間をおいて再度お試しください。'),
+            ], 422);
         }
     }
 
@@ -598,7 +723,66 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '注文のキャンセルに失敗しました。時間をおいて再度お試しください。'),
+            ], 500);
+        }
+    }
+
+    /**
+     * 取消解除：キャンセル済みの注文明細を注文中(ORDERED)に戻す。
+     * 戻した後は提供数の変更が可能になる。
+     */
+    public function restoreOrderDetails(): void
+    {
+        $this->requireStaffLogin();
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            $this->json([
+                'ok' => false,
+                'message' => 'POSTで送信してください。',
+            ], 405);
+        }
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $rawIds = $_POST['order_detail_ids'] ?? [];
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        if (!is_array($rawIds)) {
+            $rawIds = [$rawIds];
+        }
+
+        $orderDetailIds = array_values(array_filter(
+            array_map('intval', $rawIds),
+            static fn (int $id): bool => $id > 0
+        ));
+
+        if ($orderDetailIds === []) {
+            $this->json([
+                'ok' => false,
+                'message' => '取消解除の対象を選択してください。',
+            ], 422);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+            $orders = $model->restoreOrderDetails($storeId, $orderDetailIds);
+
+            $this->json([
+                'ok' => true,
+                'orders' => $orders,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-order-restore] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => $this->safeMessage($exception, '取消解除に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -636,7 +820,7 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '商品の追加に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -682,7 +866,7 @@ final class StaffController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '商品の更新に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -806,9 +990,9 @@ final class StaffController
             && $_SESSION['role'] === self::ROLE_STAFF;
     }
 
-    private function redirect(string $path): void
+    private function redirect(string $path, int $statusCode = 302): void
     {
-        header('Location: ' . $path);
+        header('Location: ' . $path, true, $statusCode);
         exit;
     }
 
@@ -862,6 +1046,85 @@ final class StaffController
         }
     }
 
+    /**
+     * QR印刷ページ：発行済みQRコードを伝票風レイアウトで表示し、ブラウザの印刷機能で印刷する。
+     * QR発行完了モーダルの「印刷」ボタンから別タブで開かれる（regiの領収書画面と同じ方式）。
+     */
+    public function qrPrint(): void
+    {
+        $this->requireStaffLogin();
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+        $storeName = trim((string)($_SESSION['store_name'] ?? ''));
+        $customerId = filter_input(INPUT_GET, 'customer_id', FILTER_VALIDATE_INT);
+
+        // 再発行ボタン経由の場合は印刷物に「再発行」ラベルを表示する
+        $isReissue = (string)($_GET['reissue'] ?? '') === '1';
+
+        if ($storeId === '') {
+            http_response_code(403);
+            echo '店舗情報が取得できません。再度ログインしてください。';
+            return;
+        }
+
+        if ($customerId === false || $customerId === null || $customerId < 1) {
+            http_response_code(422);
+            echo '顧客番号が正しくありません。';
+            return;
+        }
+
+        try {
+            $model = new StaffCustomerModel();
+
+            // store_id一致も条件のため、他店舗の顧客番号を指定してもnullになる
+            $customer = $model->customerForPrint($storeId, (int)$customerId);
+        } catch (Throwable $exception) {
+            error_log('[staff-qr-print] ' . $exception->getMessage());
+            http_response_code(500);
+            echo '顧客情報の取得に失敗しました。';
+            return;
+        }
+
+        if ($customer === null) {
+            http_response_code(404);
+            echo '顧客情報が見つかりません。';
+            return;
+        }
+
+        // 客側注文画面のURL（qr.jsのbuildOrderUrlと同じ形式にすること）
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+        $orderUrl = $scheme . '://' . $host . '/MOS_A/public/customer?customer_id=' . (int)$customerId;
+
+        // 単独の印刷用ページのため、共通レイアウト(app.php)は使わない
+        require dirname(__DIR__) . '/Views/staff/screens/qr_print.php';
+    }
+
+    /**
+     * 例外メッセージを画面・APIへ出してよい形に落とす。
+     *
+     * Model が投げる InvalidArgumentException / RuntimeException は
+     * 「卓番号は1〜99の数字で入力してください。」のように利用者へ見せる前提の
+     * 日本語メッセージなので、そのまま返す。
+     *
+     * それ以外（DB接続失敗・SQLエラー・TypeError など）はSQL文やテーブル構造が
+     * 混ざるため、定型文に差し替える。詳細は error_log 側にだけ残す。
+     *
+     * PDOException は RuntimeException を継承しているため、必ず先に弾くこと。
+     */
+    private function safeMessage(Throwable $exception, string $fallback): string
+    {
+        if ($exception instanceof PDOException) {
+            return $fallback;
+        }
+
+        if ($exception instanceof InvalidArgumentException || $exception instanceof RuntimeException) {
+            return $exception->getMessage();
+        }
+
+        return $fallback;
+    }
+
     private function json(array $payload, int $statusCode = 200): void
     {
         http_response_code($statusCode);
@@ -887,7 +1150,7 @@ final class StaffController
         return $payload;
     }
 
-    private function customers(): array
+    private function customers(string $filter = StaffCustomerModel::DEFAULT_FILTER): array
     {
         $storeId = trim((string)($_SESSION['store_id'] ?? ''));
 
@@ -899,18 +1162,12 @@ final class StaffController
         try {
             $model = new StaffCustomerModel();
 
-            return $model->customersForStore($storeId);
+            return $model->customersForStore($storeId, $filter);
         } catch (Throwable $exception) {
             error_log('[staff-customers] DB error: ' . $exception->getMessage());
 
             return [];
         }
-
-        return [
-            ['table_no' => '1番', 'customer_no' => '1234567', 'people' => 4],
-            ['table_no' => '2番', 'customer_no' => '1234567', 'people' => 5],
-            ['table_no' => '3番', 'customer_no' => '1234567', 'people' => 3],
-        ];
     }
 
     private function orders(): array

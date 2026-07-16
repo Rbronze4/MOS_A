@@ -11,6 +11,73 @@
     margin-top: 8px;
 }
 
+/* =========================
+   顧客一覧（会計状況フィルタ）
+   顧客はQR発行のたびに増えるため、表は固定高の枠内でスクロールさせ、
+   下部の操作ボタンが行数に関係なく常に見えるようにする。
+========================= */
+
+.customer-list-top {
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto 6px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.customer-filter-tabs {
+    display: flex;
+}
+
+.customer-filter-tabs a {
+    /* タブは6つ（着席中/卓未入力/会計前/会計済み/未収金/全体）。枠内に収まる幅にする */
+    min-width: 96px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #777777;
+    border-right: none;
+    background: var(--mos-panel-bg);
+    color: #000000;
+    font-size: 15px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.customer-filter-tabs a:last-child {
+    border-right: 1px solid #777777;
+}
+
+.customer-filter-tabs a.active {
+    background: #fff08a;
+}
+
+/* 表スクロール枠（.order-table-scroll の幅・高さだけ顧客一覧向けに調整） */
+.customer-list-scroll {
+    max-width: 760px;
+    height: 460px;
+}
+
+/* 枠内スクロール時もヘッダー行は残す */
+.customer-list-scroll .customer-table {
+    width: 100%;
+    margin-top: 0;
+}
+
+.customer-list-scroll .customer-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--mos-soft-bg);
+}
+
+/* 表が固定高になったぶん、操作ボタンは表の直下へ寄せる */
+.customer-list-screen .bottom-buttons {
+    margin-top: 24px;
+}
+
 .detail-table {
     width: 440px;
 }
@@ -256,6 +323,18 @@
 
     .customer-table {
         width: min(100%, 900px);
+    }
+
+    .customer-list-top,
+    .customer-list-scroll {
+        max-width: 960px;
+    }
+
+    /* 注文一覧と同じく、画面の高さに追従させる */
+    .customer-list-scroll {
+        height: calc(100vh - 290px);
+        min-height: 420px;
+        max-height: 640px;
     }
 
     .detail-table {

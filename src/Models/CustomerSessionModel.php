@@ -39,9 +39,7 @@ final class CustomerSessionModel
                 throw new RuntimeException('顧客情報が見つかりません。');
             }
 
-            if ((int)$customer['billing_status'] !== self::BILLING_STATUS_ACCEPTING) {
-                throw new RuntimeException('このQRコードは利用できない状態です。');
-            }
+
 
             $storeId = (string)$customer['store_id'];
             $activeCustomerPlan = $this->findActiveCustomerPlanForUpdate($customerId);
@@ -251,7 +249,9 @@ final class CustomerSessionModel
             INNER JOIN plans AS p
                 ON p.plan_id = cp.plan_id
             WHERE cp.customer_id = :customer_id
-              AND cp.ended_at IS NULL
+              AND cp.started_at <= NOW()
+              AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
+            ORDER BY cp.started_at DESC, cp.customer_plan_id DESC
             LIMIT 1
         SQL;
 
@@ -266,11 +266,12 @@ final class CustomerSessionModel
 
     /**
      * 卓番号はsessions.table_numberに保存する文字列として扱う。
+     * 「0」や先頭ゼロ（00・01など）は卓として存在しないため、1〜99のみ許可する。
      */
     private function validateTableNumber(string $tableNumber): void
     {
-        if (!preg_match('/^\d{1,3}$/', $tableNumber)) {
-            throw new InvalidArgumentException('卓番号を数字で入力してください。');
+        if (!preg_match('/^[1-9]\d?$/', $tableNumber)) {
+            throw new InvalidArgumentException('卓番号は1〜99の数字で入力してください。');
         }
     }
 
@@ -390,7 +391,9 @@ final class CustomerSessionModel
                 unit_price
             FROM customer_plans
             WHERE customer_id = :customer_id
-              AND ended_at IS NULL
+              AND started_at <= NOW()
+              AND (ended_at IS NULL OR ended_at > NOW())
+            ORDER BY started_at DESC, customer_plan_id DESC
             LIMIT 1
             FOR UPDATE
         SQL;
@@ -451,26 +454,24 @@ final class CustomerSessionModel
                 :table_number,
                 'ACTIVE',
                 NOW(),
-                :expired_at
+                CASE
+                    WHEN :time_limit_minutes IS NULL THEN NULL
+                    ELSE DATE_ADD(NOW(), INTERVAL :time_limit_minutes MINUTE)
+                END
             )
         SQL;
 
-        $expiredAt = null;
-
-        if ($plan !== null) {
-            $minutes = (int)$plan['time_limit_minutes'];
-            $expiredAt = date('Y-m-d H:i:s', time() + ($minutes * 60));
-        }
+        $minutes = $plan === null ? null : (int)$plan['time_limit_minutes'];
 
         $statement = db()->prepare($sql);
         $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
         $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
         $statement->bindValue(':table_number', $tableNumber, PDO::PARAM_STR);
 
-        if ($expiredAt === null) {
-            $statement->bindValue(':expired_at', null, PDO::PARAM_NULL);
+        if ($minutes === null) {
+            $statement->bindValue(':time_limit_minutes', null, PDO::PARAM_NULL);
         } else {
-            $statement->bindValue(':expired_at', $expiredAt, PDO::PARAM_STR);
+            $statement->bindValue(':time_limit_minutes', $minutes, PDO::PARAM_INT);
         }
 
         $statement->execute();

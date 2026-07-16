@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Controllers/StaffController.php';
 require_once dirname(__DIR__) . '/Controllers/CustomerController.php';
+require_once dirname(__DIR__) . '/Controllers/ApiOrderController.php';
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -121,11 +122,35 @@ switch ($path) {
         echo '405 Method Not Allowed';
         break;
 
+    case '/staff/order/quantity':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->updateOrderQuantity();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
     case '/staff/order/cancel':
         $controller = new StaffController();
 
         if ($method === 'POST') {
             $controller->cancelOrderDetails();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
+    case '/staff/order/restore':
+        $controller = new StaffController();
+
+        if ($method === 'POST') {
+            $controller->restoreOrderDetails();
             break;
         }
 
@@ -145,6 +170,11 @@ switch ($path) {
         echo '405 Method Not Allowed';
         break;
 
+    case '/staff/qr/print':
+        $controller = new StaffController();
+        $controller->qrPrint();
+        break;
+
     case '/staff/product/add':
         $controller = new StaffController();
 
@@ -162,6 +192,18 @@ switch ($path) {
 
         if ($method === 'POST') {
             $controller->updateProduct();
+            break;
+        }
+
+        http_response_code(405);
+        echo '405 Method Not Allowed';
+        break;
+
+    case '/api/orders':
+        // レジ（他社システム）との連携API。JSONで受けてJSONで返す。
+        if ($method === 'POST') {
+            $controller = new ApiOrderController();
+            $controller->handle();
             break;
         }
 

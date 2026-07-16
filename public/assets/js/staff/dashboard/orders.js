@@ -47,6 +47,32 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         return payload.order;
     }
 
+    // 数量変更をDBへ保存する。
+    // 以前はフロントのstateだけ書き換えていたため、リロードすると元に戻っていた。
+    async function postQuantityAction(orderDetailId, quantity) {
+        const body = new URLSearchParams();
+        body.set('order_detail_id', String(orderDetailId));
+        body.set('quantity', String(quantity));
+
+        const response = await fetch('/MOS_A/public/staff/order/quantity', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body
+        });
+
+        const payload = await parseJson(response);
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || '注文数量の変更に失敗しました。');
+        }
+
+        return payload.order;
+    }
+
     async function postCancelAction(orderDetailIds) {
         const body = new URLSearchParams();
 
@@ -68,6 +94,33 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
         if (!response.ok || !payload || payload.ok !== true) {
             throw new Error(payload?.message || '注文のキャンセルに失敗しました。');
+        }
+
+        return payload.orders || [];
+    }
+
+    // 取消解除：キャンセル済みの明細を注文中に戻す（DBも更新する）。
+    async function postRestoreAction(orderDetailIds) {
+        const body = new URLSearchParams();
+
+        orderDetailIds.forEach(orderDetailId => {
+            body.append('order_detail_ids[]', String(orderDetailId));
+        });
+
+        const response = await fetch('/MOS_A/public/staff/order/restore', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body
+        });
+
+        const payload = await parseJson(response);
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || '取消解除に失敗しました。');
         }
 
         return payload.orders || [];
@@ -98,6 +151,16 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
     async function cancelOrders(orderDetailIds) {
         const updatedOrders = await postCancelAction(orderDetailIds);
+        replaceOrders(updatedOrders);
+        renderOrders();
+        renderOrderDetail();
+
+        return updatedOrders;
+    }
+
+    // 一括取消解除：チェックした明細をまとめて注文中に戻す。
+    async function restoreOrders(orderDetailIds) {
+        const updatedOrders = await postRestoreAction(orderDetailIds);
         replaceOrders(updatedOrders);
         renderOrders();
         renderOrderDetail();
@@ -244,15 +307,11 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                         replaceOrder(updatedOrder);
                     }
 
-                    // 取消解除はDB連携未実装の既存挙動を維持しています。
+                    // 取消解除：DBもキャンセル済み→注文中に戻す。
+                    // これをしないと、DB上はキャンセルのままで提供数変更が拒否される。
                     if (action === 'undoCancel') {
-                        order.status = 'waiting';
-
-                        if (order.qty <= 0) {
-                            order.qty = 1;
-                        }
-
-                        order.servedQty = 0;
+                        const updatedOrders = await postRestoreAction([orderDetailId]);
+                        replaceOrders(updatedOrders);
                     }
 
                     renderOrders();
@@ -369,6 +428,10 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
         let qty = order.qty;
 
+        // 提供済み数を下回る数量にはできない（サーバー側でも弾かれる）。
+        // ボタンで下げられない下限を設けて、押しても失敗するだけの操作を防ぐ。
+        const minQty = Math.max(1, Number(order.servedQty) || 0);
+
         openModal(`
             <div class="edit-modal">
                 <div class="edit-row">
@@ -395,7 +458,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         document.getElementById('cancelOrderEditButton').addEventListener('click', closeModal);
 
         document.getElementById('minusQtyButton').addEventListener('click', () => {
-            qty = Math.max(1, qty - 1);
+            qty = Math.max(minQty, qty - 1);
             document.getElementById('editQtyValue').textContent = qty;
         });
 
@@ -421,21 +484,33 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                     openCompleteModal('注文をキャンセルしました。');
                 } catch (error) {
                     openCompleteModal(error.message || '注文のキャンセルに失敗しました。');
+                    saveButton.disabled = false;
                 }
 
                 return;
             }
 
-            order.qty = qty;
-
-            if (order.servedQty > order.qty) {
-                order.servedQty = order.qty;
+            // 数量に変更がなければサーバーへ送らない
+            if (Number(qty) === Number(order.qty)) {
+                closeModal();
+                return;
             }
 
-            renderOrderDetail();
-            renderOrders();
+            saveButton.disabled = true;
 
-            openCompleteModal('注文の変更が完了しました。');
+            try {
+                const updatedOrder = await postQuantityAction(order.order_detail_id ?? order.id, qty);
+                replaceOrder(updatedOrder);
+
+                renderOrderDetail();
+                renderOrders();
+
+                closeModal();
+                openCompleteModal('注文の変更が完了しました。');
+            } catch (error) {
+                openCompleteModal(error.message || '注文数量の変更に失敗しました。');
+                saveButton.disabled = false;
+            }
         });
     }
 
@@ -444,6 +519,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         setOrderTabActive,
         renderOrderDetail,
         openOrderEditModal,
-        cancelOrders
+        cancelOrders,
+        restoreOrders
     };
 };

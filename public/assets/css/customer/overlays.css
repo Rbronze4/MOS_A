@@ -90,6 +90,27 @@
     color: var(--mos-panel-bg);
 }
 
+/*
+    店舗のDBにその制限時間のプラン価格が無い場合、選べないことが分かるようにする。
+    選択肢を消さずに残すのは、120分だけ提供の店舗などで
+    「180分は選べない」と客が理解できるようにするため。
+*/
+.time-option.is-disabled,
+.time-option:disabled {
+    background: #eeeeee;
+    border-color: #dddddd;
+    color: #aaaaaa;
+    cursor: not-allowed;
+}
+
+/* 利用できないプランでは確定させない */
+.black-button.is-disabled,
+.black-button:disabled {
+    background: #bbbbbb;
+    border-color: #bbbbbb;
+    cursor: not-allowed;
+}
+
 /* ラストオーダーの注意書き */
 .modal-time-note {
     margin: 8px 0 0;
@@ -114,6 +135,35 @@
     padding: 7px 0;
     border-bottom: 1px solid #dddddd;
     font-size: 15px;
+}
+
+/* 商品種類が多いときも「注文」ボタンに必ず到達できるよう、
+   注文確認モーダルはカード全体ではなく明細リストだけを内部スクロールさせる */
+#orderModal .modal-card {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#orderModal .modal-back,
+#orderModal .modal-title,
+#orderModal .modal-total,
+#submitOrderButton {
+    flex-shrink: 0;
+}
+
+/* flexアイテム化で幅いっぱいに伸び、ボタン既定のtext-align:centerで
+   中央寄せに見えてしまうため、左上の元の見た目に戻す */
+#orderModal .modal-back {
+    align-self: flex-start;
+    text-align: left;
+}
+
+#modalOrderList {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* =========================
@@ -142,5 +192,55 @@
 
 .toast.show {
     display: block;
+}
+
+/* =========================
+   コース重複バナー（画面上部・OKで閉じるまで残る）
+========================= */
+
+.plan-conflict-banner {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100%);
+    width: 100%;
+    max-width: 430px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    background: var(--mos-panel-bg);
+    border-bottom: 4px solid var(--mos-accent);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+    z-index: 90;
+    /* OKで閉じるまで残す。表示・非表示は transform と visibility で切り替える */
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0.25s ease;
+}
+
+.plan-conflict-banner.show {
+    transform: translateX(-50%) translateY(0);
+    visibility: visible;
+}
+
+.plan-conflict-banner__message {
+    flex: 1;
+    margin: 0;
+    color: var(--mos-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.plan-conflict-banner__button {
+    flex-shrink: 0;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    background: var(--mos-text);
+    color: var(--mos-panel-bg);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
 }
 

@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/Models/MenuModel.php';
 require_once dirname(__DIR__) . '/Models/CartModel.php';
 require_once dirname(__DIR__) . '/Models/OrderModel.php';
 require_once dirname(__DIR__) . '/Models/CustomerSessionModel.php';
+require_once dirname(__DIR__) . '/Models/PlanModel.php';
 
 /**
  * 客側画面のController。
@@ -37,6 +38,7 @@ final class CustomerController
         $sessionModel = new CustomerSessionModel();
         $cartModel = new CartModel();
         $orderModel = new OrderModel();
+        $planModel = new PlanModel();
         $cartItems = [];
         $historyItems = [];
         $storeId = 'MH';
@@ -44,6 +46,9 @@ final class CustomerController
         $peopleCount = 2;
         $activeCustomerPlan = null;
         $hasActiveCustomerPlan = false;
+
+        // 店舗別・制限時間別のプラン単価。店舗が確定してからDBで取得する。
+        $planUnitPrices = [];
 
         try {
             if ($sessionId !== null) {
@@ -89,6 +94,9 @@ final class CustomerController
             $historyItems = $orderModel->historyItemsForCustomer($customerId);
             $categories = $menuModel->categoriesForStore($storeId, $hasActiveCustomerPlan);
             $menus = $menuModel->menusForStore($storeId, $planTypeId);
+
+            // プラン確認モーダルの合計金額計算に使う。店舗が確定した後に取得する。
+            $planUnitPrices = $planModel->unitPricesForStore($storeId);
         } catch (Throwable $exception) {
             error_log('[customer-menu] DB error: ' . $exception->getMessage());
 
@@ -99,6 +107,7 @@ final class CustomerController
             $historyItems = [];
             $activeCustomerPlan = null;
             $hasActiveCustomerPlan = false;
+            $planUnitPrices = [];
         }
 
         $title = 'MOS 客側画面';
@@ -162,7 +171,7 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, 'セッションの開始に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -286,7 +295,7 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => $exception->getMessage(),
+                'message' => $this->safeMessage($exception, '注文の送信に失敗しました。時間をおいて再度お試しください。'),
             ], 500);
         }
     }
@@ -408,6 +417,29 @@ final class CustomerController
         return min(99, max(1, (int)$quantity));
     }
 
+    /**
+     * 例外メッセージを客へ出してよい形に落とす。
+     *
+     * Model が投げる InvalidArgumentException / RuntimeException は
+     * 「プランを選択してください。」のように客へ見せる前提の日本語メッセージなので
+     * そのまま返す。それ以外（DB接続失敗・SQLエラー等）はSQL文やテーブル構造が
+     * 混ざるため定型文に差し替える。詳細は error_log 側にだけ残す。
+     *
+     * PDOException は RuntimeException を継承しているため、必ず先に弾くこと。
+     */
+    private function safeMessage(Throwable $exception, string $fallback): string
+    {
+        if ($exception instanceof PDOException) {
+            return $fallback;
+        }
+
+        if ($exception instanceof InvalidArgumentException || $exception instanceof RuntimeException) {
+            return $exception->getMessage();
+        }
+
+        return $fallback;
+    }
+
     private function json(array $payload, int $statusCode = 200): void
     {
         http_response_code($statusCode);
@@ -426,6 +458,11 @@ final class CustomerController
      * 画面表示用のプラン定義。
      *
      * 実DBのplansとは、プラン確定時にplan_key + plan_minutesから紐づける。
+     *
+     * 価格は店舗・制限時間ごとにDBのplansで変わるため、ここには持たせない。
+     * 単価はPlanModel::unitPricesForStore()で取得し、合計金額（単価×人数）と
+     * 「¥○○/人」「大人○人」の表示はplans.jsが動的に組み立てる。
+     * detailsには価格・人数に依存しない説明だけを置く。
      */
     private function plans(): array
     {
@@ -433,30 +470,20 @@ final class CustomerController
             [
                 'id' => 'standard',
                 'name' => 'スタンダードプラン',
-                'price' => 5000,
-                'description' => '飲み放題20品 / ¥2,500×2人',
                 'details' => [
                     '飲み放題20品',
-                    '¥2,500/人',
-                    '大人2人',
                 ],
             ],
             [
                 'id' => 'premium',
                 'name' => 'プレミアムプラン',
-                'price' => 6000,
-                'description' => '飲み放題40品 / ¥3,000×2人',
                 'details' => [
                     '飲み放題40品',
-                    '¥3,000/人',
-                    '大人2人',
                 ],
             ],
             [
                 'id' => 'single',
                 'name' => '飲み放題なし',
-                'price' => 0,
-                'description' => '単品注文のみ',
                 'details' => [
                     '単品注文のみ',
                     '飲み放題は付きません',
@@ -464,6 +491,5 @@ final class CustomerController
                 ],
             ],
         ];
-
     }
 }
