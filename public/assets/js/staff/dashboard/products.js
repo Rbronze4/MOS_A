@@ -50,7 +50,7 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
         if (state.products.length === 0) {
             body.innerHTML = `
                 <tr>
-                    <td colspan="5" class="empty-row">商品が登録されていません</td>
+                    <td colspan="6" class="empty-row">商品が登録されていません</td>
                 </tr>
             `;
             return;
@@ -81,6 +81,7 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                         <small>税込 ${Number(product.tax_included_price || taxIncluded(product.price)).toLocaleString()}円</small>
                         <small>${escapeHtml(saleStatusText(product.sale_status))}</small>
                     </td>
+                    <td>${escapeHtml(product.plan_summary || '単品のみ')}</td>
                     <td>
                         ${preview}
                         <button class="row-button product-edit-row-button" type="button" data-product-id="${product.id}">編集</button>
@@ -131,6 +132,29 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                 return `<option value="${categoryId}" ${selected}>${escapeHtml(category.category_name)}</option>`;
             })
         ].join('');
+    }
+
+    function planTypeCheckboxes(selectedPlanTypeIds = []) {
+        if (state.productPlanTypes.length === 0) {
+            return '<p class="product-plan-empty">この店舗で有効なプランはありません</p>';
+        }
+
+        const selectedIds = new Set(selectedPlanTypeIds.map(Number));
+
+        return state.productPlanTypes.map(planType => {
+            const planTypeId = Number(planType.plan_type_id);
+            const checked = selectedIds.has(planTypeId) ? 'checked' : '';
+            const timeLimits = Array.isArray(planType.time_limits) && planType.time_limits.length > 0
+                ? `（${planType.time_limits.map(minutes => `${Number(minutes)}分`).join('・')}）`
+                : '';
+
+            return `
+                <label class="product-plan-choice">
+                    <input type="checkbox" name="plan_type_ids[]" value="${planTypeId}" ${checked}>
+                    <span>${escapeHtml(planType.plan_type_name)}${escapeHtml(timeLimits)}</span>
+                </label>
+            `;
+        }).join('');
     }
 
     function optionGroupTemplate(index, group = {}) {
@@ -327,6 +351,7 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                 price: '',
                 sale_status: 'ON_SALE',
                 image_path: '',
+                plan_type_ids: [],
                 has_options: false,
                 option_groups: []
             };
@@ -337,6 +362,7 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
         }
 
         const optionGroups = Array.isArray(product.option_groups) ? product.option_groups : [];
+        const selectedPlanTypeIds = Array.isArray(product.plan_type_ids) ? product.plan_type_ids : [];
         const hasOptionsValue = product.has_options ? '1' : '0';
         const existingImage = product.image_path
             ? `<img src="${escapeHtml(imageUrl(product.image_path))}" alt="">`
@@ -385,6 +411,14 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                         <option value="HIDDEN" ${product.sale_status === 'HIDDEN' ? 'selected' : ''}>非表示</option>
                     </select>
                 </label>
+
+                <fieldset class="product-plan-area">
+                    <legend>対応プラン（複数選択可）</legend>
+                    <p class="product-plan-note">未選択の場合は単品注文のみの商品になります。</p>
+                    <div class="product-plan-choices">
+                        ${planTypeCheckboxes(selectedPlanTypeIds)}
+                    </div>
+                </fieldset>
 
                 <label>
                     <span>オプション</span>

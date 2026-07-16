@@ -138,6 +138,7 @@ final class StaffController
         $orders = $this->orders();
         $products = $this->products();
         $productCategories = $this->productCategories();
+        $productPlanTypes = $this->productPlanTypes();
 
         $view = dirname(__DIR__) . '/Views/staff/dashboard.php';
 
@@ -1198,6 +1199,25 @@ final class StaffController
             return $model->categories();
         } catch (Throwable $exception) {
             error_log('[staff-product-categories] DB error: ' . $exception->getMessage());
+
+            return [];
+        }
+    }
+
+    private function productPlanTypes(): array
+    {
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            return [];
+        }
+
+        try {
+            $model = new StaffProductModel();
+
+            return $model->planTypesForStore($storeId);
+        } catch (Throwable $exception) {
+            error_log('[staff-product-plan-types] DB error: ' . $exception->getMessage());
 
             return [];
         }

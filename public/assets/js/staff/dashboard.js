@@ -11,6 +11,7 @@ const state = {
     })),
     products: (window.STAFF_DATA?.products || []).map(product => ({ ...product })),
     productCategories: (window.STAFF_DATA?.productCategories || []).map(category => ({ ...category })),
+    productPlanTypes: (window.STAFF_DATA?.productPlanTypes || []).map(planType => ({ ...planType })),
     orderMode: 'waiting',
     selectedProductId: null,
     selectedOrderDetailId: null,

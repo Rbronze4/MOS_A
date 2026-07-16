@@ -22,6 +22,18 @@ final class StaffProductModel
                 p.store_id,
                 p.sale_status AS store_sale_status,
                 p.product_id AS display_order,
+                COALESCE((
+                    SELECT GROUP_CONCAT(ptp.plan_type_id ORDER BY ptp.plan_type_id SEPARATOR ',')
+                    FROM plan_type_products AS ptp
+                    WHERE ptp.product_id = p.product_id
+                ), '') AS plan_type_ids,
+                COALESCE((
+                    SELECT GROUP_CONCAT(pt.plan_type_name ORDER BY pt.plan_type_id SEPARATOR ' / ')
+                    FROM plan_type_products AS ptp
+                    INNER JOIN plan_types AS pt
+                        ON pt.plan_type_id = ptp.plan_type_id
+                    WHERE ptp.product_id = p.product_id
+                ), '') AS plan_type_names,
                 MAX(CASE
                     WHEN pog.product_id IS NULL THEN 0
                     ELSE 1
@@ -85,6 +97,52 @@ final class StaffProductModel
         return $categories;
     }
 
+    /**
+     * 商品管理で選択できる、店舗で有効なプラン種別をDBから取得する。
+     * 商品との紐付けは時間別plan_idではなくplan_type_id単位で管理される。
+     */
+    public function planTypesForStore(string $storeId): array
+    {
+        $sql = <<<SQL
+            SELECT
+                pt.plan_type_id,
+                pt.plan_type_name,
+                GROUP_CONCAT(
+                    DISTINCT p.time_limit_minutes
+                    ORDER BY p.time_limit_minutes
+                    SEPARATOR ','
+                ) AS time_limits
+            FROM plan_types AS pt
+            INNER JOIN plans AS p
+                ON p.plan_type_id = pt.plan_type_id
+            WHERE p.store_id = :store_id
+              AND p.is_active = 1
+            GROUP BY
+                pt.plan_type_id,
+                pt.plan_type_name
+            ORDER BY pt.plan_type_id ASC
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':store_id', $storeId, PDO::PARAM_STR);
+        $statement->execute();
+
+        return array_map(
+            static function (array $row): array {
+                $timeLimits = $row['time_limits'] === null || $row['time_limits'] === ''
+                    ? []
+                    : array_map('intval', explode(',', (string)$row['time_limits']));
+
+                return [
+                    'plan_type_id' => (int)$row['plan_type_id'],
+                    'plan_type_name' => (string)$row['plan_type_name'],
+                    'time_limits' => $timeLimits,
+                ];
+            },
+            $statement->fetchAll()
+        );
+    }
+
     public function addProduct(string $storeId, array $input, ?array $imageFile): array
     {
         $categories = $this->categories();
@@ -99,6 +157,7 @@ final class StaffProductModel
         $saleStatus = trim((string)($input['sale_status'] ?? 'ON_SALE'));
         $hasOptions = (string)($input['has_options'] ?? '0') === '1';
         $optionGroups = $this->normalizeOptionGroups($input['option_groups'] ?? []);
+        $planTypeIds = $this->validatedPlanTypeIds($storeId, $input['plan_type_ids'] ?? []);
 
         if ($productName === '') {
             throw new InvalidArgumentException('商品名を入力してください。');
@@ -171,6 +230,8 @@ final class StaffProductModel
                 $this->insertOptionGroups($productId, $optionGroups);
             }
 
+            $this->replacePlanTypes($productId, $planTypeIds);
+
             $pdo->commit();
 
             return $this->productForStore($storeId, $productId);
@@ -202,6 +263,7 @@ final class StaffProductModel
         $saleStatus = trim((string)($input['sale_status'] ?? 'ON_SALE'));
         $hasOptions = (string)($input['has_options'] ?? '0') === '1';
         $optionGroups = $this->normalizeOptionGroups($input['option_groups'] ?? []);
+        $planTypeIds = $this->validatedPlanTypeIds($storeId, $input['plan_type_ids'] ?? []);
 
         if ($productName === '') {
             throw new InvalidArgumentException('商品名を入力してください。');
@@ -265,6 +327,8 @@ final class StaffProductModel
                 $this->upsertOptionGroups($productId, $optionGroups);
             }
 
+            $this->replacePlanTypes($productId, $planTypeIds);
+
             $pdo->commit();
 
             return $this->productForStore($storeId, $productId);
@@ -292,6 +356,18 @@ final class StaffProductModel
                 p.store_id,
                 p.sale_status AS store_sale_status,
                 p.product_id AS display_order,
+                COALESCE((
+                    SELECT GROUP_CONCAT(ptp.plan_type_id ORDER BY ptp.plan_type_id SEPARATOR ',')
+                    FROM plan_type_products AS ptp
+                    WHERE ptp.product_id = p.product_id
+                ), '') AS plan_type_ids,
+                COALESCE((
+                    SELECT GROUP_CONCAT(pt.plan_type_name ORDER BY pt.plan_type_id SEPARATOR ' / ')
+                    FROM plan_type_products AS ptp
+                    INNER JOIN plan_types AS pt
+                        ON pt.plan_type_id = ptp.plan_type_id
+                    WHERE ptp.product_id = p.product_id
+                ), '') AS plan_type_names,
                 MAX(CASE
                     WHEN pog.product_id IS NULL THEN 0
                     ELSE 1
@@ -680,6 +756,77 @@ final class StaffProductModel
         return $groups;
     }
 
+    /**
+     * 送信されたプラン種別IDを正規化し、この店舗で有効な値だけであることを検証する。
+     */
+    private function validatedPlanTypeIds(string $storeId, mixed $rawPlanTypeIds): array
+    {
+        if (!is_array($rawPlanTypeIds)) {
+            $rawPlanTypeIds = [$rawPlanTypeIds];
+        }
+
+        $planTypeIds = [];
+
+        foreach ($rawPlanTypeIds as $rawPlanTypeId) {
+            $planTypeId = filter_var($rawPlanTypeId, FILTER_VALIDATE_INT);
+
+            if ($planTypeId !== false && $planTypeId > 0) {
+                $planTypeIds[] = (int)$planTypeId;
+            }
+        }
+
+        $planTypeIds = array_values(array_unique($planTypeIds));
+        sort($planTypeIds);
+
+        $validIds = array_map(
+            static fn (array $planType): int => (int)$planType['plan_type_id'],
+            $this->planTypesForStore($storeId)
+        );
+
+        if (array_diff($planTypeIds, $validIds) !== []) {
+            throw new InvalidArgumentException('選択されたプランを確認できませんでした。');
+        }
+
+        return $planTypeIds;
+    }
+
+    /**
+     * 商品のプラン対応を送信内容で置き換える。空配列なら単品商品のみとなる。
+     */
+    private function replacePlanTypes(int $productId, array $planTypeIds): void
+    {
+        $pdo = db();
+        $delete = $pdo->prepare(
+            'DELETE FROM plan_type_products WHERE product_id = :product_id'
+        );
+        $delete->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $delete->execute();
+
+        if ($planTypeIds === []) {
+            return;
+        }
+
+        $insert = $pdo->prepare(
+            'INSERT INTO plan_type_products (
+                plan_type_id,
+                product_id,
+                created_at,
+                updated_at
+            ) VALUES (
+                :plan_type_id,
+                :product_id,
+                NOW(),
+                NOW()
+            )'
+        );
+
+        foreach ($planTypeIds as $planTypeId) {
+            $insert->bindValue(':plan_type_id', $planTypeId, PDO::PARAM_INT);
+            $insert->bindValue(':product_id', $productId, PDO::PARAM_INT);
+            $insert->execute();
+        }
+    }
+
     private function saveImageFile(?array $imageFile): ?string
     {
         if ($imageFile === null || ($imageFile['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
@@ -730,6 +877,13 @@ final class StaffProductModel
         $taxRate = (float)$row['tax_rate'];
         $taxIncludedPrice = (int)floor($price * (1 + ($taxRate / 100)));
 
+        $planTypeIds = $row['plan_type_ids'] === null || $row['plan_type_ids'] === ''
+            ? []
+            : array_map('intval', explode(',', (string)$row['plan_type_ids']));
+        $planTypeNames = $row['plan_type_names'] === null || $row['plan_type_names'] === ''
+            ? []
+            : explode(' / ', (string)$row['plan_type_names']);
+
         return [
             'id' => (int)$row['product_id'],
             'product_id' => (int)$row['product_id'],
@@ -746,6 +900,9 @@ final class StaffProductModel
             'sale_status' => (string)$row['store_sale_status'],
             'image_path' => $row['image_path'] === null ? '' : (string)$row['image_path'],
             'display_order' => (int)$row['display_order'],
+            'plan_type_ids' => $planTypeIds,
+            'plan_type_names' => $planTypeNames,
+            'plan_summary' => implode(' / ', $planTypeNames),
             'has_options' => (int)$row['has_options'] === 1,
             'option_groups' => $this->optionGroupsForProduct((int)$row['product_id']),
         ];
