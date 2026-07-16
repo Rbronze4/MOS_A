@@ -82,4 +82,39 @@
     .staff-category-tabs a {
         min-width: 92px;
     }
+
+    .staff-product-selection {
+        padding: 14px 12px 22px;
+    }
+
+    .staff-product-selection-heading {
+        gap: 12px;
+    }
+
+    .staff-product-selection-heading h2 {
+        font-size: 22px;
+    }
+
+    .staff-product-selection-back {
+        min-width: 128px;
+        min-height: 44px;
+    }
+
+    .staff-product-selection-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .staff-product-summary {
+        display: grid;
+        grid-template-columns: 42% 1fr;
+    }
+
+    .staff-product-summary img {
+        height: 100%;
+        aspect-ratio: auto;
+    }
+
+    .staff-option-choices {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }

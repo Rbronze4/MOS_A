@@ -143,7 +143,7 @@ final class StaffOrderModel
             }
 
             $planTypeId = $this->planTypeIdForSession((int)$session['session_id']);
-            $productIds = array_column($items, 'product_id');
+            $productIds = array_values(array_unique(array_column($items, 'product_id')));
             $products = $this->onSaleProductsForStaffOrder($storeId, $productIds, $planTypeId);
 
             if (count($products) !== count($productIds)) {
@@ -159,8 +159,16 @@ final class StaffOrderModel
                 $quantity = (int)$item['quantity'];
                 $unitPrice = (int)$product['plan_applied_flag'] === 1 ? 0 : (int)$product['price'];
                 $planAppliedFlag = (int)$product['plan_applied_flag'];
+                $taxIncludedUnitPrice = $planAppliedFlag === 1
+                    ? 0
+                    : $this->taxIncludedPrice($unitPrice, (float)$product['tax_rate']);
+                $selectedOptions = $this->validatedStaffOrderOptions(
+                    (int)$product['product_id'],
+                    $item['option_ids']
+                );
+                $optionAdditionalPrice = array_sum(array_column($selectedOptions, 'additional_price'));
 
-                $this->insertStaffOrderDetail(
+                $orderDetailId = $this->insertStaffOrderDetail(
                     $orderId,
                     (int)$product['product_id'],
                     (string)$product['product_name'],
@@ -168,9 +176,10 @@ final class StaffOrderModel
                     $unitPrice,
                     $planAppliedFlag
                 );
+                $this->insertStaffOrderOptions($orderDetailId, $selectedOptions);
 
                 $totalQuantity += $quantity;
-                $totalAmount += $unitPrice * $quantity;
+                $totalAmount += ($taxIncludedUnitPrice + $optionAdditionalPrice) * $quantity;
             }
 
             $pdo->commit();
@@ -794,6 +803,7 @@ final class StaffOrderModel
 
             $productId = filter_var($rawItem['product_id'] ?? $rawItem['id'] ?? null, FILTER_VALIDATE_INT);
             $quantity = filter_var($rawItem['quantity'] ?? $rawItem['qty'] ?? null, FILTER_VALIDATE_INT);
+            $rawOptionIds = $rawItem['option_ids'] ?? [];
 
             if ($productId === false || $productId === null || $productId < 1) {
                 throw new InvalidArgumentException('商品IDが正しくありません。');
@@ -803,17 +813,36 @@ final class StaffOrderModel
                 throw new InvalidArgumentException('数量は1以上の整数で入力してください。');
             }
 
-            if (!isset($items[(int)$productId])) {
-                $items[(int)$productId] = [
+            if (!is_array($rawOptionIds)) {
+                throw new InvalidArgumentException('オプションの指定が正しくありません。');
+            }
+
+            $optionIds = array_values(array_unique(array_filter(
+                array_map('intval', $rawOptionIds),
+                static fn (int $optionId): bool => $optionId > 0
+            )));
+            sort($optionIds);
+            $itemKey = (int)$productId . ':' . implode(',', $optionIds);
+
+            if (!isset($items[$itemKey])) {
+                $items[$itemKey] = [
                     'product_id' => (int)$productId,
                     'quantity' => 0,
+                    'option_ids' => $optionIds,
                 ];
             }
 
-            $items[(int)$productId]['quantity'] += (int)$quantity;
+            $items[$itemKey]['quantity'] += (int)$quantity;
         }
 
         return array_values($items);
+    }
+
+    private function taxIncludedPrice(int $price, float $taxRate): int
+    {
+        $taxRateBasisPoints = (int)round($taxRate * 100);
+
+        return intdiv($price * (10000 + $taxRateBasisPoints), 10000);
     }
 
     private function onSaleProductsForStaffOrder(string $storeId, array $productIds, ?int $planTypeId): array
@@ -875,6 +904,77 @@ final class StaffOrderModel
         return $products;
     }
 
+    /**
+     * 選択オプションをDBの商品構成と照合し、必須・単一選択を検証する。
+     */
+    private function validatedStaffOrderOptions(int $productId, array $optionIds): array
+    {
+        $sql = <<<SQL
+            SELECT
+                og.option_group_id,
+                og.option_group_name,
+                og.selection_type,
+                og.is_required,
+                o.option_id,
+                o.option_name,
+                o.additional_price
+            FROM product_option_groups AS pog
+            INNER JOIN option_groups AS og
+                ON og.option_group_id = pog.option_group_id
+            LEFT JOIN options AS o
+                ON o.option_group_id = og.option_group_id
+            WHERE pog.product_id = :product_id
+            ORDER BY pog.display_order, og.option_group_id, o.display_order, o.option_id
+            FOR UPDATE
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->execute();
+        $groups = [];
+        $validOptions = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $groupId = (int)$row['option_group_id'];
+            $groups[$groupId] ??= [
+                'name' => (string)$row['option_group_name'],
+                'selection_type' => (string)$row['selection_type'],
+                'is_required' => (int)$row['is_required'],
+                'option_ids' => [],
+            ];
+
+            if ($row['option_id'] !== null) {
+                $optionId = (int)$row['option_id'];
+                $groups[$groupId]['option_ids'][] = $optionId;
+                $validOptions[$optionId] = [
+                    'option_id' => $optionId,
+                    'option_name' => (string)$row['option_name'],
+                    'additional_price' => (int)$row['additional_price'],
+                ];
+            }
+        }
+
+        foreach ($optionIds as $optionId) {
+            if (!isset($validOptions[$optionId])) {
+                throw new InvalidArgumentException('商品に存在しないオプションが選択されています。');
+            }
+        }
+
+        foreach ($groups as $group) {
+            $selectedCount = count(array_intersect($optionIds, $group['option_ids']));
+
+            if ($group['is_required'] === 1 && $selectedCount === 0) {
+                throw new InvalidArgumentException($group['name'] . 'を選択してください。');
+            }
+
+            if ($group['selection_type'] === 'SINGLE' && $selectedCount > 1) {
+                throw new InvalidArgumentException($group['name'] . 'は1つだけ選択してください。');
+            }
+        }
+
+        return array_values(array_intersect_key($validOptions, array_flip($optionIds)));
+    }
+
     private function insertStaffOrder(int $sessionId): int
     {
         $sql = <<<SQL
@@ -903,7 +1003,7 @@ final class StaffOrderModel
         int $quantity,
         int $unitPrice,
         int $planAppliedFlag
-    ): void {
+    ): int {
         $sql = <<<SQL
             INSERT INTO order_details (
                 order_id,
@@ -933,6 +1033,41 @@ final class StaffOrderModel
         $statement->bindValue(':ordered_unit_price', $unitPrice, PDO::PARAM_INT);
         $statement->bindValue(':plan_applied_flag', $planAppliedFlag, PDO::PARAM_INT);
         $statement->execute();
+
+        return (int)db()->lastInsertId();
+    }
+
+    /**
+     * 注文時点のオプション名と追加料金をスナップショット保存する。
+     */
+    private function insertStaffOrderOptions(int $orderDetailId, array $selectedOptions): void
+    {
+        if ($selectedOptions === []) {
+            return;
+        }
+
+        $sql = <<<SQL
+            INSERT INTO order_detail_options (
+                order_detail_id,
+                option_id,
+                ordered_option_name,
+                ordered_additional_price
+            ) VALUES (
+                :order_detail_id,
+                :option_id,
+                :ordered_option_name,
+                :ordered_additional_price
+            )
+        SQL;
+        $statement = db()->prepare($sql);
+
+        foreach ($selectedOptions as $option) {
+            $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+            $statement->bindValue(':option_id', (int)$option['option_id'], PDO::PARAM_INT);
+            $statement->bindValue(':ordered_option_name', (string)$option['option_name'], PDO::PARAM_STR);
+            $statement->bindValue(':ordered_additional_price', (int)$option['additional_price'], PDO::PARAM_INT);
+            $statement->execute();
+        }
     }
 
     private function findOrderDetailForUpdate(string $storeId, int $orderDetailId): ?array

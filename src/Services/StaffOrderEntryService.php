@@ -95,13 +95,8 @@ final class StaffOrderEntryService
                 $existingSelection
             );
 
-            if (
-                $existingSelection !== null
-                && (
-                    $existingSelection['customer_plan_id'] !== null
-                    || $choice === 'single'
-                )
-            ) {
+            // 着席後は単品・コースを問わず選択を確定済みとして扱い、変更しない。
+            if ($existingSelection !== null) {
                 $this->pdo->commit();
 
                 return $existingSelection;
@@ -153,21 +148,15 @@ final class StaffOrderEntryService
                 );
             }
 
-            if ($existingSelection !== null) {
-                // コース未設定の既存セッションには、選択したコースだけを追加する。
-                // 注文・カートとの関連を維持するためセッションは作り直さない。
-                $sessionId = (int)$existingSelection['session_id'];
-            } else {
-                $sessionId = $this->repository->insertSession(
-                    $customerId,
-                    $storeId,
-                    $tableNumber,
-                    $startedAt,
-                    $endedAt
-                );
+            $sessionId = $this->repository->insertSession(
+                $customerId,
+                $storeId,
+                $tableNumber,
+                $startedAt,
+                $endedAt
+            );
 
-                $this->repository->insertCart($sessionId);
-            }
+            $this->repository->insertCart($sessionId);
 
             $this->pdo->commit();
 

@@ -14,7 +14,7 @@ $customerId = (int)($_GET['customer_id'] ?? 0);
 <div class="staff-app">
     <section id="customerOrdersScreen" class="screen active">
         <div class="screen-header">
-            <button class="back-button" type="button" onclick="location.href='/MOS_A/public/staff/customer/detail?customer_id=<?= h((string)$customerId) ?>'">←</button>
+            <button class="back-button" type="button" onclick="location.href='/MOS_A/public/staff?ref=customerList'">←</button>
             <h1>注文詳細</h1>
             <button class="hamburger-button" type="button" aria-label="メニューを開く">☰</button>
         </div>

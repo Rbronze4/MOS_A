@@ -194,24 +194,15 @@ final class StaffController
                 $plans = $entryData['plans'];
 
                 /*
-                * 卓番号と有効なコース、または単品セッションが揃っていれば
-                * 卓・コース選択画面を省略する。
+                * 着席中（ACTIVEセッションあり）なら、単品・コースを問わず
+                * 卓・コース選択画面を省略する。着席後のコース変更は行わない。
                 */
-                if (
-                    $entryData['selection'] !== null
-                    && $entryData['selection']['customer_plan_id'] !== null
-                ) {
+                if ($entryData['selection'] !== null) {
                     $this->redirect(
                         '/MOS_A/public/staff/order-menu'
                         . '?customer_id=' . (int)$customerId
                         . '&ref=' . urlencode($returnRef)
                     );
-                }
-
-                // コースなし（期限切れを含む）の既存セッションでは、卓番号を
-                // 引き継いだうえでコース選択画面を表示する。
-                if ($entryData['selection'] !== null && $oldTableNumber === '') {
-                    $oldTableNumber = (string)$entryData['selection']['table_number'];
                 }
             } catch (InvalidArgumentException $exception) {
                 $entryError = $exception->getMessage();
