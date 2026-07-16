@@ -16,7 +16,13 @@ final class CartModel
      *
      * 同じ商品がすでに cart_details にある場合は、新規行を作らず数量だけ増やす。
      */
-    public function addProduct(int $sessionId, string $storeId, int $productId, int $quantity): array
+    public function addProduct(
+        int $sessionId,
+        string $storeId,
+        int $productId,
+        int $quantity,
+        array $optionIds = []
+    ): array
     {
         if ($quantity < 1) {
             throw new InvalidArgumentException('数量が正しくありません。');
@@ -38,6 +44,7 @@ final class CartModel
 
         try {
             $pdo->beginTransaction();
+            $selectedOptions = $this->validatedOptionsForProduct($productId, $optionIds);
 
             // 今回は carts の新規作成は行わず、DBにあるテスト用カートを使う。
             $cartId = $this->findExistingCartId($sessionId);
@@ -49,10 +56,13 @@ final class CartModel
             $cartDetail = $this->findCartDetail($cartId, $productId);
 
             if ($cartDetail !== null) {
-                $this->incrementCartDetailQuantity((int)$cartDetail['cart_detail_id'], $quantity);
+                $cartDetailId = (int)$cartDetail['cart_detail_id'];
+                $this->incrementCartDetailQuantity($cartDetailId, $quantity);
             } else {
-                $this->insertCartDetail($cartId, $productId, $quantity);
+                $cartDetailId = $this->insertCartDetail($cartId, $productId, $quantity);
             }
+
+            $this->replaceCartDetailOptions($cartDetailId, $selectedOptions);
 
             $pdo->commit();
 
@@ -73,7 +83,13 @@ final class CartModel
     /**
      * 既存のカート明細の数量を、指定された数量へ変更する。
      */
-    public function updateProductQuantity(int $sessionId, int $productId, int $quantity): array
+    public function updateProductQuantity(
+        int $sessionId,
+        string $storeId,
+        int $productId,
+        int $quantity,
+        array $optionIds = []
+    ): array
     {
         if ($quantity < 1) {
             throw new InvalidArgumentException('数量が正しくありません。');
@@ -81,9 +97,15 @@ final class CartModel
 
         $pdo = db();
         $this->assertActiveSession($sessionId);
+        $planTypeId = $this->currentPlanTypeIdForSession($sessionId);
+
+        if ($this->findOnSaleProduct($storeId, $productId, $planTypeId) === null) {
+            throw new RuntimeException('この店舗で販売中の商品ではありません。');
+        }
 
         try {
             $pdo->beginTransaction();
+            $selectedOptions = $this->validatedOptionsForProduct($productId, $optionIds);
 
             $cartId = $this->findExistingCartId($sessionId);
 
@@ -98,6 +120,7 @@ final class CartModel
             }
 
             $this->setCartDetailQuantity((int)$cartDetail['cart_detail_id'], $quantity);
+            $this->replaceCartDetailOptions((int)$cartDetail['cart_detail_id'], $selectedOptions);
 
             $pdo->commit();
 
@@ -163,6 +186,7 @@ final class CartModel
             SELECT
                 p.product_id,
                 p.product_name,
+                cd.cart_detail_id,
                 cd.quantity,
                 CASE
                     WHEN EXISTS (
@@ -214,20 +238,63 @@ final class CartModel
         $statement->bindValue(':session_id', $sessionId, PDO::PARAM_INT);
         $statement->execute();
 
+        $optionsByCartDetail = $this->cartOptionsForSession($sessionId);
         $items = [];
 
         foreach ($statement->fetchAll() as $row) {
+            $cartDetailId = (int)$row['cart_detail_id'];
+            $options = $optionsByCartDetail[$cartDetailId] ?? [];
+            $additionalPrice = array_sum(array_column($options, 'additional_price'));
+
             $items[] = [
                 'id' => (int)$row['product_id'],
                 'name' => (string)$row['product_name'],
-                'price' => (int)$row['display_unit_price'],
-                'normal_price' => (int)$row['normal_price'],
+                'price' => (int)$row['display_unit_price'] + $additionalPrice,
+                'normal_price' => (int)$row['normal_price'] + $additionalPrice,
                 'plan_applied_flag' => (int)$row['plan_applied_flag'],
                 'quantity' => (int)$row['quantity'],
+                'option_ids' => array_column($options, 'option_id'),
+                'options' => $options,
             ];
         }
 
         return $items;
+    }
+
+    /**
+     * カートに保存済みのオプション名・追加料金スナップショットを明細ごとに返す。
+     */
+    private function cartOptionsForSession(int $sessionId): array
+    {
+        $sql = <<<SQL
+            SELECT
+                cdo.cart_detail_id,
+                cdo.option_id,
+                cdo.selected_option_name,
+                cdo.selected_additional_price
+            FROM carts AS c
+            INNER JOIN cart_details AS cd
+                ON cd.cart_id = c.cart_id
+            INNER JOIN cart_detail_options AS cdo
+                ON cdo.cart_detail_id = cd.cart_detail_id
+            WHERE c.session_id = :session_id
+            ORDER BY cd.cart_detail_id, cdo.option_id
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':session_id', $sessionId, PDO::PARAM_INT);
+        $statement->execute();
+        $grouped = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $grouped[(int)$row['cart_detail_id']][] = [
+                'option_id' => (int)$row['option_id'],
+                'name' => (string)$row['selected_option_name'],
+                'additional_price' => (int)$row['selected_additional_price'],
+            ];
+        }
+
+        return $grouped;
     }
 
     /**
@@ -422,7 +489,7 @@ final class CartModel
     /**
      * まだ同じ商品がない場合は、新しい cart_details 行を作成する。
      */
-    private function insertCartDetail(int $cartId, int $productId, int $quantity): void
+    private function insertCartDetail(int $cartId, int $productId, int $quantity): int
     {
         $sql = <<<SQL
             INSERT INTO cart_details (
@@ -442,5 +509,122 @@ final class CartModel
         $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
         $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
         $statement->execute();
+
+        return (int)db()->lastInsertId();
+    }
+
+    /**
+     * 送信されたoption_idを商品構成と照合し、必須・単一／複数選択を検証する。
+     * 戻り値には、カートへ保存する時点の名称と追加料金を含める。
+     */
+    private function validatedOptionsForProduct(int $productId, array $optionIds): array
+    {
+        $optionIds = array_values(array_unique(array_filter(
+            array_map('intval', $optionIds),
+            static fn (int $optionId): bool => $optionId > 0
+        )));
+
+        $sql = <<<SQL
+            SELECT
+                og.option_group_id,
+                og.option_group_name,
+                og.selection_type,
+                og.is_required,
+                o.option_id,
+                o.option_name,
+                o.additional_price
+            FROM product_option_groups AS pog
+            INNER JOIN option_groups AS og
+                ON og.option_group_id = pog.option_group_id
+            LEFT JOIN options AS o
+                ON o.option_group_id = og.option_group_id
+            WHERE pog.product_id = :product_id
+            ORDER BY pog.display_order, og.option_group_id, o.display_order, o.option_id
+            FOR UPDATE
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->execute();
+        $groups = [];
+        $validOptions = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $groupId = (int)$row['option_group_id'];
+
+            $groups[$groupId] ??= [
+                'name' => (string)$row['option_group_name'],
+                'selection_type' => (string)$row['selection_type'],
+                'is_required' => (int)$row['is_required'],
+                'option_ids' => [],
+            ];
+
+            if ($row['option_id'] !== null) {
+                $optionId = (int)$row['option_id'];
+                $groups[$groupId]['option_ids'][] = $optionId;
+                $validOptions[$optionId] = [
+                    'option_id' => $optionId,
+                    'option_name' => (string)$row['option_name'],
+                    'additional_price' => (int)$row['additional_price'],
+                ];
+            }
+        }
+
+        foreach ($optionIds as $optionId) {
+            if (!isset($validOptions[$optionId])) {
+                throw new InvalidArgumentException('商品に存在しないオプションが選択されています。');
+            }
+        }
+
+        foreach ($groups as $group) {
+            $selectedCount = count(array_intersect($optionIds, $group['option_ids']));
+
+            if ($group['is_required'] === 1 && $selectedCount === 0) {
+                throw new InvalidArgumentException($group['name'] . 'を選択してください。');
+            }
+
+            if ($group['selection_type'] === 'SINGLE' && $selectedCount > 1) {
+                throw new InvalidArgumentException($group['name'] . 'は1つだけ選択してください。');
+            }
+        }
+
+        return array_values(array_intersect_key($validOptions, array_flip($optionIds)));
+    }
+
+    /**
+     * 同一商品を編集・再追加した場合は、DB制約に合わせて選択内容を今回の値へ置き換える。
+     */
+    private function replaceCartDetailOptions(int $cartDetailId, array $selectedOptions): void
+    {
+        $delete = db()->prepare('DELETE FROM cart_detail_options WHERE cart_detail_id = :cart_detail_id');
+        $delete->bindValue(':cart_detail_id', $cartDetailId, PDO::PARAM_INT);
+        $delete->execute();
+
+        if ($selectedOptions === []) {
+            return;
+        }
+
+        $sql = <<<SQL
+            INSERT INTO cart_detail_options (
+                cart_detail_id,
+                option_id,
+                selected_option_name,
+                selected_additional_price
+            ) VALUES (
+                :cart_detail_id,
+                :option_id,
+                :selected_option_name,
+                :selected_additional_price
+            )
+        SQL;
+        $statement = db()->prepare($sql);
+
+        foreach ($selectedOptions as $option) {
+            $statement->bindValue(':cart_detail_id', $cartDetailId, PDO::PARAM_INT);
+            $statement->bindValue(':option_id', (int)$option['option_id'], PDO::PARAM_INT);
+            $statement->bindValue(':selected_option_name', (string)$option['option_name'], PDO::PARAM_STR);
+            $statement->bindValue(':selected_additional_price', (int)$option['additional_price'], PDO::PARAM_INT);
+            $statement->execute();
+        }
     }
 }

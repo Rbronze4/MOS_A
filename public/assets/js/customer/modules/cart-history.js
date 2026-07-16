@@ -114,7 +114,12 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         cartList.innerHTML = state.cart.map(item => `
             <div class="cart-row">
-                <span>${escapeHtml(item.name)}</span>
+                <span class="cart-item-main">
+                    ${escapeHtml(item.name)}
+                    ${(item.options || []).length > 0
+                        ? `<small class="cart-item-options">${escapeHtml(item.options.map(option => option.name).join('、'))}</small>`
+                        : ''}
+                </span>
                 <span>${escapeHtml(item.quantity)}</span>
                 <span>${formatYen(item.price)}</span>
 
@@ -175,7 +180,12 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         document.getElementById('modalOrderTotal').textContent = formatYen(cartTotal());
         document.getElementById('modalOrderList').innerHTML = state.cart.map(item => `
             <div class="modal-order-row">
-                <span>${item.name}</span>
+                <span>
+                    ${escapeHtml(item.name)}
+                    ${(item.options || []).length > 0
+                        ? `<small class="cart-item-options">${escapeHtml(item.options.map(option => option.name).join('、'))}</small>`
+                        : ''}
+                </span>
                 <span>${item.quantity}</span>
                 <span>${formatYen(item.price)}</span>
             </div>
@@ -222,7 +232,10 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
             rows.push(`
                 <div class="history-row">
                     <span class="history-status">[注文済み]</span>
-                    <span>${escapeHtml(item.name)}</span>
+                    <span>
+                        ${escapeHtml(item.name)}
+                        ${item.option_summary ? `<small class="cart-item-options">${escapeHtml(item.option_summary)}</small>` : ''}
+                    </span>
                     <span>${escapeHtml(item.quantity)}</span>
                     <span>${formatYen(item.price)}</span>
 

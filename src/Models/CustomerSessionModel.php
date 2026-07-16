@@ -455,8 +455,8 @@ final class CustomerSessionModel
                 'ACTIVE',
                 NOW(),
                 CASE
-                    WHEN :time_limit_minutes IS NULL THEN NULL
-                    ELSE DATE_ADD(NOW(), INTERVAL :time_limit_minutes MINUTE)
+                    WHEN :time_limit_minutes_for_null IS NULL THEN NULL
+                    ELSE DATE_ADD(NOW(), INTERVAL :time_limit_minutes_for_interval MINUTE)
                 END
             )
         SQL;
@@ -469,9 +469,11 @@ final class CustomerSessionModel
         $statement->bindValue(':table_number', $tableNumber, PDO::PARAM_STR);
 
         if ($minutes === null) {
-            $statement->bindValue(':time_limit_minutes', null, PDO::PARAM_NULL);
+            $statement->bindValue(':time_limit_minutes_for_null', null, PDO::PARAM_NULL);
+            $statement->bindValue(':time_limit_minutes_for_interval', null, PDO::PARAM_NULL);
         } else {
-            $statement->bindValue(':time_limit_minutes', $minutes, PDO::PARAM_INT);
+            $statement->bindValue(':time_limit_minutes_for_null', $minutes, PDO::PARAM_INT);
+            $statement->bindValue(':time_limit_minutes_for_interval', $minutes, PDO::PARAM_INT);
         }
 
         $statement->execute();

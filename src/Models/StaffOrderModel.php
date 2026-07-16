@@ -1116,6 +1116,14 @@ final class StaffOrderModel
         $displayProvidedQuantity = $detailStatus === 'PROVIDED'
             ? max($providedQuantity, $quantity)
             : min($providedQuantity, $quantity);
+        $options = $this->orderOptions((int)$row['order_detail_id']);
+        $optionSummary = implode('、', array_column($options, 'name'));
+        $optionAdditionalPrice = array_sum(array_column($options, 'additional_price'));
+        $displayName = (string)$row['ordered_product_name'];
+
+        if ($optionSummary !== '') {
+            $displayName .= '（' . $optionSummary . '）';
+        }
 
         return [
             // 既存JSはorder.idを操作対象として使うため、注文ヘッダではなく明細IDを入れる。
@@ -1127,7 +1135,10 @@ final class StaffOrderModel
             'session_id' => (int)$row['session_id'],
             'store_id' => (string)$row['store_id'],
             'table_no' => (string)$row['table_number'] . '番',
-            'name' => (string)$row['ordered_product_name'],
+            'name' => $displayName,
+            'product_name' => (string)$row['ordered_product_name'],
+            'option_summary' => $optionSummary,
+            'options' => $options,
             'qty' => $quantity,
             'servedQty' => $displayProvidedQuantity,
             'time' => $this->formatTime($row['order_ordered_at'] ?? $row['ordered_at'] ?? null),
@@ -1135,9 +1146,36 @@ final class StaffOrderModel
             'status' => $this->displayStatus($detailStatus, $quantity, $displayProvidedQuantity),
             'status_label' => $this->statusLabel($detailStatus, $quantity, $displayProvidedQuantity),
             'detail_status' => $detailStatus,
-            'price' => (int)$row['ordered_unit_price'],
+            'price' => (int)$row['ordered_unit_price'] + $optionAdditionalPrice,
             'plan_applied_flag' => (int)$row['plan_applied_flag'],
         ];
+    }
+
+    /**
+     * 注文明細に保存されたオプションのスナップショットを表示用に取得する。
+     */
+    private function orderOptions(int $orderDetailId): array
+    {
+        $sql = <<<SQL
+            SELECT option_id, ordered_option_name, ordered_additional_price
+            FROM order_detail_options
+            WHERE order_detail_id = :order_detail_id
+            ORDER BY option_id
+        SQL;
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+        $statement->execute();
+        $options = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $options[] = [
+                'option_id' => (int)$row['option_id'],
+                'name' => (string)$row['ordered_option_name'],
+                'additional_price' => (int)$row['ordered_additional_price'],
+            ];
+        }
+
+        return $options;
     }
 
     private function displayStatus(string $detailStatus, int $quantity, int $providedQuantity): string

@@ -185,6 +185,7 @@ final class CustomerController
         $session = $this->validatedActiveSession();
         $productId = $this->validatedProductId();
         $quantity = $this->validatedQuantity();
+        $optionIds = $this->validatedOptionIds();
 
         try {
             $cartModel = new CartModel();
@@ -192,7 +193,8 @@ final class CustomerController
                 (int)$session['session_id'],
                 (string)$session['store_id'],
                 $productId,
-                $quantity
+                $quantity,
+                $optionIds
             );
             $message = $result['product_name'] . 'をカートに追加しました。';
 
@@ -206,8 +208,11 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => 'カート追加に失敗しました。セッション、既存カート、商品販売設定を確認してください。',
-            ], 500);
+                'message' => $this->safeMessage(
+                    $exception,
+                    'カート追加に失敗しました。時間をおいて再度お試しください。'
+                ),
+            ], $exception instanceof PDOException ? 500 : 422);
         }
     }
 
@@ -220,10 +225,17 @@ final class CustomerController
         $session = $this->validatedActiveSession();
         $productId = $this->validatedProductId();
         $quantity = $this->validatedQuantity();
+        $optionIds = $this->validatedOptionIds();
 
         try {
             $cartModel = new CartModel();
-            $result = $cartModel->updateProductQuantity((int)$session['session_id'], $productId, $quantity);
+            $result = $cartModel->updateProductQuantity(
+                (int)$session['session_id'],
+                (string)$session['store_id'],
+                $productId,
+                $quantity,
+                $optionIds
+            );
 
             $this->json([
                 'ok' => true,
@@ -235,8 +247,11 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => '数量変更に失敗しました。カート内容を確認してください。',
-            ], 500);
+                'message' => $this->safeMessage(
+                    $exception,
+                    '数量変更に失敗しました。時間をおいて再度お試しください。'
+                ),
+            ], $exception instanceof PDOException ? 500 : 422);
         }
     }
 
@@ -415,6 +430,40 @@ final class CustomerController
         }
 
         return min(99, max(1, (int)$quantity));
+    }
+
+    /**
+     * フロントから届く選択済みoption_id配列を整数の重複なしリストへ正規化する。
+     * 商品への所属や必須条件は、改ざん対策としてModelでDBを参照して検証する。
+     */
+    private function validatedOptionIds(): array
+    {
+        $raw = $_POST['option_ids'] ?? '[]';
+        $decoded = is_array($raw) ? $raw : json_decode((string)$raw, true);
+
+        if (!is_array($decoded)) {
+            $this->json([
+                'ok' => false,
+                'message' => 'オプションの指定が正しくありません。',
+            ], 422);
+        }
+
+        $optionIds = [];
+
+        foreach ($decoded as $value) {
+            $optionId = filter_var($value, FILTER_VALIDATE_INT);
+
+            if ($optionId === false || $optionId < 1) {
+                $this->json([
+                    'ok' => false,
+                    'message' => 'オプションの指定が正しくありません。',
+                ], 422);
+            }
+
+            $optionIds[] = (int)$optionId;
+        }
+
+        return array_values(array_unique($optionIds));
     }
 
     /**

@@ -58,9 +58,10 @@ final class OrderModel
             foreach ($cartItems as $item) {
                 $quantity = (int)$item['quantity'];
                 $unitPrice = (int)$item['display_unit_price'];
+                $optionAdditionalPrice = (int)$item['option_additional_price'];
                 $planAppliedFlag = $unitPrice === 0 ? 1 : 0;
 
-                $this->insertOrderDetail(
+                $orderDetailId = $this->insertOrderDetail(
                     $orderId,
                     (int)$item['product_id'],
                     (string)$item['product_name'],
@@ -68,9 +69,10 @@ final class OrderModel
                     $unitPrice,
                     $planAppliedFlag
                 );
+                $this->copyCartOptionsToOrder((int)$item['cart_detail_id'], $orderDetailId);
 
                 $totalQuantity += $quantity;
-                $totalAmount += $unitPrice * $quantity;
+                $totalAmount += ($unitPrice + $optionAdditionalPrice) * $quantity;
             }
 
             $this->deleteCartDetails($cartId);
@@ -110,6 +112,16 @@ final class OrderModel
                 od.ordered_product_name,
                 od.quantity,
                 od.ordered_unit_price,
+                COALESCE((
+                    SELECT SUM(odo.ordered_additional_price)
+                    FROM order_detail_options AS odo
+                    WHERE odo.order_detail_id = od.order_detail_id
+                ), 0) AS option_additional_price,
+                (
+                    SELECT GROUP_CONCAT(odo.ordered_option_name ORDER BY odo.option_id SEPARATOR '、')
+                    FROM order_detail_options AS odo
+                    WHERE odo.order_detail_id = od.order_detail_id
+                ) AS option_summary,
                 od.detail_status,
                 od.ordered_at
             FROM orders AS o
@@ -136,8 +148,9 @@ final class OrderModel
                 'order_detail_id' => (int)$row['order_detail_id'],
                 'order_id' => (int)$row['order_id'],
                 'name' => (string)$row['ordered_product_name'],
-                'price' => (int)$row['ordered_unit_price'],
+                'price' => (int)$row['ordered_unit_price'] + (int)$row['option_additional_price'],
                 'quantity' => (int)$row['quantity'],
+                'option_summary' => $row['option_summary'] === null ? '' : (string)$row['option_summary'],
                 'status' => (string)$row['detail_status'],
                 'ordered_at' => (string)$row['ordered_at'],
             ];
@@ -245,6 +258,11 @@ final class OrderModel
                     ) THEN 0
                     ELSE p.price
                 END AS display_unit_price,
+                COALESCE((
+                    SELECT SUM(cdo.selected_additional_price)
+                    FROM cart_detail_options AS cdo
+                    WHERE cdo.cart_detail_id = cd.cart_detail_id
+                ), 0) AS option_additional_price,
                 p.product_name,
                 p.price,
                 p.tax_rate
@@ -307,7 +325,7 @@ final class OrderModel
         int $quantity,
         int $unitPrice,
         int $planAppliedFlag
-    ): void {
+    ): int {
         $sql = <<<SQL
             INSERT INTO order_details (
                 order_id,
@@ -334,6 +352,35 @@ final class OrderModel
         $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
         $statement->bindValue(':ordered_unit_price', $unitPrice, PDO::PARAM_INT);
         $statement->bindValue(':plan_applied_flag', $planAppliedFlag, PDO::PARAM_INT);
+        $statement->execute();
+
+        return (int)db()->lastInsertId();
+    }
+
+    /**
+     * カートで確定した名称・追加料金を注文オプションへスナップショットとして引き継ぐ。
+     */
+    private function copyCartOptionsToOrder(int $cartDetailId, int $orderDetailId): void
+    {
+        $sql = <<<SQL
+            INSERT INTO order_detail_options (
+                order_detail_id,
+                option_id,
+                ordered_option_name,
+                ordered_additional_price
+            )
+            SELECT
+                :order_detail_id,
+                option_id,
+                selected_option_name,
+                selected_additional_price
+            FROM cart_detail_options
+            WHERE cart_detail_id = :cart_detail_id
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+        $statement->bindValue(':cart_detail_id', $cartDetailId, PDO::PARAM_INT);
         $statement->execute();
     }
 

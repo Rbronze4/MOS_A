@@ -161,19 +161,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return payload;
     }
 
-    function addCartToServer(productId, quantity) {
+    function addCartToServer(productId, quantity, optionIds) {
         return postCartAction('/MOS_A/public/customer/cart/add', {
             session_id: state.sessionId,
             product_id: productId,
-            quantity
+            quantity,
+            option_ids: JSON.stringify(optionIds)
         });
     }
 
-    function updateCartOnServer(productId, quantity) {
+    function updateCartOnServer(productId, quantity, optionIds) {
         return postCartAction('/MOS_A/public/customer/cart/update', {
             session_id: state.sessionId,
             product_id: productId,
-            quantity
+            quantity,
+            option_ids: JSON.stringify(optionIds)
         });
     }
 
@@ -266,10 +268,99 @@ document.addEventListener('DOMContentLoaded', () => {
         imageFrame.innerHTML = `<img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(menu.name)}" style="width: 100%; height: 100%; object-fit: cover;">`;
 
         document.getElementById('productName').textContent = menu.name;
-        document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
         document.getElementById('quantityInput').value = String(quantity);
+        renderProductOptions(menu, resetEditing ? [] : (state.editingItem?.option_ids || []));
 
         showScreen('productScreen');
+    }
+
+    function selectedProductOptionIds() {
+        return Array.from(document.querySelectorAll('#productOptions input:checked'))
+            .map(input => Number(input.value))
+            .filter(Number.isInteger);
+    }
+
+    function refreshProductPrice() {
+        const menu = state.selectedMenu;
+
+        if (!menu) return;
+
+        const selectedIds = new Set(selectedProductOptionIds());
+        const additionalPrice = (menu.option_groups || []).reduce((sum, group) => {
+            return sum + (group.options || []).reduce((groupSum, option) => {
+                return groupSum + (selectedIds.has(Number(option.option_id))
+                    ? Number(option.additional_price || 0)
+                    : 0);
+            }, 0);
+        }, 0);
+
+        document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu) + additionalPrice);
+    }
+
+    function renderProductOptions(menu, selectedOptionIds = []) {
+        const container = document.getElementById('productOptions');
+        const groups = Array.isArray(menu.option_groups) ? menu.option_groups : [];
+        const selectedIds = new Set(selectedOptionIds.map(Number));
+
+        container.innerHTML = groups.map(group => {
+            const isMultiple = group.selection_type === 'MULTIPLE';
+            const isRequired = Number(group.is_required) === 1;
+            const inputType = isMultiple ? 'checkbox' : 'radio';
+            const instruction = isMultiple
+                ? (isRequired ? '1つ以上お選びください' : '複数選択できます')
+                : (isRequired ? '1つお選びください' : '必要な場合にお選びください');
+
+            return `
+                <fieldset class="product-option-group" data-option-group-id="${Number(group.option_group_id)}">
+                    <legend class="product-option-heading">
+                        ${escapeHtml(group.group_name)}${isRequired ? '<span class="product-option-required">（必須）</span>' : ''}
+                    </legend>
+                    <p class="product-option-rule">${instruction}</p>
+                    <div class="product-option-choices">
+                        ${(group.options || []).map(option => {
+                            const additionalPrice = Number(option.additional_price || 0);
+                            const optionId = Number(option.option_id);
+                            return `
+                                <label class="product-option-choice">
+                                    <input
+                                        type="${inputType}"
+                                        name="product_option_${Number(group.option_group_id)}${isMultiple ? '[]' : ''}"
+                                        value="${optionId}"
+                                        ${selectedIds.has(optionId) ? 'checked' : ''}
+                                    >
+                                    <span>${escapeHtml(option.option_name)}</span>
+                                    ${additionalPrice > 0 ? `<span class="product-option-price">+${formatYen(additionalPrice)}</span>` : ''}
+                                </label>
+                            `;
+                        }).join('')}
+                    </div>
+                </fieldset>
+            `;
+        }).join('');
+
+        container.querySelectorAll('input').forEach(input => {
+            input.addEventListener('change', refreshProductPrice);
+        });
+
+        refreshProductPrice();
+    }
+
+    function validateSelectedOptions(menu, selectedOptionIds) {
+        const selectedIds = new Set(selectedOptionIds.map(Number));
+
+        for (const group of (menu.option_groups || [])) {
+            const count = (group.options || []).filter(option => selectedIds.has(Number(option.option_id))).length;
+
+            if (Number(group.is_required) === 1 && count === 0) {
+                return `${group.group_name}を選択してください`;
+            }
+
+            if (group.selection_type === 'SINGLE' && count > 1) {
+                return `${group.group_name}は1つだけ選択してください`;
+            }
+        }
+
+        return null;
     }
 
     const menuModule = window.MOS.customer.createMenuModule({
@@ -514,6 +605,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         quantityValue = Math.min(99, Math.max(1, Math.floor(quantityValue)));
         quantityInput.value = String(quantityValue);
+        const optionIds = selectedProductOptionIds();
+        const optionError = validateSelectedOptions(state.selectedMenu, optionIds);
+
+        if (optionError) {
+            showToast(optionError);
+            return;
+        }
 
         if (!state.sessionId) {
             showToast('卓番号とプランを選択してください');
@@ -523,8 +621,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const result = state.editingItem
-                ? await updateCartOnServer(state.selectedMenu.id, quantityValue)
-                : await addCartToServer(state.selectedMenu.id, quantityValue);
+                ? await updateCartOnServer(state.selectedMenu.id, quantityValue, optionIds)
+                : await addCartToServer(state.selectedMenu.id, quantityValue, optionIds);
 
             state.editingItem = null;
             state.cart = result.cart_items || [];

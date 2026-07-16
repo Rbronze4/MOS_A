@@ -102,13 +102,16 @@ final class MenuModel
         }
         $statement->execute();
 
+        $rows = $statement->fetchAll();
+        $optionGroupsByProduct = $this->optionGroupsByProduct(array_column($rows, 'product_id'));
         $menus = [];
 
-        foreach ($statement->fetchAll() as $row) {
+        foreach ($rows as $row) {
             $planApplied = (int)$row['plan_applied_flag'] === 1;
+            $productId = (int)$row['product_id'];
 
             $menus[] = [
-                'id' => (int)$row['product_id'],
+                'id' => $productId,
                 'category_id' => (string)$row['category_id'],
                 'category' => (string)$row['category_name'],
                 'name' => (string)$row['product_name'],
@@ -116,10 +119,82 @@ final class MenuModel
                 'display_price' => $planApplied ? 0 : (int)$row['price'],
                 'plan_applied_flag' => $planApplied ? 1 : 0,
                 'image_path' => $this->imagePath($row['image_path'] ?? null),
+                'has_options' => isset($optionGroupsByProduct[$productId]),
+                'option_groups' => $optionGroupsByProduct[$productId] ?? [],
             ];
         }
 
         return $menus;
+    }
+
+    /**
+     * 商品詳細で使うオプショングループと選択肢を、DBの表示順で商品ごとにまとめる。
+     */
+    private function optionGroupsByProduct(array $productIds): array
+    {
+        $productIds = array_values(array_unique(array_map('intval', $productIds)));
+
+        if ($productIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+        $sql = <<<SQL
+            SELECT
+                pog.product_id,
+                og.option_group_id,
+                og.option_group_name,
+                og.selection_type,
+                og.is_required,
+                o.option_id,
+                o.option_name,
+                o.additional_price
+            FROM product_option_groups AS pog
+            INNER JOIN option_groups AS og
+                ON og.option_group_id = pog.option_group_id
+            LEFT JOIN options AS o
+                ON o.option_group_id = og.option_group_id
+            WHERE pog.product_id IN ($placeholders)
+            ORDER BY
+                pog.product_id,
+                pog.display_order,
+                og.option_group_id,
+                o.display_order,
+                o.option_id
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->execute($productIds);
+        $grouped = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $productId = (int)$row['product_id'];
+            $groupId = (int)$row['option_group_id'];
+
+            if (!isset($grouped[$productId][$groupId])) {
+                $grouped[$productId][$groupId] = [
+                    'option_group_id' => $groupId,
+                    'group_name' => (string)$row['option_group_name'],
+                    'selection_type' => (string)$row['selection_type'],
+                    'is_required' => (int)$row['is_required'],
+                    'options' => [],
+                ];
+            }
+
+            if ($row['option_id'] !== null) {
+                $grouped[$productId][$groupId]['options'][] = [
+                    'option_id' => (int)$row['option_id'],
+                    'option_name' => (string)$row['option_name'],
+                    'additional_price' => (int)$row['additional_price'],
+                ];
+            }
+        }
+
+        foreach ($grouped as $productId => $groups) {
+            $grouped[$productId] = array_values($groups);
+        }
+
+        return $grouped;
     }
 
     private function imagePath(?string $imagePath): string
