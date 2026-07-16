@@ -14,6 +14,19 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
     } = context;
 
     const TAX_RATE = 0.1;
+    const PRODUCTS_PER_PAGE = 20;
+    let currentProductPage = 1;
+    const productFilters = {
+        name: '',
+        categoryId: '',
+        planTypeId: '',
+        saleStatus: '',
+        sortOrder: 'id-asc'
+    };
+    const japaneseCollator = new Intl.Collator('ja', {
+        numeric: true,
+        sensitivity: 'base'
+    });
 
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -43,9 +56,91 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
             : `/MOS_A/public${path}`;
     }
 
+    function productsForCurrentFilters() {
+        const normalizedName = productFilters.name.trim().toLocaleLowerCase('ja');
+        const filteredProducts = state.products.filter(product => {
+            if (normalizedName !== '' && !String(product.name || '').toLocaleLowerCase('ja').includes(normalizedName)) {
+                return false;
+            }
+
+            if (productFilters.categoryId !== '' && String(product.category_id) !== productFilters.categoryId) {
+                return false;
+            }
+
+            const planTypeIds = Array.isArray(product.plan_type_ids)
+                ? product.plan_type_ids.map(Number)
+                : [];
+
+            if (productFilters.planTypeId === 'none' && planTypeIds.length > 0) {
+                return false;
+            }
+
+            if (
+                productFilters.planTypeId !== ''
+                && productFilters.planTypeId !== 'none'
+                && !planTypeIds.includes(Number(productFilters.planTypeId))
+            ) {
+                return false;
+            }
+
+            return productFilters.saleStatus === '' || product.sale_status === productFilters.saleStatus;
+        });
+
+        return filteredProducts.sort((left, right) => {
+            if (productFilters.sortOrder === 'name-asc') {
+                return japaneseCollator.compare(left.name || '', right.name || '');
+            }
+
+            if (productFilters.sortOrder === 'category-asc') {
+                return japaneseCollator.compare(left.category || '', right.category || '')
+                    || japaneseCollator.compare(left.name || '', right.name || '');
+            }
+
+            if (productFilters.sortOrder === 'price-asc') {
+                return Number(left.price || 0) - Number(right.price || 0)
+                    || Number(left.id) - Number(right.id);
+            }
+
+            if (productFilters.sortOrder === 'price-desc') {
+                return Number(right.price || 0) - Number(left.price || 0)
+                    || Number(left.id) - Number(right.id);
+            }
+
+            return Number(left.id) - Number(right.id);
+        });
+    }
+
     function renderProducts() {
         const body = document.getElementById('productTableBody');
         if (!body) return;
+
+        const filteredProducts = productsForCurrentFilters();
+        const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+        currentProductPage = Math.min(currentProductPage, totalPages);
+
+        const pageStart = (currentProductPage - 1) * PRODUCTS_PER_PAGE;
+        const products = filteredProducts.slice(pageStart, pageStart + PRODUCTS_PER_PAGE);
+        const resultCount = document.getElementById('productFilterResultCount');
+        const pagination = document.getElementById('productPagination');
+        const previousButton = document.getElementById('previousProductPage');
+        const nextButton = document.getElementById('nextProductPage');
+        const pageStatus = document.getElementById('productPageStatus');
+
+        if (resultCount) {
+            if (filteredProducts.length === 0) {
+                resultCount.textContent = `0 / ${state.products.length}件を表示`;
+            } else {
+                const pageEnd = pageStart + products.length;
+                resultCount.textContent = `${pageStart + 1}〜${pageEnd}件 / 絞り込み${filteredProducts.length}件（全${state.products.length}件）`;
+            }
+        }
+
+        if (pagination && previousButton && nextButton && pageStatus) {
+            pagination.hidden = totalPages <= 1;
+            previousButton.disabled = currentProductPage <= 1;
+            nextButton.disabled = currentProductPage >= totalPages;
+            pageStatus.textContent = `${currentProductPage} / ${totalPages}ページ`;
+        }
 
         if (state.products.length === 0) {
             body.innerHTML = `
@@ -56,7 +151,16 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
             return;
         }
 
-        body.innerHTML = state.products.map(product => {
+        if (filteredProducts.length === 0) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="6" class="empty-row">条件に一致する商品がありません</td>
+                </tr>
+            `;
+            return;
+        }
+
+        body.innerHTML = products.map(product => {
             const selectedClass = String(product.id) === String(state.selectedProductId) ? 'selected-row' : '';
             const checked = String(product.id) === String(state.selectedProductId) ? 'checked' : '';
             const preview = product.image_path
@@ -112,6 +216,79 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
                 openProductForm('edit');
             });
         });
+    }
+
+    function bindProductFilters() {
+        const form = document.getElementById('productFilterForm');
+        if (!form || form.dataset.bound === '1') return;
+
+        const nameInput = document.getElementById('productNameFilter');
+        const categorySelect = document.getElementById('productCategoryFilter');
+        const planSelect = document.getElementById('productPlanFilter');
+        const saleStatusSelect = document.getElementById('productSaleStatusFilter');
+        const sortSelect = document.getElementById('productSortOrder');
+        const resetButton = document.getElementById('resetProductFilters');
+        const previousButton = document.getElementById('previousProductPage');
+        const nextButton = document.getElementById('nextProductPage');
+
+        function resetPageAndRender() {
+            currentProductPage = 1;
+            renderProducts();
+        }
+
+        categorySelect.insertAdjacentHTML('beforeend', state.productCategories.map(category => `
+            <option value="${Number(category.category_id)}">${escapeHtml(category.category_name)}</option>
+        `).join(''));
+
+        planSelect.insertAdjacentHTML('beforeend', state.productPlanTypes.map(planType => `
+            <option value="${Number(planType.plan_type_id)}">${escapeHtml(planType.plan_type_name)}</option>
+        `).join(''));
+
+        form.addEventListener('submit', event => event.preventDefault());
+        nameInput.addEventListener('input', () => {
+            productFilters.name = nameInput.value;
+            resetPageAndRender();
+        });
+        categorySelect.addEventListener('change', () => {
+            productFilters.categoryId = categorySelect.value;
+            resetPageAndRender();
+        });
+        planSelect.addEventListener('change', () => {
+            productFilters.planTypeId = planSelect.value;
+            resetPageAndRender();
+        });
+        saleStatusSelect.addEventListener('change', () => {
+            productFilters.saleStatus = saleStatusSelect.value;
+            resetPageAndRender();
+        });
+        sortSelect.addEventListener('change', () => {
+            productFilters.sortOrder = sortSelect.value;
+            resetPageAndRender();
+        });
+        resetButton.addEventListener('click', () => {
+            form.reset();
+            Object.assign(productFilters, {
+                name: '',
+                categoryId: '',
+                planTypeId: '',
+                saleStatus: '',
+                sortOrder: 'id-asc'
+            });
+            resetPageAndRender();
+        });
+        previousButton?.addEventListener('click', () => {
+            if (currentProductPage <= 1) return;
+            currentProductPage -= 1;
+            renderProducts();
+        });
+        nextButton?.addEventListener('click', () => {
+            const totalPages = Math.ceil(productsForCurrentFilters().length / PRODUCTS_PER_PAGE);
+            if (currentProductPage >= totalPages) return;
+            currentProductPage += 1;
+            renderProducts();
+        });
+
+        form.dataset.bound = '1';
     }
 
     function selectedProduct() {
@@ -513,6 +690,8 @@ window.MOS.staffDashboard.createProductModule = function createProductModule(con
             }
         });
     }
+
+    bindProductFilters();
 
     return {
         renderProducts,

@@ -415,13 +415,6 @@ if (editProductButton) {
     });
 }
 
-const deleteProductButton = document.getElementById('deleteProductButton');
-if (deleteProductButton) {
-    deleteProductButton.addEventListener('click', () => {
-        openCompleteModal('商品削除は今回は未実装です。');
-    });
-}
-
 // QR発行の人数・枚数は 1〜99 に制限する。
 // type="number" は max を付けてもキーボードでは上限超えの値を打ててしまうため、
 // 入力時に数字以外を除去し、2桁までに切り詰めることで実際に入力できないようにする。
