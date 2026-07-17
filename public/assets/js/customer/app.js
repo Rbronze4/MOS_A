@@ -273,6 +273,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function renderProductSubtotal() {
+        const subtotalEl = document.getElementById('productSubtotal');
+        const quantityInput = document.getElementById('quantityInput');
+
+        if (!subtotalEl || !quantityInput || !state.selectedMenu) {
+            return;
+        }
+
+        const unitPrice = getDisplayPrice(state.selectedMenu);
+        const quantity = Number(quantityInput.value) || 1;
+        const subtotal = unitPrice * Math.max(1, Math.floor(quantity));
+
+        subtotalEl.textContent = `小計：${formatYen(subtotal)}`;
+    }
+
     function openProduct(menu, quantity = 1, resetEditing = true) {
         state.selectedMenu = menu;
 
@@ -289,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('productName').textContent = menu.name;
         document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
         document.getElementById('quantityInput').value = String(quantity);
+        renderProductSubtotal();
 
         showScreen('productScreen');
     }
@@ -512,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Number.isNaN(current)) current = 1;
 
         input.value = String(Math.max(1, current - 1));
+        renderProductSubtotal();
     });
 
     document.getElementById('plusButton').addEventListener('click', () => {
@@ -520,6 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Number.isNaN(current)) current = 1;
 
         input.value = String(Math.min(99, current + 1));
+        renderProductSubtotal();
     });
 
     document.getElementById('addCartButton').addEventListener('click', async () => {
