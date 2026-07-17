@@ -131,9 +131,24 @@
     font-weight: bold;
 }
 
+/* カート・注文履歴は一覧部分のみ縦スクロールさせる */
+#cartScreen.active,
+#historyScreen.active {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+}
+
 .cart-list {
     width: 78%;
     margin: 0 auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-bottom: 96px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .cart-row {
@@ -164,10 +179,15 @@
 }
 
 .bottom-action {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 26px;
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+    width: 100%;
+    max-width: 430px;
+    z-index: 5;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--mos-soft-bg) 72%, rgba(238, 238, 238, 0));
 }
 
 /* =========================
@@ -176,11 +196,18 @@
 
 .history-list {
     margin-top: 8px;
+    width: 84%;
+    margin-left: auto;
+    margin-right: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .history-row {
-    width: 84%;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
     display: grid;
     grid-template-columns: 78px 1fr 28px 58px 54px;
     gap: 6px;
