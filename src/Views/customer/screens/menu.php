@@ -30,9 +30,10 @@
             <span>注文履歴</span>
         </button>
 
-        <button id="cartButton" type="button" class="cart-nav-button">
-            <span>カートを見る</span>
+        <button id="cartButton" type="button" class="cart-nav-button" aria-label="カートを見る">
+            <span id="cartButtonLabel" class="cart-button-label">カートを見る</span>
             <span class="cart-icon">🛒</span>
+            <span id="cartCountBadge" class="cart-count-badge" hidden>0</span>
         </button>
     </nav>
 </section>
