@@ -121,6 +121,26 @@ document.addEventListener('DOMContentLoaded', () => {
         return menus.find(menu => String(menu.id) === String(menuId));
     }
 
+    function updateCartButtonState() {
+        const button = document.getElementById('cartButton');
+        const badge = document.getElementById('cartCountBadge');
+        const label = document.getElementById('cartButtonLabel');
+
+        if (!button || !badge || !label) {
+            return;
+        }
+
+        const count = state.cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+        const totalAmount = state.cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
+        const hasItems = count > 0;
+
+        button.classList.toggle('has-items', hasItems);
+        badge.textContent = String(count);
+        badge.hidden = !hasItems;
+        label.textContent = hasItems ? `合計 ${formatYen(totalAmount)}` : 'カートを見る';
+        button.setAttribute('aria-label', hasItems ? `カートを見る（${count}点・合計${formatYen(totalAmount)}）` : 'カートを見る');
+    }
+
     function getDisplayPrice(menu) {
         if (Number(menu.plan_applied_flag || 0) === 1) {
             return 0;
@@ -229,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rememberSessionInUrl(result);
         updateTableNoDisplay();
         cartHistoryModule.renderCart();
+        updateCartButtonState();
         renderMenuAndShow();
     }
 
@@ -252,6 +273,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function renderProductSubtotal() {
+        const subtotalEl = document.getElementById('productSubtotal');
+        const quantityInput = document.getElementById('quantityInput');
+
+        if (!subtotalEl || !quantityInput || !state.selectedMenu) {
+            return;
+        }
+
+        const unitPrice = getDisplayPrice(state.selectedMenu);
+        const quantity = Number(quantityInput.value) || 1;
+        const subtotal = unitPrice * Math.max(1, Math.floor(quantity));
+
+        subtotalEl.textContent = `小計：${formatYen(subtotal)}`;
+    }
+
     function openProduct(menu, quantity = 1, resetEditing = true) {
         state.selectedMenu = menu;
 
@@ -268,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('productName').textContent = menu.name;
         document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
         document.getElementById('quantityInput').value = String(quantity);
+        renderProductSubtotal();
 
         showScreen('productScreen');
     }
@@ -424,7 +461,8 @@ document.addEventListener('DOMContentLoaded', () => {
         openProduct,
         refreshCategoryScrollButtons: menuModule.refreshCategoryScrollButtons,
         deleteCartFromServer,
-        submitOrderToServer
+        submitOrderToServer,
+        updateCartButtonState
     });
 
     document.getElementById('tableSubmitButton').addEventListener('click', async () => {
@@ -490,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Number.isNaN(current)) current = 1;
 
         input.value = String(Math.max(1, current - 1));
+        renderProductSubtotal();
     });
 
     document.getElementById('plusButton').addEventListener('click', () => {
@@ -498,6 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Number.isNaN(current)) current = 1;
 
         input.value = String(Math.min(99, current + 1));
+        renderProductSubtotal();
     });
 
     document.getElementById('addCartButton').addEventListener('click', async () => {
@@ -522,17 +562,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const result = state.editingItem
+            const isEditingExistingItem = state.editingItem !== null;
+            const result = isEditingExistingItem
                 ? await updateCartOnServer(state.selectedMenu.id, quantityValue)
                 : await addCartToServer(state.selectedMenu.id, quantityValue);
 
             state.editingItem = null;
             state.cart = result.cart_items || [];
             cartHistoryModule.renderCart();
+            updateCartButtonState();
 
-            showToast(result.message || 'カートに商品を追加しました');
-            showScreen('menuScreen');
-            requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+            showToast(result.message || (isEditingExistingItem ? '数量を変更しました' : 'カートに商品を追加しました'));
+            showScreen(isEditingExistingItem ? 'cartScreen' : 'menuScreen');
+
+            if (!isEditingExistingItem) {
+                requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+            }
         } catch (error) {
             showToast(error.message || 'カート追加に失敗しました');
         }
@@ -546,6 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
     menuModule.renderMenu();
     cartHistoryModule.renderCart();
     cartHistoryModule.renderHistory();
+    updateCartButtonState();
 
     if (window.MOS_CART_FLASH?.message) {
         showToast(window.MOS_CART_FLASH.message);

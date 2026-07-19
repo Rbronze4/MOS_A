@@ -14,6 +14,7 @@
         <div class="product-body">
             <p id="productName" class="product-name">商品名</p>
             <p id="productPrice" class="product-price">¥0</p>
+            <p id="productSubtotal" class="product-subtotal">小計：¥0</p>
         </div>
     </div>
 
