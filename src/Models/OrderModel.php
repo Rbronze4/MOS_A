@@ -60,9 +60,15 @@ final class OrderModel
                 $unitPrice = (int)$item['display_unit_price'];
                 $optionAdditionalPrice = (int)$item['option_additional_price'];
                 $planAppliedFlag = $unitPrice === 0 ? 1 : 0;
-                $taxIncludedUnitPrice = $planAppliedFlag === 1
-                    ? 0
-                    : $this->taxIncludedPrice($unitPrice, (float)$item['tax_rate']);
+
+                // オプションの追加料金は税抜で保存されているため、商品の税抜価格と合算して
+                // から税を掛ける。個別に税込化して足すと端数処理が2回入り、税抜合計へ
+                // 課税するレジ側の計算と1円ずれることがある。
+                // プラン対象商品は商品分が0円なので、オプション分だけに課税される。
+                $taxIncludedTotalUnitPrice = $this->taxIncludedPrice(
+                    ($planAppliedFlag === 1 ? 0 : $unitPrice) + $optionAdditionalPrice,
+                    (float)$item['tax_rate']
+                );
 
                 $orderDetailId = $this->insertOrderDetail(
                     $orderId,
@@ -75,7 +81,9 @@ final class OrderModel
                 $this->copyCartOptionsToOrder((int)$item['cart_detail_id'], $orderDetailId);
 
                 $totalQuantity += $quantity;
-                $totalAmount += ($taxIncludedUnitPrice + $optionAdditionalPrice) * $quantity;
+
+                // 税込単価（オプション込み）はすでに合算済みのため、ここで再度足さない。
+                $totalAmount += $taxIncludedTotalUnitPrice * $quantity;
             }
 
             $this->deleteCartDetails($cartId);
@@ -154,10 +162,13 @@ final class OrderModel
                 'order_detail_id' => (int)$row['order_detail_id'],
                 'order_id' => (int)$row['order_id'],
                 'name' => (string)$row['ordered_product_name'],
+                // オプションの追加料金は税抜で保存されているため、商品の税抜価格と合算して
+                // から税を掛ける。個別に税込化して足すと端数処理が2回入り、税抜合計へ
+                // 課税するレジ側の計算と1円ずれることがある。
                 'price' => $this->taxIncludedPrice(
-                    (int)$row['ordered_unit_price'],
+                    (int)$row['ordered_unit_price'] + (int)$row['option_additional_price'],
                     (float)$row['tax_rate']
-                ) + (int)$row['option_additional_price'],
+                ),
                 'quantity' => (int)$row['quantity'],
                 'option_summary' => $row['option_summary'] === null ? '' : (string)$row['option_summary'],
                 'status' => (string)$row['detail_status'],

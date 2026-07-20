@@ -205,6 +205,10 @@ final class CartModel
                     ELSE FLOOR(p.price * (1 + (p.tax_rate / 100)))
                 END AS display_unit_price,
                 FLOOR(p.price * (1 + (p.tax_rate / 100))) AS normal_price,
+                -- オプション料金にも同じ税率を掛けるため、税抜単価と税率をそのまま渡す。
+                -- 税込化はPHP側で「税抜(商品+オプション)合計 × 税率」としてまとめて行う。
+                p.price AS net_unit_price,
+                p.tax_rate,
                 CASE
                     WHEN EXISTS (
                         SELECT 1
@@ -244,13 +248,22 @@ final class CartModel
         foreach ($statement->fetchAll() as $row) {
             $cartDetailId = (int)$row['cart_detail_id'];
             $options = $optionsByCartDetail[$cartDetailId] ?? [];
+
+            // オプションの追加料金は税抜で保存されているため、商品の税抜価格と合算してから
+            // 税を掛ける。個別に税込化して足すと端数処理が2回入り、税抜合計へ課税する
+            // レジ側の計算と1円ずれることがある。
             $additionalPrice = array_sum(array_column($options, 'additional_price'));
+            $taxRate = (float)$row['tax_rate'];
+            $planApplied = (int)$row['plan_applied_flag'] === 1;
+
+            // プラン対象商品は商品分が0円。オプション分だけに課税する。
+            $netUnitPrice = $planApplied ? 0 : (int)$row['net_unit_price'];
 
             $items[] = [
                 'id' => (int)$row['product_id'],
                 'name' => (string)$row['product_name'],
-                'price' => (int)$row['display_unit_price'] + $additionalPrice,
-                'normal_price' => (int)$row['normal_price'] + $additionalPrice,
+                'price' => $this->taxIncludedPrice($netUnitPrice + $additionalPrice, $taxRate),
+                'normal_price' => $this->taxIncludedPrice((int)$row['net_unit_price'] + $additionalPrice, $taxRate),
                 'plan_applied_flag' => (int)$row['plan_applied_flag'],
                 'quantity' => (int)$row['quantity'],
                 'option_ids' => array_column($options, 'option_id'),
@@ -259,6 +272,19 @@ final class CartModel
         }
 
         return $items;
+    }
+
+    /**
+     * 税抜価格へ税率を適用し、税込価格の1円未満を切り捨てる。
+     *
+     * 浮動小数点の誤差を避けるため、税率をベーシスポイント（100倍の整数）にして整数演算する。
+     * MenuModel / OrderModel の同名メソッドと同じ計算にすること。
+     */
+    private function taxIncludedPrice(int $price, float $taxRate): int
+    {
+        $taxRateBasisPoints = (int)round($taxRate * 100);
+
+        return intdiv($price * (10000 + $taxRateBasisPoints), 10000);
     }
 
     /**

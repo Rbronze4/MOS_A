@@ -65,9 +65,11 @@ $jsFile = $jsFile ?? '';
             peopleCount: <?= json_encode($peopleCount ?? 2, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             hasActiveCustomerPlan: <?= json_encode($hasActiveCustomerPlan ?? false, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             activeCustomerPlan: <?= json_encode($activeCustomerPlan ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
-            // 店舗別・制限時間別のプラン単価（DBのplans）。
+            // 店舗別・制限時間別のプラン単価（DBのplans・税抜）。
             // 形: { standard: { "120": 2200, "180": 3000 }, premium: { ... } }
-            planUnitPrices: <?= json_encode($planUnitPrices ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+            planUnitPrices: <?= json_encode($planUnitPrices ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            // プラン単価は税抜のため、客側の表示はこの税率で税込にする。
+            planTaxRate: <?= json_encode($planTaxRate ?? 10, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
         };
     </script>
 <?php endif; ?>

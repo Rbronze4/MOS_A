@@ -22,9 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasActiveCustomerPlan = window.MOS_DATA.hasActiveCustomerPlan === true;
     const activeCustomerPlan = window.MOS_DATA.activeCustomerPlan || null;
 
-    // 店舗別・制限時間別のプラン単価（DBのplans由来）。
+    // 店舗別・制限時間別のプラン単価（DBのplans由来・税抜）。
     // 形: { standard: { "120": 2200, "180": 3000 }, premium: { "120": 3200, "180": 4200 } }
     const planUnitPrices = window.MOS_DATA.planUnitPrices || {};
+
+    // プラン単価は税抜のため、表示時はこの税率で税込にする。
+    // レジもAPIのtaxRateで税を上乗せするため、客が見た額と請求額を一致させるのに必要。
+    const planTaxRate = Number(window.MOS_DATA.planTaxRate ?? 10);
 
     function categoryId(category) {
         return typeof category === 'object' && category !== null
@@ -127,6 +131,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return Number(menu.display_price ?? menu.price ?? 0);
+    }
+
+    /**
+     * 税抜価格へ税率を適用し、税込価格の1円未満を切り捨てる。
+     * サーバー側(MenuModel / OrderModel / CartModel)のtaxIncludedPriceと同じ計算にすること。
+     */
+    function taxIncludedPrice(price, taxRate) {
+        const basisPoints = Math.round(Number(taxRate || 0) * 100);
+
+        return Math.floor((Number(price || 0) * (10000 + basisPoints)) / 10000);
+    }
+
+    /**
+     * オプション込みの税込単価を求める。
+     *
+     * オプションの追加料金は税抜のため、商品の税抜価格と合算してから税を掛ける。
+     * 個別に税込化して足すと端数処理が2回入り、税抜合計へ課税するレジ側の計算と
+     * 1円ずれることがある。プラン対象商品は商品分が0円のため、オプション分だけに課税される。
+     */
+    function priceWithOptions(menu, additionalPrice) {
+        const planApplied = Number(menu.plan_applied_flag || 0) === 1;
+        const netUnitPrice = planApplied ? 0 : Number(menu.price ?? 0);
+
+        return taxIncludedPrice(netUnitPrice + Number(additionalPrice || 0), menu.tax_rate);
     }
 
     async function postCartAction(url, values) {
@@ -294,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 0);
         }, 0);
 
-        document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu) + additionalPrice);
+        document.getElementById('productPrice').textContent = formatYen(priceWithOptions(menu, additionalPrice));
     }
 
     function renderProductOptions(menu, selectedOptionIds = []) {
@@ -318,7 +346,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p class="product-option-rule">${instruction}</p>
                     <div class="product-option-choices">
                         ${(group.options || []).map(option => {
-                            const additionalPrice = Number(option.additional_price || 0);
+                            // オプションの追加料金も税抜で保存されているため、
+                            // 商品と同じ税率で税込にしてから見せる。
+                            const additionalPrice = taxIncludedPrice(
+                                Number(option.additional_price || 0),
+                                menu.tax_rate
+                            );
                             const optionId = Number(option.option_id);
                             return `
                                 <label class="product-option-choice">
@@ -489,6 +522,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const planModule = window.MOS.customer.createPlanModule({
         plans,
         planUnitPrices,
+        planTaxRate,
+        taxIncludedPrice,
         state,
         categories,
         formatYen,
@@ -506,6 +541,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     cartHistoryModule = window.MOS.customer.createCartHistoryModule({
         state,
+        planTaxRate,
+        taxIncludedPrice,
         formatYen,
         findMenu,
         findPlan,

@@ -47,8 +47,12 @@ final class CustomerController
         $activeCustomerPlan = null;
         $hasActiveCustomerPlan = false;
 
-        // 店舗別・制限時間別のプラン単価。店舗が確定してからDBで取得する。
+        // 店舗別・制限時間別のプラン単価（税抜）。店舗が確定してからDBで取得する。
         $planUnitPrices = [];
+
+        // プラン単価は税抜のため、客側の表示は必ずこの税率で税込にする。
+        // レジもAPIのtaxRateで税を上乗せするので、同じ税率を使わないと請求額とずれる。
+        $planTaxRate = PlanModel::COURSE_TAX_RATE;
 
         try {
             if ($sessionId !== null) {

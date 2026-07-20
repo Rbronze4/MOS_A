@@ -14,6 +14,8 @@ window.MOS.customer = window.MOS.customer || {};
 window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(context) {
     const {
         state,
+        planTaxRate,
+        taxIncludedPrice,
         formatYen,
         findMenu,
         findPlan,
@@ -56,23 +58,27 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         // 単価はDBのcustomer_plans（プラン確定時に登録された実際の単価）だけを使う。
         // 画面用のプラン定義は価格を持たない（店舗・制限時間で価格が変わるため）。
+        // この単価は税抜のため、表示・合計では必ず税込にする。
         const dbPlan = state.activeCustomerPlan || null;
-        const unitPrice = Number(dbPlan?.unit_price ?? dbPlan?.price ?? 0);
+        const netUnitPrice = Number(dbPlan?.unit_price ?? dbPlan?.price ?? 0);
 
-        if (unitPrice <= 0) {
+        if (netUnitPrice <= 0) {
             return null;
         }
 
         return {
             ...plan,
-            price: unitPrice
+            netPrice: netUnitPrice,
+            price: taxIncludedPrice(netUnitPrice, planTaxRate)
         };
     }
 
-    // コース料金の合計（プラン料金 × 人数）。コースなしは0。
+    // コース料金の合計（税込）。コースなしは0。
+    // 「税抜合計×税率」で求める。単価を税込にしてから人数を掛けると端数処理が先に入り、
+    // 税抜合計へ課税するレジ側の計算とずれることがある。
     function courseTotal() {
         const plan = selectedCoursePlan();
-        return plan ? plan.price * headcount() : 0;
+        return plan ? taxIncludedPrice(plan.netPrice * headcount(), planTaxRate) : 0;
     }
 
     function historyTotal() {
@@ -223,7 +229,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                     <span class="history-status">[コース]</span>
                     <span>${escapeHtml(coursePlan.name)}</span>
                     <span>${headcount()}名</span>
-                    <span>${formatYen(coursePlan.price * headcount())}</span>
+                    <span>${formatYen(courseTotal())}</span>
                 </div>
             `);
         }
