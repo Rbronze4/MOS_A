@@ -168,32 +168,18 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         return updatedOrders;
     }
 
-    function getProductColor(name) {
-        const productName = String(name);
-
-        if (
-            productName.includes('ビール') ||
-            productName.includes('枝豆') ||
-            productName.includes('もも')
-        ) {
-            return 'table-blue';
-        }
-
-        if (
-            productName.includes('とりかわ') ||
-            productName.includes('チキン')
-        ) {
-            return 'table-orange';
-        }
-
-        if (
-            productName.includes('赤') ||
-            productName.includes('ハイ')
-        ) {
-            return 'table-red';
-        }
-
-        return '';
+    /**
+     * 商品名に色を付けるためのCSSクラスを返す。
+     *
+     * 飲み放題プランの対象商品（plan_applied_flag=1）だけを色付きにして、
+     * スタッフが「この注文は個別会計が不要」と一目で判断できるようにする。
+     *
+     * 以前は商品名の文字列一致（「ビール」を含むなど）で色を決めていたため、
+     * 飲み放題対象でない商品にも色が付き、逆に対象商品が無色になっていた。
+     * 判定は必ずDB由来の plan_applied_flag を使う。
+     */
+    function getProductColor(order) {
+        return Number(order?.plan_applied_flag || 0) === 1 ? 'table-blue' : '';
     }
 
     function statusTitle() {
@@ -276,7 +262,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                         ${escapedTableNo}
                     </td>
 
-                    <td class="${getProductColor(order.name)}">
+                    <td class="${getProductColor(order)}">
                         ${escapedName}
                     </td>
 
