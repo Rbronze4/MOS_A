@@ -567,15 +567,27 @@ final class StaffController
      */
     public function latestOrders(): void
     {
-        $this->requireStaffLogin();
+        // これは画面ではなくJSからのAPI。セッション切れでログイン画面へリダイレクトすると、
+        // fetchがHTML(200)を受け取り、フロントはエラーに気づけないまま無駄な取得を続ける。
+        // そのため画面用のrequireStaffLoginは使わず、未ログインは401 JSONで明示する。
+        if (!$this->isLoggedIn()) {
+            $this->json([
+                'ok' => false,
+                'authenticated' => false,
+                'message' => 'ログインの有効期限が切れました。再度ログインしてください。',
+            ], 401);
+        }
 
+        // store_idが無いのはセッションが壊れた状態で、実質的に未ログインと同じ。
+        // フロントは401でポーリングを止めるため、ここも401に統一する（403にしない）。
         $storeId = trim((string)($_SESSION['store_id'] ?? ''));
 
         if ($storeId === '') {
             $this->json([
                 'ok' => false,
-                'message' => '店舗情報が取得できません。再度ログインしてください。',
-            ], 403);
+                'authenticated' => false,
+                'message' => 'ログインの有効期限が切れました。再度ログインしてください。',
+            ], 401);
         }
 
         try {
@@ -1015,8 +1027,20 @@ final class StaffController
 
     private function isLoggedIn(): bool
     {
-        return isset($_SESSION['staff_id'], $_SESSION['store_id'], $_SESSION['store_name'], $_SESSION['role'])
-            && $_SESSION['role'] === self::ROLE_STAFF;
+        // キーの存在だけでなく中身が空でないことまで確認する。
+        // store_id等が空のままだと、ログイン画面はログイン済みとみなして
+        // スタッフ画面へ戻す一方、APIは無効セッション扱いになり、往復状態に陥る。
+        if (($_SESSION['role'] ?? '') !== self::ROLE_STAFF) {
+            return false;
+        }
+
+        foreach (['staff_id', 'store_id', 'store_name'] as $key) {
+            if (trim((string)($_SESSION[$key] ?? '')) === '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function redirect(string $path, int $statusCode = 302): void
