@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Database/db.php';
+// コース税率の定数（COURSE_TAX_RATE）を客側表示と共有するために読み込む。
+require_once __DIR__ . '/PlanModel.php';
 
 /**
  * レジ連携API（/api/orders）用のModel。
@@ -26,8 +28,11 @@ final class ApiOrderModel
     /**
      * コース（飲み放題プラン）料金の税率（%）。
      * plansテーブルに税率の列が無いため、店内飲食の標準税率として10%で固定する。
+     *
+     * 客側の表示（plans.js）も同じ税率で税込計算するため、
+     * 値が二重管理にならないようPlanModelの定数を唯一の定義元とする。
      */
-    private const COURSE_TAX_RATE = 10;
+    private const COURSE_TAX_RATE = PlanModel::COURSE_TAX_RATE;
 
     /**
      * 条件に一致する注文を、レジの契約どおりの形で返す。

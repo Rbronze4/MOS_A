@@ -11,6 +11,8 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
     const {
         plans,
         planUnitPrices,
+        planTaxRate,
+        taxIncludedPrice,
         state,
         categories,
         formatYen,
@@ -155,9 +157,19 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
      */
     function renderPlanPriceAndDetails(plan) {
         const peopleCount = currentPeopleCount();
-        const unitPrice = unitPriceFor(plan.id, selectedMinutes);
-        const available = unitPrice !== null;
-        const totalPrice = available ? unitPrice * peopleCount : 0;
+
+        // DBのplans.priceは税抜。客に見せる金額は必ず税込にする。
+        // レジもAPIのtaxRateで税を上乗せするため、税抜のまま表示すると
+        // 客が見た額より実際の請求額が高くなってしまう。
+        const netUnitPrice = unitPriceFor(plan.id, selectedMinutes);
+        const available = netUnitPrice !== null;
+
+        const unitPrice = available ? taxIncludedPrice(netUnitPrice, planTaxRate) : 0;
+        // 合計も「税抜合計×税率」で求める。単価を税込にしてから人数を掛けると
+        // 端数処理が先に入り、税抜合計へ課税するレジ側の計算とずれることがある。
+        const totalPrice = available
+            ? taxIncludedPrice(netUnitPrice * peopleCount, planTaxRate)
+            : 0;
 
         const priceElement = document.getElementById('modalPlanPrice');
         const detailsElement = document.getElementById('modalPlanDetails');
@@ -169,7 +181,7 @@ window.MOS.customer.createPlanModule = function createPlanModule(context) {
         const details = [...plan.details];
 
         if (available && unitPrice > 0) {
-            details.push(`${formatYen(unitPrice)}/人`);
+            details.push(`${formatYen(unitPrice)}/人（税込）`);
             details.push(`大人${peopleCount}人`);
         }
 

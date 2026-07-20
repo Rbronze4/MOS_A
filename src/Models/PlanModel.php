@@ -15,6 +15,16 @@ require_once dirname(__DIR__) . '/Database/db.php';
  */
 final class PlanModel
 {
+    /**
+     * コース（飲み放題プラン）の税率。
+     *
+     * plansには税率の列が無いため、店内飲食の標準税率10%を固定で使う。
+     * plans.priceは税抜で、レジもAPIのtaxRateを使って税を上乗せするため、
+     * 客側の表示も同じ税率で税込にしないと、客が見た額と請求額がずれる。
+     * ApiOrderModel::COURSE_TAX_RATE と必ず同じ値にすること。
+     */
+    public const COURSE_TAX_RATE = 10;
+
     // 画面用のプランキーとDBのplan_type_idの対応。
     // CustomerSessionModelのPLAN_TYPE_BY_KEYと同じ対応にすること。
     private const PLAN_KEY_BY_TYPE = [
