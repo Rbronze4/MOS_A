@@ -222,6 +222,11 @@ final class StaffOrderModel
      *
      * 店舗判定はsessions.store_idで行う。
      * 固定店舗IDは使わず、Controllerから渡されたログイン中のstore_idを必ずバインドする。
+     *
+     * 対象は「まだ会計が終わっていない顧客」の注文だけに絞る。
+     * 絞らないと過去の営業日の注文まで含まれ、日が経つほど取得件数が増え続ける。
+     * 注文一覧は今いる客への提供状況を見る画面なので、会計済みの注文は表示しない。
+     * （会計済み顧客の明細は顧客詳細画面から確認できる）
      */
     public function ordersForStore(string $storeId): array
     {
@@ -247,7 +252,11 @@ final class StaffOrderModel
                 ON o.order_id = od.order_id
             INNER JOIN sessions AS s
                 ON s.session_id = o.session_id
+            INNER JOIN customers AS c
+                ON c.customer_id = s.customer_id
             WHERE s.store_id = :store_id
+              -- billing_status 1:受付中 8:会計中 が営業中の顧客。2:会計済み 4:未収金 は除く
+              AND c.billing_status IN (1, 8)
             ORDER BY
                 o.ordered_at ASC,
                 od.order_detail_id ASC

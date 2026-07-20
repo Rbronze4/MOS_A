@@ -112,25 +112,21 @@ final class StaffController
 
         $title = 'スタッフホーム';
 
-        // CSS/JSを更新してもブラウザが古いキャッシュを使い続けないよう、
-        // 他のスタッフ画面と同じくバージョン文字列を付ける。
-        $assetVersion = time();
-
         $cssFiles = [
-            '/MOS_A/public/assets/css/common/base.css?v=' . $assetVersion,
-            '/MOS_A/public/assets/css/staff/base.css?v=' . $assetVersion,
-            '/MOS_A/public/assets/css/staff/orders.css?v=' . $assetVersion,
-            '/MOS_A/public/assets/css/staff/modals-products.css?v=' . $assetVersion,
-            '/MOS_A/public/assets/css/staff/navigation.css?v=' . $assetVersion,
-            '/MOS_A/public/assets/css/staff/order-list.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/common/base.css',
+            '/MOS_A/public/assets/css/staff/base.css',
+            '/MOS_A/public/assets/css/staff/orders.css',
+            '/MOS_A/public/assets/css/staff/modals-products.css',
+            '/MOS_A/public/assets/css/staff/navigation.css',
+            '/MOS_A/public/assets/css/staff/order-list.css',
         ];
         $jsFiles = [
-            '/MOS_A/public/assets/js/common/side-menu.js?v=' . $assetVersion,
-            '/MOS_A/public/assets/js/staff/dashboard/orders.js?v=' . $assetVersion,
-            '/MOS_A/public/assets/js/staff/dashboard/products.js?v=' . $assetVersion,
-            '/MOS_A/public/assets/js/staff/dashboard/customers.js?v=' . $assetVersion,
-            '/MOS_A/public/assets/js/staff/dashboard/qr.js?v=' . $assetVersion,
-            '/MOS_A/public/assets/js/staff/dashboard.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/common/side-menu.js',
+            '/MOS_A/public/assets/js/staff/dashboard/orders.js',
+            '/MOS_A/public/assets/js/staff/dashboard/products.js',
+            '/MOS_A/public/assets/js/staff/dashboard/customers.js',
+            '/MOS_A/public/assets/js/staff/dashboard/qr.js',
+            '/MOS_A/public/assets/js/staff/dashboard.js',
         ];
 
         $storeName = (string)($_SESSION['store_name'] ?? '');
@@ -560,6 +556,43 @@ final class StaffController
         }
 
         $this->redirect($redirectPath);
+    }
+
+    /**
+     * 注文一覧の最新状態をJSONで返す（タブレットの定期取得用）。
+     *
+     * 客が注文しても画面はひとりでに変わらないため、スタッフ側から定期的に問い合わせる。
+     * 画面全体を再読み込みすると一括取消のチェックや編集中のモーダルが消えてしまうので、
+     * 一覧データだけを返してフロント側で反映の可否を判断させる。
+     */
+    public function latestOrders(): void
+    {
+        $this->requireStaffLogin();
+
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'message' => '店舗情報が取得できません。再度ログインしてください。',
+            ], 403);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+
+            $this->json([
+                'ok' => true,
+                'orders' => $model->ordersForStore($storeId),
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-orders-latest] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => '注文一覧の取得に失敗しました。',
+            ], 500);
+        }
     }
 
     public function updateOrderProvision(): void
@@ -1056,6 +1089,17 @@ final class StaffController
 
         // 再発行ボタン経由の場合は印刷物に「再発行」ラベルを表示する
         $isReissue = (string)($_GET['reissue'] ?? '') === '1';
+
+        // 同じ顧客が複数の卓に分かれる場合などに、同一QRを複数枚印刷できるようにする。
+        // 顧客番号は1つのままなので、同じQRを指定枚数ぶん並べるだけ。
+        $printCount = filter_input(INPUT_GET, 'count', FILTER_VALIDATE_INT);
+
+        if ($printCount === false || $printCount === null || $printCount < 1) {
+            $printCount = 1;
+        }
+
+        // 誤入力で大量のページが生成されないよう上限を設ける（入力欄と同じ99枚）
+        $printCount = min(99, $printCount);
 
         if ($storeId === '') {
             http_response_code(403);

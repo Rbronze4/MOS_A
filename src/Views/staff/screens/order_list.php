@@ -10,8 +10,27 @@
         <button class="hamburger-button" type="button">☰</button>
     </div>
 
+    <!--
+        新しい注文が入ったことを知らせるバナー。
+        一括取消のチェック中や編集モーダル表示中は画面を書き換えず、ここで知らせるだけにする。
+        タップすると保留していた最新の内容へ更新する（dashboard/orders.js）。
+    -->
+    <button id="orderUpdateBanner" class="order-update-banner" type="button">
+        新しい注文があります（タップして更新）
+    </button>
+
     <div class="order-list-top">
-        <p class="note">※赤色は飲み放題注文者</p>
+        <div class="order-list-note-area">
+            <p class="note">※青色は飲み放題対象の商品</p>
+
+            <!--
+                今すぐ最新の注文を確認したいときに押す。自動更新(20秒間隔)を待たずに取得する。
+                タブごとの切替ボタンとは離した位置に置き、忙しい時の誤タップを避ける。
+            -->
+            <button id="orderRefreshButton" class="order-refresh-button" type="button">
+                最新の注文を読み込む
+            </button>
+        </div>
 
         <div class="order-switch-buttons">
             <button id="showWaitingOrders" class="active" type="button">注文一覧</button>
