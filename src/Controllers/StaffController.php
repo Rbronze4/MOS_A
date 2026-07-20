@@ -112,21 +112,25 @@ final class StaffController
 
         $title = 'スタッフホーム';
 
+        // CSS/JSを更新してもブラウザが古いキャッシュを使い続けないよう、
+        // 他のスタッフ画面と同じくバージョン文字列を付ける。
+        $assetVersion = time();
+
         $cssFiles = [
-            '/MOS_A/public/assets/css/common/base.css',
-            '/MOS_A/public/assets/css/staff/base.css',
-            '/MOS_A/public/assets/css/staff/orders.css',
-            '/MOS_A/public/assets/css/staff/modals-products.css',
-            '/MOS_A/public/assets/css/staff/navigation.css',
-            '/MOS_A/public/assets/css/staff/order-list.css',
+            '/MOS_A/public/assets/css/common/base.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff/base.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff/orders.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff/modals-products.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff/navigation.css?v=' . $assetVersion,
+            '/MOS_A/public/assets/css/staff/order-list.css?v=' . $assetVersion,
         ];
         $jsFiles = [
-            '/MOS_A/public/assets/js/common/side-menu.js',
-            '/MOS_A/public/assets/js/staff/dashboard/orders.js',
-            '/MOS_A/public/assets/js/staff/dashboard/products.js',
-            '/MOS_A/public/assets/js/staff/dashboard/customers.js',
-            '/MOS_A/public/assets/js/staff/dashboard/qr.js',
-            '/MOS_A/public/assets/js/staff/dashboard.js',
+            '/MOS_A/public/assets/js/common/side-menu.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/orders.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/products.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/customers.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard/qr.js?v=' . $assetVersion,
+            '/MOS_A/public/assets/js/staff/dashboard.js?v=' . $assetVersion,
         ];
 
         $storeName = (string)($_SESSION['store_name'] ?? '');
