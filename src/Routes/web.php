@@ -110,6 +110,11 @@ switch ($path) {
         echo '405 Method Not Allowed';
         break;
 
+    case '/staff/orders/latest':
+        $controller = new StaffController();
+        $controller->latestOrders();
+        break;
+
     case '/staff/order/provision':
         $controller = new StaffController();
 

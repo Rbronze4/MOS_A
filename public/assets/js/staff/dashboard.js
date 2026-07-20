@@ -169,7 +169,8 @@ const {
     renderOrderDetail,
     openOrderEditModal,
     cancelOrders,
-    restoreOrders
+    restoreOrders,
+    startOrderPolling
 } = orderModule;
 
 // 一括操作ボタンのラベルを、現在のタブに合わせて切り替える。
@@ -459,8 +460,18 @@ if (issueQrButton) {
             return;
         }
 
+        // 枚数は「同じ顧客のQRを何枚印刷するか」。未入力なら1枚として扱う。
+        // 顧客はあくまで1件だけ作り、同じQRを枚数ぶん印刷する。
+        const countValue = document.getElementById('countInput')?.value ?? '';
+        const count = countValue === '' ? 1 : Number(countValue);
+
+        if (!Number.isInteger(count) || count < 1 || count > QR_INPUT_MAX) {
+            openCompleteModal(`枚数は1〜${QR_INPUT_MAX}で入力してください。`);
+            return;
+        }
+
         // サーバーで顧客を連番発行し、その customer_id でQRを表示する
-        issueCustomer(people, 'QR発行が完了しました。');
+        issueCustomer(people, 'QR発行が完了しました。', count);
     });
 }
 
@@ -514,6 +525,9 @@ if (bulkCancelButtonElement) {
 setOrderTabActive('showWaitingOrders');
 renderOrders();
 updateBulkButtonLabel();
+
+// 客が注文しても画面は自動で変わらないため、一定間隔で最新の注文一覧を取りに行く
+startOrderPolling();
 renderProducts();
 renderOrderDetail();
 setupCustomerSelection();
