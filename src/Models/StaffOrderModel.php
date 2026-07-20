@@ -11,6 +11,14 @@ require_once dirname(__DIR__) . '/Database/db.php';
  */
 final class StaffOrderModel
 {
+    /**
+     * 商品IDごとの税率キャッシュ。
+     * 注文一覧では同じ商品が何度も現れるため、1リクエスト内で使い回してN+1を避ける。
+     *
+     * @var array<int, float>
+     */
+    private array $taxRateCache = [];
+
     public function activeSessionByTable(string $storeId, string $tableNumber, bool $forUpdate = false): ?array
     {
         $lockSql = $forUpdate ? 'FOR UPDATE' : '';
@@ -159,14 +167,20 @@ final class StaffOrderModel
                 $quantity = (int)$item['quantity'];
                 $unitPrice = (int)$product['plan_applied_flag'] === 1 ? 0 : (int)$product['price'];
                 $planAppliedFlag = (int)$product['plan_applied_flag'];
-                $taxIncludedUnitPrice = $planAppliedFlag === 1
-                    ? 0
-                    : $this->taxIncludedPrice($unitPrice, (float)$product['tax_rate']);
                 $selectedOptions = $this->validatedStaffOrderOptions(
                     (int)$product['product_id'],
                     $item['option_ids']
                 );
                 $optionAdditionalPrice = array_sum(array_column($selectedOptions, 'additional_price'));
+
+                // オプションの追加料金は税抜で保存されているため、商品の税抜価格と合算して
+                // から税を掛ける。個別に税込化して足すと端数処理が2回入り、税抜合計へ
+                // 課税するレジ側の計算と1円ずれることがある。
+                // プラン対象商品は商品分が0円なので、オプション分だけに課税される。
+                $taxIncludedTotalUnitPrice = $this->taxIncludedPrice(
+                    $unitPrice + $optionAdditionalPrice,
+                    (float)$product['tax_rate']
+                );
 
                 $orderDetailId = $this->insertStaffOrderDetail(
                     $orderId,
@@ -179,7 +193,9 @@ final class StaffOrderModel
                 $this->insertStaffOrderOptions($orderDetailId, $selectedOptions);
 
                 $totalQuantity += $quantity;
-                $totalAmount += ($taxIncludedUnitPrice + $optionAdditionalPrice) * $quantity;
+
+                // 税込単価（オプション込み）はすでに合算済みのため、ここで再度足さない。
+                $totalAmount += $taxIncludedTotalUnitPrice * $quantity;
             }
 
             $pdo->commit();
@@ -1281,9 +1297,37 @@ final class StaffOrderModel
             'status' => $this->displayStatus($detailStatus, $quantity, $displayProvidedQuantity),
             'status_label' => $this->statusLabel($detailStatus, $quantity, $displayProvidedQuantity),
             'detail_status' => $detailStatus,
-            'price' => (int)$row['ordered_unit_price'] + $optionAdditionalPrice,
+            // オプションの追加料金も商品と同じく税抜で保存されているため、合算してから
+            // 税を掛ける。呼び出し元のSQLはproductsを結合していないので、税率はここで引く。
+            'price' => $this->taxIncludedPrice(
+                (int)$row['ordered_unit_price'] + $optionAdditionalPrice,
+                $this->taxRateForProduct((int)$row['product_id'])
+            ),
             'plan_applied_flag' => (int)$row['plan_applied_flag'],
         ];
+    }
+
+    /**
+     * 商品の税率を取得する。
+     *
+     * 注文一覧のSQLはproductsを結合していないため、表示価格の税込計算用にここで引く。
+     * 一覧では同じ商品が何度も現れるので、1リクエスト内はキャッシュしてN+1を避ける。
+     * 商品が削除されている場合は、店内飲食の標準税率10%で代替する。
+     */
+    private function taxRateForProduct(int $productId): float
+    {
+        if (array_key_exists($productId, $this->taxRateCache)) {
+            return $this->taxRateCache[$productId];
+        }
+
+        $statement = db()->prepare('SELECT tax_rate FROM products WHERE product_id = :product_id LIMIT 1');
+        $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $taxRate = $statement->fetchColumn();
+        $this->taxRateCache[$productId] = $taxRate === false ? 10.0 : (float)$taxRate;
+
+        return $this->taxRateCache[$productId];
     }
 
     /**

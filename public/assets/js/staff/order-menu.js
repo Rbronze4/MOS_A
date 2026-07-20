@@ -242,10 +242,34 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
+    /**
+     * 税抜価格へ税率を適用し、税込価格の1円未満を切り捨てる。
+     * サーバー側(StaffOrderModel / MenuModel)のtaxIncludedPriceと同じ計算にすること。
+     */
+    function taxIncludedPrice(price, taxRate) {
+        const basisPoints = Math.round(Number(taxRate || 0) * 100);
+
+        return Math.floor((Number(price || 0) * (10000 + basisPoints)) / 10000);
+    }
+
+    /**
+     * オプション込みの税込単価を求める。
+     *
+     * オプションの追加料金は税抜のため、商品の税抜価格と合算してから税を掛ける。
+     * 個別に税込化して足すと端数処理が2回入り、税抜合計へ課税するレジ側の計算と
+     * 1円ずれることがある。プラン対象商品は商品分が0円のため、オプション分だけに課税される。
+     */
+    function unitPriceWithOptions(menu, optionPrice) {
+        const planApplied = Number(menu.plan_applied_flag || 0) === 1;
+        const netUnitPrice = planApplied ? 0 : Number(menu.price ?? 0);
+
+        return taxIncludedPrice(netUnitPrice + Number(optionPrice || 0), menu.tax_rate);
+    }
+
     function renderSelectionTotal() {
         if (!selectedMenu || !selectionQuantity || !selectionTotal) return;
         const optionPrice = selectedOptions().reduce((sum, option) => sum + option.additional_price, 0);
-        const unitPrice = Number(selectedMenu.display_price || 0) + optionPrice;
+        const unitPrice = unitPriceWithOptions(selectedMenu, optionPrice);
 
         selectionQuantity.textContent = String(selectedQuantityValue);
         selectionTotal.textContent = `￥${(unitPrice * selectedQuantityValue).toLocaleString()}`;
@@ -287,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             key: cartLineKey(selectedMenu.id, optionIds),
             id: Number(selectedMenu.id),
             name: String(selectedMenu.name || ''),
-            price: Number(selectedMenu.display_price || 0) + optionPrice,
+            price: unitPriceWithOptions(selectedMenu, optionPrice),
             qty: selectedQuantityValue,
             options
         });
