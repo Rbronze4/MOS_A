@@ -39,7 +39,8 @@ $printIssuedAt = (string)($customer['created_at'] ?? '');
 <style>
 body {
     margin: 0;
-    padding: 0;
+    /* 下部に固定した操作ボタンが最後のQRに重ならないよう余白を確保する */
+    padding: 0 0 96px;
     background: #fff;
     color: #000;
     font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
@@ -54,6 +55,13 @@ body {
     border: 1px solid #000;
     box-sizing: border-box;
     text-align: center;
+}
+
+/* 複数枚印刷時に、何枚目かが分かるようにする（1枚だけのときは表示しない） */
+.sheet-number {
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 8px;
 }
 
 .title {
@@ -113,9 +121,22 @@ body {
     margin-top: 12px;
 }
 
+/*
+    操作ボタンは画面下部に固定する。
+    複数枚印刷ではページが長くなり、末尾までスクロールしないと
+    印刷ボタンに届かないため、常に見える位置に置く。
+*/
 .no-print {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
     text-align: center;
-    margin: 16px 0 32px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid #ccc;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.12);
 }
 
 /* タブレットのタップ操作を想定して、ボタンは大きめ（高さ48px以上）にする */
@@ -136,9 +157,23 @@ body {
         display: none;
     }
 
+    /* 画面用に確保した下部の余白は、印刷では不要（白紙ページの原因になる） */
+    body {
+        padding-bottom: 0;
+    }
+
     .qr-ticket {
         border: none;
         margin: 0 auto;
+        /* 1枚のQRが用紙をまたいで切れないようにする */
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* 複数枚印刷するときは、2枚目以降を新しい用紙から始める */
+    .qr-ticket + .qr-ticket {
+        break-before: page;
+        page-break-before: always;
     }
 }
 </style>
@@ -146,6 +181,13 @@ body {
 
 <body>
 
+<?php
+/*
+ * 同じ顧客が複数の卓に分かれる場合などのため、同一QRを指定枚数ぶん並べる。
+ * 顧客番号は1つのままなので、どの用紙から読み取っても同じ客として扱われる。
+ */
+for ($sheet = 1; $sheet <= $printCount; $sheet++):
+?>
 <div class="qr-ticket">
 
     <div class="title">
@@ -155,6 +197,12 @@ body {
     <?php if ($isReissue): ?>
         <div class="reissue-label">
             再発行
+        </div>
+    <?php endif; ?>
+
+    <?php if ($printCount > 1): ?>
+        <div class="sheet-number">
+            <?= qr_print_h($sheet) ?> / <?= qr_print_h($printCount) ?> 枚目
         </div>
     <?php endif; ?>
 
@@ -173,7 +221,8 @@ body {
     </div>
 
     <div class="qr-area">
-        <canvas id="qrPrintCanvas"></canvas>
+        <!-- 各用紙にQRを描くため、canvasはクラスで一括取得できるようにする -->
+        <canvas class="qr-print-canvas"></canvas>
     </div>
 
     <div class="guide-text">
@@ -194,6 +243,7 @@ body {
     </div>
 
 </div>
+<?php endfor; ?>
 
 <div class="no-print">
 
@@ -229,11 +279,14 @@ body {
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
 
     script.onload = () => {
-        new QRious({
-            element: document.getElementById('qrPrintCanvas'),
-            value: orderUrl,
-            size: 220,
-            level: 'H'
+        // 複数枚印刷では用紙ごとにcanvasがあるため、すべてに同じQRを描く
+        document.querySelectorAll('.qr-print-canvas').forEach(canvas => {
+            new QRious({
+                element: canvas,
+                value: orderUrl,
+                size: 220,
+                level: 'H'
+            });
         });
 
         printButton.disabled = false;
