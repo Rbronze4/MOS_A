@@ -59,6 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
         activeCustomerPlan,
         tableNumber: '',
         selectedPlanId: planIdFromActiveCustomerPlan(activeCustomerPlan),
+        planMinutes: activeCustomerPlan ? Number(activeCustomerPlan.time_limit_minutes || 0) : null,
+        planStartedAtMs: null,
         activeCategory: categories.length > 0 ? categoryId(categories[0]) : '',
         selectedMenu: null,
         cart: cartItems,
@@ -288,8 +290,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (planId !== null) {
             state.selectedPlanId = planId;
             state.planMinutes = minutes;
+            state.planStartedAtMs = (planId !== 'single' && Number(minutes) > 0) ? nowOnServerClock() : null;
         } else {
             state.selectedPlanId = planIdFromActiveCustomerPlan(state.activeCustomerPlan);
+            state.planMinutes = state.activeCustomerPlan ? Number(state.activeCustomerPlan.time_limit_minutes || 0) : null;
+            state.planStartedAtMs = null;
         }
 
         rememberSessionInUrl(result);
@@ -517,6 +522,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const plan = state.activeCustomerPlan;
 
         if (!plan) {
+            // API返却前でも、選択済みの飲み放題プランがあれば暫定表示する
+            const selectedMinutes = Number(state.planMinutes || 0);
+            if (state.selectedPlanId && state.selectedPlanId !== 'single' && selectedMinutes > 0 && Number.isFinite(state.planStartedAtMs)) {
+                return Number(state.planStartedAtMs) + selectedMinutes * 60 * 1000;
+            }
+
             return null;
         }
 
@@ -629,6 +640,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // プラン確定時の処理（plans.js から呼ばれる）
     function onPlanConfirmed(planId, minutes) {
         updateTableNoDisplay();
+
+        // APIのactive_customer_planが未反映でも、プラン選択直後に残り時間を出す
+        if (!state.activeCustomerPlan && planId && planId !== 'single' && Number(minutes) > 0) {
+            state.selectedPlanId = planId;
+            state.planMinutes = Number(minutes);
+            state.planStartedAtMs = nowOnServerClock();
+        }
+
+        if (planId === 'single') {
+            state.selectedPlanId = null;
+            state.planMinutes = null;
+            state.planStartedAtMs = null;
+        }
 
         // 終了予定時刻はサーバーが返したコース情報から求めるので、
         // ここで確定したプランや分数を渡す必要はない。
