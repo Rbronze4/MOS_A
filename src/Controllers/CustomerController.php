@@ -47,6 +47,10 @@ final class CustomerController
         $activeCustomerPlan = null;
         $hasActiveCustomerPlan = false;
 
+        // レジで会計を通した後（会計済み/未収金/会計中）は注文を受け付けない。
+        // サーバー側でも弾くが、客が理由を分かるよう画面にも案内を出す。
+        $billingClosed = false;
+
         // 店舗別・制限時間別のプラン単価（税抜）。店舗が確定してからDBで取得する。
         $planUnitPrices = [];
 
@@ -91,6 +95,8 @@ final class CustomerController
             $currentCustomer = $sessionModel->findCustomer($customerId);
             if ($currentCustomer !== null) {
                 $peopleCount = (int)$currentCustomer['people_count'];
+                $billingClosed = (int)$currentCustomer['billing_status']
+                    !== CustomerSessionModel::BILLING_STATUS_ACCEPTING;
             }
 
             $hasActiveCustomerPlan = $activeCustomerPlan !== null;
@@ -143,6 +149,16 @@ final class CustomerController
         $customerId = $this->validatedCustomerId();
         $tableNumber = $this->validatedTableNumber();
         $sessionModel = new CustomerSessionModel();
+
+        // 会計を通したQRでセッションを開始・再開させない。
+        // ここを通すと、その後のカート操作や注文確定まで進めてしまう。
+        if (!$sessionModel->isAcceptingOrders($customerId)) {
+            $this->json([
+                'ok' => false,
+                'message' => 'お会計が完了しているため、ご利用いただけません。スタッフをお呼びください。',
+            ], 409);
+        }
+
         $activeCustomerPlan = $sessionModel->activeCustomerPlan($customerId);
         $planKey = $activeCustomerPlan === null ? $this->validatedPlanKey() : null;
         $planMinutes = $this->validatedPlanMinutes();
@@ -338,6 +354,16 @@ final class CustomerController
                 'ok' => false,
                 'message' => '有効なセッションが見つかりません。',
             ], 422);
+        }
+
+        // レジで会計を通した後もセッションはACTIVEのまま残るため、
+        // セッションの有効性だけでは会計済みの客の追加注文を止められない。
+        // 請求できない注文が増えるのを防ぐため、会計状態も必ず確認する。
+        if (!$sessionModel->isAcceptingOrders((int)$session['customer_id'])) {
+            $this->json([
+                'ok' => false,
+                'message' => 'お会計が完了しているため、注文を承れません。スタッフをお呼びください。',
+            ], 409);
         }
 
         return $session;

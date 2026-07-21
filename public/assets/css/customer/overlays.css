@@ -176,10 +176,14 @@
     top: 150px;
     transform: translateX(-50%);
     min-width: 230px;
-    /* 端末幅いっぱいまでは広げてよいが、テキストは折り返さず1行で表示する */
+    /*
+        width:max-content で「短い文言は1行のまま」を保ちつつ、
+        端末幅を超える長い文言は max-width で頭打ちにして枠内で折り返す。
+        （white-space:nowrap を付けると長文が枠からはみ出すため使わない）
+    */
     max-width: calc(100vw - 24px);
     width: max-content;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     padding: 28px 20px;
     background: var(--mos-panel-bg);
     border-radius: 4px;
@@ -207,6 +211,8 @@
     max-width: 430px;
     display: flex;
     align-items: center;
+    /* 文言が長い端末では、OKボタンを下の行へ回り込ませて収める */
+    flex-wrap: wrap;
     gap: 12px;
     padding: 16px 18px;
     background: var(--mos-panel-bg);
@@ -225,6 +231,13 @@
 
 .plan-conflict-banner__message {
     flex: 1;
+    /*
+        flexアイテムは既定が min-width:auto のため、文言が長いと縮まずに枠からはみ出す。
+        0にして折り返しを効かせる。
+    */
+    min-width: 0;
+    /* 「お会計が完了しているため～」のような長い文言でも枠内で折り返す */
+    overflow-wrap: anywhere;
     margin: 0;
     color: var(--mos-text);
     font-size: 15px;
@@ -234,6 +247,8 @@
 
 .plan-conflict-banner__button {
     flex-shrink: 0;
+    /* 下の行へ回り込んだときは右寄せにする */
+    margin-left: auto;
     padding: 8px 20px;
     border: none;
     border-radius: 6px;
