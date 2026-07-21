@@ -1,5 +1,9 @@
 # MOS開発でAIを使うときのルールとプロンプト
 
+> **はじめてこのシステムを触る方へ**
+> 環境構築の手順は **[SETUP.md](SETUP.md)** にまとまっています。
+> XAMPPの導入からDBの取り込みまで、上から順に進めれば動くようになっています。
+
 ## 各画面のURL（XAMPP起動時）
 
 - 利用客画面：`http://localhost/MOS_A/public/customer`
