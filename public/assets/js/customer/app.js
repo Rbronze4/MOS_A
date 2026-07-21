@@ -351,6 +351,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('productName').textContent = menu.name;
         document.getElementById('quantityInput').value = String(quantity);
+        renderProductSubtotal();
+        renderProductOptions(menu, resetEditing ? [] : (state.editingItem?.option_ids || []));
+
 
         showScreen('productScreen');
     }
@@ -773,6 +776,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
+            const isEditingExistingItem = state.editingItem !== null;
+            const result = isEditingExistingItem
+                ? await updateCartOnServer(state.editingItem.cart_detail_id, quantityValue, optionIds)
+                : await addCartToServer(state.selectedMenu.id, quantityValue, optionIds);
 
             state.editingItem = null;
             state.cart = result.cart_items || [];

@@ -1,4 +1,4 @@
-﻿/* ============================================================
+﻿﻿/* ============================================================
  * 客側 商品詳細・カート・注文履歴CSS。
  * 商品詳細カード、数量ボタン、カート一覧、注文履歴一覧のスタイル。
  * ============================================================ */
@@ -48,6 +48,91 @@
     font-size: 16px;
 }
 
+.product-subtotal {
+    margin: 8px 0 0;
+    text-align: right;
+    font-size: 20px;
+    font-weight: bold;
+    color: #db1204;
+}
+
+.product-options {
+    width: min(320px, calc(100% - 40px));
+    margin: 0 auto 18px;
+}
+
+.product-option-group {
+    margin-bottom: 12px;
+    padding: 14px;
+    background: #c56f4c;
+    border-radius: 4px;
+}
+
+.product-option-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 5px;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.product-option-required {
+    font-size: 12px;
+    font-weight: normal;
+}
+
+.product-option-rule {
+    margin: 0 0 10px;
+    font-size: 11px;
+}
+
+.product-option-choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.product-option-choice {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 42px;
+    padding: 5px;
+    background: #f1f1f1;
+    border: 2px solid transparent;
+    font-size: 12px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.product-option-choice:has(input:checked) {
+    border-color: #000000;
+    background: #ffffff;
+}
+
+.product-option-choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.product-option-price {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+}
+
+.cart-item-main {
+    min-width: 0;
+}
+
+.cart-item-options {
+    display: block;
+    margin-top: 3px;
+    color: #5f4b2a;
+    font-size: 11px;
+}
 
 .quantity-buttons {
     width: 290px;
