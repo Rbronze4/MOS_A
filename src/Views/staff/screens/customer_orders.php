@@ -121,7 +121,7 @@ $customerId = (int)($_GET['customer_id'] ?? 0);
 
                 <div class="form-buttons">
                     <button id="saveCustomerOrderButton" class="white-button" type="submit">保存</button>
-                    <button id="cancelCustomerOrderButton" class="white-button" type="submit" formaction="/MOS_A/public/staff/customer/orders/cancel">キャンセルする</button>
+                    <button id="cancelCustomerOrderButton" class="white-button" type="submit" formaction="/MOS_A/public/staff/customer/orders/cancel">キャンセル</button>
                     <button id="closeCustomerOrderModalButton" class="white-button" type="button">閉じる</button>
                 </div>
             </form>
