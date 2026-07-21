@@ -687,4 +687,17 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('menuScreen');
         requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
     }
+
+    // レジで会計を通した後のQRで開かれた場合、注文できない理由を画面上部に出す。
+    // 実際の遮断はサーバー側（会計状態チェック）で行うので、ここは案内のみ。
+    if (window.MOS_DATA.billingClosed === true) {
+        const banner = document.getElementById('planConflictBanner');
+        const message = document.getElementById('planConflictMessage');
+
+        if (banner && message) {
+            message.textContent = 'お会計が完了しているため、ご注文いただけません。スタッフをお呼びください。';
+            banner.classList.add('show');
+            banner.setAttribute('aria-hidden', 'false');
+        }
+    }
 });

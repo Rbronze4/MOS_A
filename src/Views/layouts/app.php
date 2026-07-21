@@ -69,7 +69,9 @@ $jsFile = $jsFile ?? '';
             // 形: { standard: { "120": 2200, "180": 3000 }, premium: { ... } }
             planUnitPrices: <?= json_encode($planUnitPrices ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             // プラン単価は税抜のため、客側の表示はこの税率で税込にする。
-            planTaxRate: <?= json_encode($planTaxRate ?? 10, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+            planTaxRate: <?= json_encode($planTaxRate ?? 10, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            // レジで会計を通した後（会計済み/未収金/会計中）はtrue。注文させず案内を出す。
+            billingClosed: <?= json_encode($billingClosed ?? false, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
         };
     </script>
 <?php endif; ?>
