@@ -58,7 +58,20 @@ final class CustomerController
         // レジもAPIのtaxRateで税を上乗せするので、同じ税率を使わないと請求額とずれる。
         $planTaxRate = PlanModel::COURSE_TAX_RATE;
 
+        /*
+         * 飲み放題の残り時間の基準となる現在時刻。
+         *
+         * 必ずDBから取る。PHPのtimezone設定がDBとずれていると
+         * （例: PHPがEurope/Berlin、DBが日本時間）比較対象のstarted_atと
+         * 時計が食い違い、残り時間が何時間もずれてしまうため。
+         * DBに繋がらない場合はnullのままにし、画面側は端末時計で表示する。
+         */
+        $serverNow = null;
+
         try {
+            // DB停止時も画面を出せるよう、この取得はtryの中で行う。
+            $serverNow = $sessionModel->databaseNow();
+
             if ($sessionId !== null) {
                 $activeSession = $sessionModel->activeSession($sessionId);
 
@@ -363,6 +376,15 @@ final class CustomerController
             $this->json([
                 'ok' => false,
                 'message' => 'お会計が完了しているため、注文を承れません。スタッフをお呼びください。',
+            ], 409);
+        }
+
+        // ラストオーダーを過ぎたら、飲み放題対象かどうかに関わらず客側の注文を止める。
+        // スタッフ側にはこの制限をかけない（時間切れ後もスタッフからは注文できる）。
+        if (!$sessionModel->isWithinLastOrderTime((int)$session['customer_id'])) {
+            $this->json([
+                'ok' => false,
+                'message' => 'ラストオーダーの時間を過ぎているため、ご注文を承れません。スタッフをお呼びください。',
             ], 409);
         }
 
