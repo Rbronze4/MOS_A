@@ -3,8 +3,11 @@ $customerIdValue = (int)($customerId ?: 0);
 $returnRef = $returnRef ?? 'customerList';
 $plans = $plans ?? [];
 $entryError = $entryError ?? '';
+// 会計済みなど、入力し直しても注文できない状態。入力欄と決定ボタンを使えなくする。
+$entryBlocked = ($entryBlocked ?? false) === true;
 $oldTableNumber = $oldTableNumber ?? '';
 $oldPlanChoice = $oldPlanChoice ?? '';
+$disabledAttr = $entryBlocked ? 'disabled' : '';
 ?>
 <section class="staff-order-entry-page">
     <div class="staff-order-entry-top">
@@ -16,8 +19,14 @@ $oldPlanChoice = $oldPlanChoice ?? '';
     <h1 class="staff-order-entry-title">卓番号とコースを選択してください</h1>
 
     <?php if ($entryError !== ''): ?>
-        <div class="staff-order-message staff-order-message-error" role="alert">
-            <?= htmlspecialchars($entryError, ENT_QUOTES, 'UTF-8') ?>
+        <div
+            class="staff-order-message staff-order-message-error<?= $entryBlocked ? ' staff-order-message-blocked' : '' ?>"
+            role="alert"
+        >
+            <?php if ($entryBlocked): ?>
+                <span class="staff-order-message-icon" aria-hidden="true">!</span>
+            <?php endif; ?>
+            <span class="staff-order-message-text"><?= htmlspecialchars($entryError, ENT_QUOTES, 'UTF-8') ?></span>
         </div>
     <?php endif; ?>
 
@@ -33,7 +42,8 @@ $oldPlanChoice = $oldPlanChoice ?? '';
                 max="99"
                 step="1"
                 inputmode="numeric"
-                required
+                <?= $disabledAttr ?>
+                <?= $entryBlocked ? '' : 'required' ?>
             >
         </div>
 
@@ -47,7 +57,8 @@ $oldPlanChoice = $oldPlanChoice ?? '';
                         name="plan_choice"
                         value="<?= htmlspecialchars($planId, ENT_QUOTES, 'UTF-8') ?>"
                         <?= $oldPlanChoice === $planId ? 'checked' : '' ?>
-                        required
+                        <?= $disabledAttr ?>
+                        <?= $entryBlocked ? '' : 'required' ?>
                     >
                     <span>
                         <?= htmlspecialchars((string)$plan['plan_type_name'], ENT_QUOTES, 'UTF-8') ?>
@@ -63,7 +74,8 @@ $oldPlanChoice = $oldPlanChoice ?? '';
                     name="plan_choice"
                     value="single"
                     <?= $oldPlanChoice === 'single' ? 'checked' : '' ?>
-                    required
+                    <?= $disabledAttr ?>
+                    <?= $entryBlocked ? '' : 'required' ?>
                 >
                 <span>単品</span>
             </label>
@@ -72,7 +84,7 @@ $oldPlanChoice = $oldPlanChoice ?? '';
         <input type="hidden" name="customer_id" value="<?= $customerIdValue ?>">
         <input type="hidden" name="ref" value="<?= htmlspecialchars($returnRef, ENT_QUOTES, 'UTF-8') ?>">
 
-        <button type="submit" class="staff-order-decision-button">決定</button>
+        <button type="submit" class="staff-order-decision-button" <?= $disabledAttr ?>>決定</button>
     </form>
 </section>
 

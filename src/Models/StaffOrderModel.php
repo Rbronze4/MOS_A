@@ -12,6 +12,12 @@ require_once dirname(__DIR__) . '/Database/db.php';
 final class StaffOrderModel
 {
     /**
+     * 注文を受け付けてよい会計状態（1=受付中）。
+     * 2=会計済み / 4=未収金 / 8=会計中 は、レジを通した後なので注文を追加させない。
+     */
+    private const BILLING_STATUS_ACCEPTING = 1;
+
+    /**
      * 商品IDごとの税率キャッシュ。
      * 注文一覧では同じ商品が何度も現れるため、1リクエスト内で使い回してN+1を避ける。
      *
@@ -84,6 +90,32 @@ final class StaffOrderModel
         return $session === false ? null : $session;
     }
 
+    /**
+     * その顧客が今も注文を受け付けてよい状態か確認し、駄目なら例外を投げる。
+     *
+     * レジで会計済み(2)・未収金(4)・会計中(8)になった顧客に注文を追加すると、
+     * 請求できない注文が増える。また会計中に内容が変わるとレジ側の
+     * 同一性チェック（hash）が通らず、レジが会計できなくなる。
+     */
+    private function assertCustomerAcceptingOrders(int $customerId): void
+    {
+        $statement = db()->prepare(
+            'SELECT billing_status FROM customers WHERE customer_id = :customer_id LIMIT 1'
+        );
+        $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $customer = $statement->fetch();
+
+        if ($customer === false) {
+            throw new RuntimeException('顧客情報が見つかりません。');
+        }
+
+        if ((int)$customer['billing_status'] !== self::BILLING_STATUS_ACCEPTING) {
+            throw new RuntimeException('この顧客はお会計が完了しているため、注文できません。');
+        }
+    }
+
     public function planTypeIdForSession(int $sessionId): ?int
     {
         $sql = <<<SQL
@@ -149,6 +181,11 @@ final class StaffOrderModel
             if ($session === null) {
                 throw new RuntimeException('指定された卓番号または顧客番号の利用中セッションが見つかりません。先にQR読込または卓番号入力とプラン選択を行ってください。');
             }
+
+            // レジで会計を通した後もセッションはACTIVEのまま残るため、
+            // セッションの有無だけでは会計済みの顧客への追加注文を止められない。
+            // 請求できない注文が増えるのを防ぐため、会計状態を必ず確認する。
+            $this->assertCustomerAcceptingOrders((int)$session['customer_id']);
 
             $planTypeId = $this->planTypeIdForSession((int)$session['session_id']);
             $productIds = array_values(array_unique(array_column($items, 'product_id')));

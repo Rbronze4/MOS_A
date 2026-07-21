@@ -4,10 +4,29 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/Repositories/StaffOrderEntryRepository.php';
 
 /**
+ * 会計を通した顧客に対して注文しようとしたことを表す例外。
+ *
+ * 卓番号の入力ミスなどの「直せばやり直せるエラー」と違い、
+ * この顧客にはもう注文できないため、画面側で入力自体を止める必要がある。
+ * 呼び出し側がその区別をできるよう、専用の例外にしている。
+ */
+final class StaffOrderNotAcceptingException extends InvalidArgumentException
+{
+}
+
+/**
  * 卓・コース選択の判定と登録を担当するService。
  */
 final class StaffOrderEntryService
 {
+    /**
+     * 注文を受け付けてよい会計状態（1=受付中）。
+     * 2=会計済み / 4=未収金 / 8=会計中 の顧客に注文を追加すると、
+     * 請求できない注文が増えたり、会計中に内容が変わってレジ側の
+     * 同一性チェック（hash）が通らなくなるため、受付中以外は登録させない。
+     */
+    private const BILLING_STATUS_ACCEPTING = 1;
+
     public function __construct(
         private PDO $pdo,
         private StaffOrderEntryRepository $repository
@@ -19,8 +38,23 @@ final class StaffOrderEntryService
      */
     public function entryData(string $storeId, int $customerId): array
     {
-        if ($this->repository->findCustomer($storeId, $customerId) === null) {
+        $customer = $this->repository->findCustomer($storeId, $customerId);
+
+        if ($customer === null) {
             throw new RuntimeException('顧客情報が見つかりません。');
+        }
+
+        /*
+         * 会計を通した顧客は、そもそもスタッフ注文画面に入れないようにする。
+         * 注文確定時にも弾いているが、そこまで進ませると
+         * 商品を選び終えてから失敗することになり操作が無駄になる。
+         * 卓・コース選択画面とメニュー画面はどちらもここを通るため、
+         * この1か所で両方の入口を塞げる。
+         */
+        if ((int)$customer['billing_status'] !== self::BILLING_STATUS_ACCEPTING) {
+            throw new StaffOrderNotAcceptingException(
+                'この顧客はお会計が完了しているため、スタッフ注文はご利用いただけません。'
+            );
         }
 
         $selection = $this->repository->currentSelection(
@@ -78,6 +112,14 @@ final class StaffOrderEntryService
             if ($customer === null) {
                 throw new InvalidArgumentException(
                     '顧客情報が見つかりません。'
+                );
+            }
+
+            // レジで会計を通した後もセッションは残るため、会計状態を見ないと
+            // 会計済みの顧客に対して新しく卓・コースを登録できてしまう。
+            if ((int)$customer['billing_status'] !== self::BILLING_STATUS_ACCEPTING) {
+                throw new StaffOrderNotAcceptingException(
+                    'この顧客はお会計が完了しているため、注文を登録できません。'
                 );
             }
 

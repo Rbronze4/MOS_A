@@ -157,6 +157,9 @@ final class StaffController
         );
         $returnRef = trim((string)((($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? $_POST : $_GET)['ref'] ?? 'customerList'));
         $entryError = '';
+        // 会計済みなど「もうこの顧客には注文できない」状態。卓番号やコースを
+        // 入力させても必ず失敗するため、画面側で入力欄ごと使えなくする。
+        $entryBlocked = false;
         $plans = [];
         $oldTableNumber = trim((string)($_POST['table_number'] ?? ''));
         $oldPlanChoice = trim((string)($_POST['plan_choice'] ?? ''));
@@ -204,6 +207,10 @@ final class StaffController
                         . '&ref=' . urlencode($returnRef)
                     );
                 }
+            } catch (StaffOrderNotAcceptingException $exception) {
+                // 入力し直しても通らないエラーなので、フォーム自体を止める。
+                $entryBlocked = true;
+                $entryError = $exception->getMessage();
             } catch (InvalidArgumentException $exception) {
                 $entryError = $exception->getMessage();
             } catch (Throwable $exception) {
