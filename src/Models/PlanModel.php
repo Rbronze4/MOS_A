@@ -25,6 +25,15 @@ final class PlanModel
      */
     public const COURSE_TAX_RATE = 10;
 
+    /**
+     * ラストオーダーはコース終了の何分前か。
+     *
+     * この時刻を過ぎたら客側からは注文できなくする（単品も含めて全て）。
+     * 画面のカウントダウン表示にも同じ値を使うため、JS側へも配信する。
+     * スタッフ側はこの制限を受けない（時間切れ後もスタッフからは注文できる）。
+     */
+    public const LAST_ORDER_BEFORE_MINUTES = 30;
+
     // 画面用のプランキーとDBのplan_type_idの対応。
     // CustomerSessionModelのPLAN_TYPE_BY_KEYと同じ対応にすること。
     private const PLAN_KEY_BY_TYPE = [

@@ -189,7 +189,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return payload;
     }
 
+    /**
+     * ラストオーダーを過ぎていたら注文させない。
+     *
+     * 実際の遮断はサーバー側で行うが、通信する前に理由を伝えて操作を止める。
+     * 呼び出し元はcatchでerror.messageをトースト表示するため、例外で返す。
+     */
+    function assertWithinLastOrder() {
+        if (isLastOrderOver()) {
+            throw new Error('ラストオーダーの時間を過ぎています。スタッフをお呼びください。');
+        }
+    }
+
     function addCartToServer(productId, quantity, optionIds) {
+        assertWithinLastOrder();
+
         return postCartAction('/MOS_A/public/customer/cart/add', {
             session_id: state.sessionId,
             product_id: productId,
@@ -215,6 +229,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function submitOrderToServer() {
+        assertWithinLastOrder();
+
         // 注文内容はサーバー側でDBのcart_detailsから取得する。
         // フロントから商品名・価格・数量一覧は送らない。
         return postCartAction('/MOS_A/public/customer/order/submit', {
@@ -258,6 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         rememberSessionInUrl(result);
         updateTableNoDisplay();
+        // QRを読み直してセッションを復元した場合も、残り時間を表示し直す。
+        syncDrinkTimer();
         cartHistoryModule.renderCart();
         renderMenuAndShow();
     }
@@ -407,23 +425,87 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ============================================================
-    // 飲み放題タイマー（フロントのみ・sessionStorageに終了予定時刻を保存）
-    //   - プラン確定時に開始（終了予定時刻 = 現在 + 制限時間）
+    // 飲み放題タイマー
+    //   - 終了予定時刻 = DBのコース開始時刻(customer_plans.started_at) + 制限時間
     //   - 注文画面 上部バー右に「ラストオーダー HH:MM（残り○分）」を表示（残りは分刻み）
-    //   - ラストオーダー = コース終了の30分前
+    //   - ラストオーダー = コース終了の30分前。過ぎたら「ラストオーダー終了」
     //   - 単品プランはタイマーなし（非表示）
-    //   ※サーバー時刻基準ではなく端末時刻基準。将来DB化で差し替え予定。
+    //   ※端末に保存せず毎回DBの開始時刻から計算する。そうしないとタブを閉じたり
+    //     別の端末でQRを読んだときに残り時間が出なくなるため。
+    //   ※端末の時計ずれはサーバー時刻との差で補正する。
     // ============================================================
-    const TIMER_STORAGE_KEY = 'mosDrinkTimer';
-    const LAST_ORDER_BEFORE_MS = 30 * 60 * 1000; // ラストオーダーはコース終了の30分前
+    // ラストオーダーはコース終了の何分前か。判定がずれないようサーバーの値を使う。
+    const LAST_ORDER_BEFORE_MS = Number(window.MOS_DATA.lastOrderBeforeMinutes ?? 30) * 60 * 1000;
     let timerIntervalId = null;
 
-    function loadTimer() {
-        try {
-            return JSON.parse(sessionStorage.getItem(TIMER_STORAGE_KEY));
-        } catch (error) {
+    /*
+        端末の時計とサーバー時刻の差（ミリ秒）。
+        コース開始時刻はサーバー（DB）の時刻なので、端末の時計がずれていると
+        残り時間まで狂う。読み込み時に差を求めておき、現在時刻を補正して使う。
+    */
+    const serverClockOffsetMs = (() => {
+        const serverNow = parseServerDateTime(window.MOS_DATA.serverNow);
+
+        return serverNow === null ? 0 : serverNow - Date.now();
+    })();
+
+    // サーバー時刻に合わせた「今」
+    function nowOnServerClock() {
+        return Date.now() + serverClockOffsetMs;
+    }
+
+    /**
+     * DBの日時文字列（"2026-07-07 05:13:23"）をタイムスタンプに変換する。
+     * 区切りが半角スペースのままだと解釈できない端末があるため、必ずTに置き換える。
+     */
+    function parseServerDateTime(value) {
+        if (!value) {
             return null;
         }
+
+        const timestamp = new Date(String(value).replace(' ', 'T')).getTime();
+
+        return Number.isFinite(timestamp) ? timestamp : null;
+    }
+
+    /**
+     * 現在有効なコースから、終了予定時刻を求める。
+     *
+     * 以前は「プラン確定時に sessionStorage へ保存した終了時刻」を見ていたため、
+     * タブを閉じたり別の端末でQRを読むと残り時間が出なかった。
+     * コース開始時刻はDBにあるので、そこから毎回計算すればどの端末でも同じ値になる。
+     */
+    function drinkTimerEndsAt() {
+        const plan = state.activeCustomerPlan;
+
+        if (!plan) {
+            return null;
+        }
+
+        const minutes = Number(plan.time_limit_minutes || 0);
+        const startedAt = parseServerDateTime(plan.started_at);
+
+        if (minutes <= 0 || startedAt === null) {
+            return null;
+        }
+
+        return startedAt + minutes * 60 * 1000;
+    }
+
+    /**
+     * ラストオーダーを過ぎているか。
+     *
+     * 過ぎていれば客側からは注文できない（実際の遮断はサーバー側で行う）。
+     * コースが無い場合（単品）は時間制限の対象外。
+     */
+    function isLastOrderOver() {
+        const endsAt = drinkTimerEndsAt();
+
+        if (endsAt === null) {
+            return false;
+        }
+
+        return endsAt - LAST_ORDER_BEFORE_MS - nowOnServerClock() <= 0;
     }
 
     // タイムスタンプを「HH:MM」（24時間制）に整形する
@@ -439,16 +521,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const el = document.getElementById('menuRemainTime');
         if (!el) return;
 
-        const timer = loadTimer();
-        if (!timer) {
+        const endsAt = drinkTimerEndsAt();
+        if (endsAt === null) {
             el.style.display = 'none';
             return;
         }
 
         el.style.display = '';
         // ラストオーダー時刻 = コース終了予定の30分前
-        const lastOrderAt = timer.endsAt - LAST_ORDER_BEFORE_MS;
-        const remainMs = lastOrderAt - Date.now();
+        const lastOrderAt = endsAt - LAST_ORDER_BEFORE_MS;
+        const remainMs = lastOrderAt - nowOnServerClock();
 
         if (remainMs <= 0) {
             el.textContent = 'ラストオーダー終了';
@@ -475,29 +557,27 @@ document.addEventListener('DOMContentLoaded', () => {
         timerIntervalId = setInterval(renderRemainTime, 1000);
     }
 
-    // 飲み放題プランのタイマーを開始し、終了予定時刻を保存する
-    function startDrinkTimer(minutes) {
-        const now = Date.now();
-        const timer = {
-            tableNo: state.tableNumber,
-            minutes,
-            startedAt: now,
-            endsAt: now + minutes * 60 * 1000
-        };
+    /**
+     * 残り時間の表示を、いまのコース状況に合わせ直す。
+     *
+     * 表示するかどうかは state.activeCustomerPlan だけで決まるため、
+     * プランを確定した直後でも、QRを読み直して復元した直後でも、
+     * この関数を呼べば同じ結果になる。
+     */
+    function syncDrinkTimer() {
+        if (drinkTimerEndsAt() === null) {
+            // 単品などコースが無い場合は表示しない
+            stopTimerInterval();
 
-        sessionStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timer));
-        startTimerInterval();
-    }
+            const el = document.getElementById('menuRemainTime');
+            if (el) {
+                el.style.display = 'none';
+            }
 
-    // タイマーを破棄（単品プランなど）
-    function clearDrinkTimer() {
-        sessionStorage.removeItem(TIMER_STORAGE_KEY);
-        stopTimerInterval();
-
-        const el = document.getElementById('menuRemainTime');
-        if (el) {
-            el.style.display = 'none';
+            return;
         }
+
+        startTimerInterval();
     }
 
     // 上部バー左の卓番号表示を更新する
@@ -512,11 +592,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function onPlanConfirmed(planId, minutes) {
         updateTableNoDisplay();
 
-        if (planId === 'single' || !minutes) {
-            clearDrinkTimer();
-        } else {
-            startDrinkTimer(minutes);
-        }
+        // 終了予定時刻はサーバーが返したコース情報から求めるので、
+        // ここで確定したプランや分数を渡す必要はない。
+        syncDrinkTimer();
     }
 
     const planModule = window.MOS.customer.createPlanModule({
@@ -681,6 +759,10 @@ document.addEventListener('DOMContentLoaded', () => {
     menuModule.renderMenu();
     cartHistoryModule.renderCart();
     cartHistoryModule.renderHistory();
+
+    // 途中からQRを読んだ場合（別端末・タブを開き直した場合を含む）でも、
+    // DBのコース開始時刻から残り時間を復元して表示する。
+    syncDrinkTimer();
 
     if (window.MOS_CART_FLASH?.message) {
         showToast(window.MOS_CART_FLASH.message);
