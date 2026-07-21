@@ -539,6 +539,9 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
      */
     let latestRequestId = 0;
 
+    // セッション切れの通知を出したか。通知後は取得を止め、同じモーダルも二度出さない。
+    let sessionExpiredNotified = false;
+
     /**
      * スタッフが注文を操作したことを記録する。
      *
@@ -632,6 +635,12 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
      *   手動更新(true)はスタッフが自分で押した操作なので、その場で反映する。
      */
     async function fetchLatestOrders(force = false) {
+        // セッション切れ通知後は取得しない。ポーリングは止めてあるが、
+        // タブ復帰時は直接呼ばれるため、ここで塞がないと401通信が繰り返される。
+        if (sessionExpiredNotified) {
+            return;
+        }
+
         // 別タブへ切り替えている間は取得しない（無駄な通信とバッテリー消費を避ける）
         // ただし手動更新は、スタッフが今まさに見ているので必ず実行する。
         if (!force && document.hidden) {
@@ -650,7 +659,22 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
 
-            // セッション切れなどでログイン画面へ飛ばされた場合は静かに諦める
+            // より新しい取得が始まっている場合、この応答は古いので何もしない。
+            // 401判定より前に置く。古いセッションの401が、別タブでの再ログイン後に
+            // 届いてポーリングを止めてしまうのを防ぐため。
+            if (requestId !== latestRequestId) {
+                return;
+            }
+
+            // セッション切れは401で返る。取得を止めて再ログインを促す。
+            // 止めないと取得できないまま20秒ごとの通信が続いてしまう。
+            if (response.status === 401) {
+                stopOrderPolling();
+                notifySessionExpired();
+                return;
+            }
+
+            // その他のエラー（500など）は一時的な可能性があるので、次回の取得に任せる
             if (!response.ok) {
                 return;
             }
@@ -658,12 +682,6 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
             const payload = await response.json();
 
             if (!payload || payload.ok !== true || !Array.isArray(payload.orders)) {
-                return;
-            }
-
-            // より新しい取得が始まっている場合、この結果は古いので捨てる。
-            // 定期取得・手動更新・タブ復帰の取得が並行したときに順序が入れ替わるのを防ぐ。
-            if (requestId !== latestRequestId) {
                 return;
             }
 
@@ -712,6 +730,53 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
 
         clearInterval(pollTimerId);
         pollTimerId = setInterval(fetchLatestOrders, POLL_INTERVAL_MS);
+    }
+
+    /**
+     * 定期取得を止める。
+     *
+     * セッション切れを検知したときに呼ぶ。止めないと、取得できないまま
+     * 20秒ごとの通信が延々と続いてしまう。再開にはページの読み直しが必要。
+     */
+    function stopOrderPolling() {
+        if (pollTimerId === null) {
+            return;
+        }
+
+        clearInterval(pollTimerId);
+        pollTimerId = null;
+    }
+
+    /**
+     * セッション切れをスタッフに知らせる。
+     *
+     * このまま操作しても保存できないため、ログイン画面へ移動できるボタンを出す。
+     * 「閉じる」だけだと、閉じた後もそのまま操作を続けられるように見えてしまう。
+     */
+    function notifySessionExpired() {
+        if (sessionExpiredNotified) {
+            return;
+        }
+
+        sessionExpiredNotified = true;
+
+        if (typeof openModal !== 'function') {
+            return;
+        }
+
+        openModal(`
+            <h2>ログインの有効期限が切れました</h2>
+            <p>お手数ですが、再度ログインしてください。</p>
+            <button class="white-button" id="goToLoginButton">ログイン画面へ移動</button>
+        `);
+
+        const goToLogin = document.getElementById('goToLoginButton');
+
+        if (goToLogin) {
+            goToLogin.addEventListener('click', () => {
+                window.location.href = '/MOS_A/public/staff/login';
+            });
+        }
     }
 
     /**
@@ -783,6 +848,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         openOrderEditModal,
         cancelOrders,
         restoreOrders,
-        startOrderPolling
+        startOrderPolling,
+        stopOrderPolling
     };
 };
