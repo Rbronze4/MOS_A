@@ -16,7 +16,23 @@ final class CustomerSessionModel
         'premium' => 2,
     ];
 
-    private const BILLING_STATUS_ACCEPTING = 1;
+    /** 注文を受け付けてよい会計状態（1=受付中）。2=会計済み / 4=未収金 / 8=会計中 では注文させない。 */
+    public const BILLING_STATUS_ACCEPTING = 1;
+
+    /**
+     * その顧客が今も注文してよいか（レジで会計を通していないか）を判定する。
+     *
+     * 会計済みの客のQRで追加注文されると請求できない注文が増えてしまう。
+     * また会計中に内容が変わるとレジ側の同一性チェック（hash）が通らなくなり、
+     * レジが会計できなくなるため、受付中以外はすべて注文を止める。
+     */
+    public function isAcceptingOrders(int $customerId): bool
+    {
+        $customer = $this->findCustomer($customerId);
+
+        return $customer !== null
+            && (int)$customer['billing_status'] === self::BILLING_STATUS_ACCEPTING;
+    }
 
     /**
      * customer_id + table_number単位でACTIVEセッションを作成または再利用する。
