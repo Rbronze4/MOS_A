@@ -143,6 +143,9 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                 ...updatedOrder
             };
         }
+
+        // 取得中・保留中の一覧はこの操作より前の内容になるため無効にする
+        invalidatePendingOrders();
     }
 
     function replaceOrders(updatedOrders) {
@@ -168,32 +171,18 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         return updatedOrders;
     }
 
-    function getProductColor(name) {
-        const productName = String(name);
-
-        if (
-            productName.includes('ビール') ||
-            productName.includes('枝豆') ||
-            productName.includes('もも')
-        ) {
-            return 'table-blue';
-        }
-
-        if (
-            productName.includes('とりかわ') ||
-            productName.includes('チキン')
-        ) {
-            return 'table-orange';
-        }
-
-        if (
-            productName.includes('赤') ||
-            productName.includes('ハイ')
-        ) {
-            return 'table-red';
-        }
-
-        return '';
+    /**
+     * 商品名に色を付けるためのCSSクラスを返す。
+     *
+     * 飲み放題プランの対象商品（plan_applied_flag=1）だけを色付きにして、
+     * スタッフが「この注文は個別会計が不要」と一目で判断できるようにする。
+     *
+     * 以前は商品名の文字列一致（「ビール」を含むなど）で色を決めていたため、
+     * 飲み放題対象でない商品にも色が付き、逆に対象商品が無色になっていた。
+     * 判定は必ずDB由来の plan_applied_flag を使う。
+     */
+    function getProductColor(order) {
+        return Number(order?.plan_applied_flag || 0) === 1 ? 'table-blue' : '';
     }
 
     function statusTitle() {
@@ -276,7 +265,7 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
                         ${escapedTableNo}
                     </td>
 
-                    <td class="${getProductColor(order.name)}">
+                    <td class="${getProductColor(order)}">
                         ${escapedName}
                     </td>
 
@@ -514,12 +503,352 @@ window.MOS.staffDashboard.createOrderModule = function createOrderModule(context
         });
     }
 
+    // ============================================================
+    // 注文一覧の自動更新（タブレット運用向け）
+    //
+    // 客がスマホで注文してもスタッフの画面はひとりでに変わらないため、
+    // 一定間隔でサーバーへ最新の注文一覧を問い合わせる。
+    //
+    // ただし取得のたびに描画すると、一括取消のチェックや編集中のモーダルが
+    // 消えてしまう。提供ボタンを押す瞬間に行が入れ替わると誤操作にもつながる。
+    // そのため「操作中は反映を保留し、バナーで知らせるだけ」にする。
+    // ============================================================
+
+    const POLL_INTERVAL_MS = 20000;
+
+    // 取得済みだがまだ画面へ反映していない注文一覧。操作が終わったら反映する。
+    let pendingOrders = null;
+    let pollTimerId = null;
+
+    /**
+     * スタッフ操作の世代番号。
+     *
+     * 提供・取消などの操作は state.orders を直接書き換えるため、
+     * その操作より前に始まった取得結果を後から反映すると、画面だけ操作前へ巻き戻る。
+     * 操作のたびにこの番号を進め、取得開始時の番号と一致する結果だけを採用する。
+     */
+    let ordersGeneration = 0;
+
+    /**
+     * 取得リクエストの連番。
+     *
+     * 定期取得・手動更新・タブ復帰時の取得は同時に走り得る。
+     * 応答が返る順序は保証されないため、あとから始めた取得のほうが先に返ることがある。
+     * この番号で「最後に開始した取得」を覚えておき、それ以外の結果は破棄する。
+     * （古い応答が後から届いて画面が巻き戻るのを防ぐ）
+     */
+    let latestRequestId = 0;
+
+    // セッション切れの通知を出したか。通知後は取得を止め、同じモーダルも二度出さない。
+    let sessionExpiredNotified = false;
+
+    /**
+     * スタッフが注文を操作したことを記録する。
+     *
+     * 取得中だった古いレスポンスと、反映前に保留していた一覧を無効にする。
+     * 保留分を捨てても、次の取得（最大20秒後）で最新に追いつく。
+     */
+    function invalidatePendingOrders() {
+        ordersGeneration += 1;
+        pendingOrders = null;
+        renderUpdateBanner();
+    }
+
+    /**
+     * いま画面を書き換えると操作の邪魔になるかどうか。
+     *
+     * ・モーダル表示中（数量編集などの入力が消えるため）
+     * ・一括取消のチェックが1つ以上入っている（選択が外れるため）
+     */
+    function isStaffBusy() {
+        const modalLayer = document.getElementById('modalLayer');
+
+        if (modalLayer && modalLayer.classList.contains('show')) {
+            return true;
+        }
+
+        return document.querySelectorAll('.order-checkbox:checked').length > 0;
+    }
+
+    // 新着を知らせるバナーの表示を更新する（件数は増えた注文の数ではなく変化の有無で出す）
+    function renderUpdateBanner() {
+        const banner = document.getElementById('orderUpdateBanner');
+
+        if (!banner) {
+            return;
+        }
+
+        banner.classList.toggle('show', pendingOrders !== null);
+    }
+
+    // 保留していた最新の注文一覧を画面へ反映する
+    function applyPendingOrders() {
+        if (pendingOrders === null) {
+            return;
+        }
+
+        // 保留中にスタッフが提供・取消などを行っていた場合、この内容は操作前のもの。
+        // 反映すると画面だけ巻き戻るため捨てて、次の取得で最新に追いつく。
+        if (pendingOrders.generation !== ordersGeneration) {
+            pendingOrders = null;
+            renderUpdateBanner();
+            return;
+        }
+
+        state.orders = pendingOrders.orders;
+        pendingOrders = null;
+
+        renderOrders();
+        renderUpdateBanner();
+    }
+
+    /**
+     * 取得した一覧が現在の表示と違うかどうか。
+     * 毎回描画すると操作中でなくても画面がちらつくため、変化がある時だけ反映する。
+     */
+    function hasOrderChanges(latestOrders) {
+        if (latestOrders.length !== state.orders.length) {
+            return true;
+        }
+
+        const currentById = new Map(state.orders.map(order => [String(order.id), order]));
+
+        return latestOrders.some(latest => {
+            const current = currentById.get(String(latest.id));
+
+            if (!current) {
+                return true;
+            }
+
+            // 提供数・状態・数量が変われば画面の表示も変わる
+            return current.status !== latest.status
+                || Number(current.qty) !== Number(latest.qty)
+                || Number(current.servedQty) !== Number(latest.servedQty);
+        });
+    }
+
+    /**
+     * 最新の注文一覧を取得する。
+     *
+     * @param {boolean} force 手動更新かどうか。
+     *   自動更新(false)は操作中なら反映を保留するが、
+     *   手動更新(true)はスタッフが自分で押した操作なので、その場で反映する。
+     */
+    async function fetchLatestOrders(force = false) {
+        // セッション切れ通知後は取得しない。ポーリングは止めてあるが、
+        // タブ復帰時は直接呼ばれるため、ここで塞がないと401通信が繰り返される。
+        if (sessionExpiredNotified) {
+            return;
+        }
+
+        // 別タブへ切り替えている間は取得しない（無駄な通信とバッテリー消費を避ける）
+        // ただし手動更新は、スタッフが今まさに見ているので必ず実行する。
+        if (!force && document.hidden) {
+            return;
+        }
+
+        // 取得を始めた時点の世代。応答が返るまでにスタッフが操作していたら、
+        // この結果は操作前の内容なので破棄する（画面が巻き戻るのを防ぐ）。
+        const requestedGeneration = ordersGeneration;
+
+        // この取得の連番。あとから始まった取得が先に反映されていたら、こちらは古い。
+        const requestId = ++latestRequestId;
+
+        try {
+            const response = await fetch('/MOS_A/public/staff/orders/latest', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            // より新しい取得が始まっている場合、この応答は古いので何もしない。
+            // 401判定より前に置く。古いセッションの401が、別タブでの再ログイン後に
+            // 届いてポーリングを止めてしまうのを防ぐため。
+            if (requestId !== latestRequestId) {
+                return;
+            }
+
+            // セッション切れは401で返る。取得を止めて再ログインを促す。
+            // 止めないと取得できないまま20秒ごとの通信が続いてしまう。
+            if (response.status === 401) {
+                stopOrderPolling();
+                notifySessionExpired();
+                return;
+            }
+
+            // その他のエラー（500など）は一時的な可能性があるので、次回の取得に任せる
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (!payload || payload.ok !== true || !Array.isArray(payload.orders)) {
+                return;
+            }
+
+            // 通信中にスタッフが提供・取消などを行っていた場合は古い内容のため捨てる
+            if (requestedGeneration !== ordersGeneration) {
+                return;
+            }
+
+            if (!hasOrderChanges(payload.orders)) {
+                // 手動更新では、変化が無くてもバナーを消して「最新の状態」を明確にする
+                if (force) {
+                    pendingOrders = null;
+                    renderUpdateBanner();
+                }
+
+                return;
+            }
+
+            // どの世代の取得結果かを保持する。保留中にスタッフが操作したら破棄する。
+            pendingOrders = { generation: requestedGeneration, orders: payload.orders };
+
+            // 自動更新は操作中なら反映を保留してバナーで知らせるだけにする。
+            // 手動更新はスタッフ自身の操作なので、そのまま反映してよい。
+            if (!force && isStaffBusy()) {
+                renderUpdateBanner();
+                return;
+            }
+
+            applyPendingOrders();
+        } catch (error) {
+            // 通信断は次回の取得で回復するため、画面には出さない
+        }
+    }
+
+    /**
+     * 定期取得のタイマーを引き直す。
+     *
+     * 取得した直後は次の取得までフルに間隔を空けたい。
+     * 手動更新の直後にタイマーが発火すると、取得が並行して手動分が
+     * 「古い結果」として捨てられることがあるため、それも避けられる。
+     */
+    function restartPollTimer() {
+        if (pollTimerId === null) {
+            return;
+        }
+
+        clearInterval(pollTimerId);
+        pollTimerId = setInterval(fetchLatestOrders, POLL_INTERVAL_MS);
+    }
+
+    /**
+     * 定期取得を止める。
+     *
+     * セッション切れを検知したときに呼ぶ。止めないと、取得できないまま
+     * 20秒ごとの通信が延々と続いてしまう。再開にはページの読み直しが必要。
+     */
+    function stopOrderPolling() {
+        if (pollTimerId === null) {
+            return;
+        }
+
+        clearInterval(pollTimerId);
+        pollTimerId = null;
+    }
+
+    /**
+     * セッション切れをスタッフに知らせる。
+     *
+     * このまま操作しても保存できないため、ログイン画面へ移動できるボタンを出す。
+     * 「閉じる」だけだと、閉じた後もそのまま操作を続けられるように見えてしまう。
+     */
+    function notifySessionExpired() {
+        if (sessionExpiredNotified) {
+            return;
+        }
+
+        sessionExpiredNotified = true;
+
+        if (typeof openModal !== 'function') {
+            return;
+        }
+
+        openModal(`
+            <h2>ログインの有効期限が切れました</h2>
+            <p>お手数ですが、再度ログインしてください。</p>
+            <button class="white-button" id="goToLoginButton">ログイン画面へ移動</button>
+        `);
+
+        const goToLogin = document.getElementById('goToLoginButton');
+
+        if (goToLogin) {
+            goToLogin.addEventListener('click', () => {
+                window.location.href = '/MOS_A/public/staff/login';
+            });
+        }
+    }
+
+    /**
+     * 更新ボタンから呼ぶ手動更新。
+     * 押したことが分かるようボタンをグレーにし、取得中は連打を受け付けない。
+     */
+    async function refreshOrdersManually() {
+        const button = document.getElementById('orderRefreshButton');
+
+        if (button) {
+            button.disabled = true;
+            button.classList.add('is-loading');
+        }
+
+        // 取得の直後にタイマーが重ならないよう、次回までの間隔を取り直す
+        restartPollTimer();
+
+        try {
+            await fetchLatestOrders(true);
+        } finally {
+            // 一瞬で戻ると押した実感が無いため、最低でも400msはグレーのままにする
+            setTimeout(() => {
+                if (button) {
+                    button.disabled = false;
+                    button.classList.remove('is-loading');
+                }
+            }, 400);
+        }
+    }
+
+    function startOrderPolling() {
+        if (pollTimerId !== null) {
+            return;
+        }
+
+        // dashboard.jsはスタッフ注文入力・メニュー画面でも読み込まれる。
+        // 注文一覧が無い画面で取得しても使い道がないため、DOMの有無で判定する。
+        if (!document.getElementById('orderTableBody')) {
+            return;
+        }
+
+        pollTimerId = setInterval(fetchLatestOrders, POLL_INTERVAL_MS);
+
+        // 別タブから戻ってきた時は、次の周期を待たずに最新へ追いつく
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                restartPollTimer();
+                fetchLatestOrders();
+            }
+        });
+
+        const banner = document.getElementById('orderUpdateBanner');
+
+        if (banner) {
+            banner.addEventListener('click', applyPendingOrders);
+        }
+
+        const refreshButton = document.getElementById('orderRefreshButton');
+
+        if (refreshButton) {
+            refreshButton.addEventListener('click', refreshOrdersManually);
+        }
+    }
+
     return {
         renderOrders,
         setOrderTabActive,
         renderOrderDetail,
         openOrderEditModal,
         cancelOrders,
-        restoreOrders
+        restoreOrders,
+        startOrderPolling,
+        stopOrderPolling
     };
 };

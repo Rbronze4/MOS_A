@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Database/db.php';
+// コース税率の定数（COURSE_TAX_RATE）を客側表示と共有するために読み込む。
+require_once __DIR__ . '/PlanModel.php';
 
 /**
  * レジ連携API（/api/orders）用のModel。
@@ -26,8 +28,11 @@ final class ApiOrderModel
     /**
      * コース（飲み放題プラン）料金の税率（%）。
      * plansテーブルに税率の列が無いため、店内飲食の標準税率として10%で固定する。
+     *
+     * 客側の表示（plans.js）も同じ税率で税込計算するため、
+     * 値が二重管理にならないようPlanModelの定数を唯一の定義元とする。
      */
-    private const COURSE_TAX_RATE = 10;
+    private const COURSE_TAX_RATE = PlanModel::COURSE_TAX_RATE;
 
     /**
      * 条件に一致する注文を、レジの契約どおりの形で返す。
@@ -196,6 +201,16 @@ final class ApiOrderModel
                 od.ordered_at,
                 od.ordered_product_name,
                 od.ordered_unit_price,
+                COALESCE((
+                    SELECT SUM(odo.ordered_additional_price)
+                    FROM order_detail_options AS odo
+                    WHERE odo.order_detail_id = od.order_detail_id
+                ), 0) AS option_additional_price,
+                (
+                    SELECT GROUP_CONCAT(odo.ordered_option_name ORDER BY odo.option_id SEPARATOR '、')
+                    FROM order_detail_options AS odo
+                    WHERE odo.order_detail_id = od.order_detail_id
+                ) AS option_summary,
                 od.quantity,
                 od.provided_quantity,
                 p.tax_rate,
@@ -218,8 +233,9 @@ final class ApiOrderModel
         foreach ($statement->fetchAll() as $row) {
             $grouped[(int)$row['customer_id']][] = [
                 'orderTime' => $this->toIso8601((string)$row['ordered_at']),
-                'menuName' => (string)$row['ordered_product_name'],
-                'unitPrice' => (int)$row['ordered_unit_price'],
+                'menuName' => (string)$row['ordered_product_name']
+                    . ($row['option_summary'] === null ? '' : '（' . (string)$row['option_summary'] . '）'),
+                'unitPrice' => (int)$row['ordered_unit_price'] + (int)$row['option_additional_price'],
                 // 契約上taxRateはintだが、products.tax_rateはdecimal(5,2)で"10.00"と返るため丸める。
                 'taxRate' => (int)round((float)$row['tax_rate']),
                 'orderQty' => (int)$row['quantity'],

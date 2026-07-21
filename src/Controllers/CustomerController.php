@@ -47,10 +47,31 @@ final class CustomerController
         $activeCustomerPlan = null;
         $hasActiveCustomerPlan = false;
 
-        // 店舗別・制限時間別のプラン単価。店舗が確定してからDBで取得する。
+        // レジで会計を通した後（会計済み/未収金/会計中）は注文を受け付けない。
+        // サーバー側でも弾くが、客が理由を分かるよう画面にも案内を出す。
+        $billingClosed = false;
+
+        // 店舗別・制限時間別のプラン単価（税抜）。店舗が確定してからDBで取得する。
         $planUnitPrices = [];
 
+        // プラン単価は税抜のため、客側の表示は必ずこの税率で税込にする。
+        // レジもAPIのtaxRateで税を上乗せするので、同じ税率を使わないと請求額とずれる。
+        $planTaxRate = PlanModel::COURSE_TAX_RATE;
+
+        /*
+         * 飲み放題の残り時間の基準となる現在時刻。
+         *
+         * 必ずDBから取る。PHPのtimezone設定がDBとずれていると
+         * （例: PHPがEurope/Berlin、DBが日本時間）比較対象のstarted_atと
+         * 時計が食い違い、残り時間が何時間もずれてしまうため。
+         * DBに繋がらない場合はnullのままにし、画面側は端末時計で表示する。
+         */
+        $serverNow = null;
+
         try {
+            // DB停止時も画面を出せるよう、この取得はtryの中で行う。
+            $serverNow = $sessionModel->databaseNow();
+
             if ($sessionId !== null) {
                 $activeSession = $sessionModel->activeSession($sessionId);
 
@@ -87,6 +108,8 @@ final class CustomerController
             $currentCustomer = $sessionModel->findCustomer($customerId);
             if ($currentCustomer !== null) {
                 $peopleCount = (int)$currentCustomer['people_count'];
+                $billingClosed = (int)$currentCustomer['billing_status']
+                    !== CustomerSessionModel::BILLING_STATUS_ACCEPTING;
             }
 
             $hasActiveCustomerPlan = $activeCustomerPlan !== null;
@@ -139,6 +162,16 @@ final class CustomerController
         $customerId = $this->validatedCustomerId();
         $tableNumber = $this->validatedTableNumber();
         $sessionModel = new CustomerSessionModel();
+
+        // 会計を通したQRでセッションを開始・再開させない。
+        // ここを通すと、その後のカート操作や注文確定まで進めてしまう。
+        if (!$sessionModel->isAcceptingOrders($customerId)) {
+            $this->json([
+                'ok' => false,
+                'message' => 'お会計が完了しているため、ご利用いただけません。スタッフをお呼びください。',
+            ], 409);
+        }
+
         $activeCustomerPlan = $sessionModel->activeCustomerPlan($customerId);
         $planKey = $activeCustomerPlan === null ? $this->validatedPlanKey() : null;
         $planMinutes = $this->validatedPlanMinutes();
@@ -185,6 +218,7 @@ final class CustomerController
         $session = $this->validatedActiveSession();
         $productId = $this->validatedProductId();
         $quantity = $this->validatedQuantity();
+        $optionIds = $this->validatedOptionIds();
 
         try {
             $cartModel = new CartModel();
@@ -192,7 +226,8 @@ final class CustomerController
                 (int)$session['session_id'],
                 (string)$session['store_id'],
                 $productId,
-                $quantity
+                $quantity,
+                $optionIds
             );
             $message = $result['product_name'] . 'をカートに追加しました。';
 
@@ -206,8 +241,11 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => 'カート追加に失敗しました。セッション、既存カート、商品販売設定を確認してください。',
-            ], 500);
+                'message' => $this->safeMessage(
+                    $exception,
+                    'カート追加に失敗しました。時間をおいて再度お試しください。'
+                ),
+            ], $exception instanceof PDOException ? 500 : 422);
         }
     }
 
@@ -218,12 +256,19 @@ final class CustomerController
         }
 
         $session = $this->validatedActiveSession();
-        $productId = $this->validatedProductId();
+        $cartDetailId = $this->validatedCartDetailId();
         $quantity = $this->validatedQuantity();
+        $optionIds = $this->validatedOptionIds();
 
         try {
             $cartModel = new CartModel();
-            $result = $cartModel->updateProductQuantity((int)$session['session_id'], $productId, $quantity);
+            $result = $cartModel->updateCartDetail(
+                (int)$session['session_id'],
+                (string)$session['store_id'],
+                $cartDetailId,
+                $quantity,
+                $optionIds
+            );
 
             $this->json([
                 'ok' => true,
@@ -235,8 +280,11 @@ final class CustomerController
 
             $this->json([
                 'ok' => false,
-                'message' => '数量変更に失敗しました。カート内容を確認してください。',
-            ], 500);
+                'message' => $this->safeMessage(
+                    $exception,
+                    '数量変更に失敗しました。時間をおいて再度お試しください。'
+                ),
+            ], $exception instanceof PDOException ? 500 : 422);
         }
     }
 
@@ -247,11 +295,11 @@ final class CustomerController
         }
 
         $session = $this->validatedActiveSession();
-        $productId = $this->validatedProductId();
+        $cartDetailId = $this->validatedCartDetailId();
 
         try {
             $cartModel = new CartModel();
-            $result = $cartModel->deleteProduct((int)$session['session_id'], $productId);
+            $result = $cartModel->deleteCartDetail((int)$session['session_id'], $cartDetailId);
 
             $this->json([
                 'ok' => true,
@@ -319,6 +367,25 @@ final class CustomerController
                 'ok' => false,
                 'message' => '有効なセッションが見つかりません。',
             ], 422);
+        }
+
+        // レジで会計を通した後もセッションはACTIVEのまま残るため、
+        // セッションの有効性だけでは会計済みの客の追加注文を止められない。
+        // 請求できない注文が増えるのを防ぐため、会計状態も必ず確認する。
+        if (!$sessionModel->isAcceptingOrders((int)$session['customer_id'])) {
+            $this->json([
+                'ok' => false,
+                'message' => 'お会計が完了しているため、注文を承れません。スタッフをお呼びください。',
+            ], 409);
+        }
+
+        // ラストオーダーを過ぎたら、飲み放題対象かどうかに関わらず客側の注文を止める。
+        // スタッフ側にはこの制限をかけない（時間切れ後もスタッフからは注文できる）。
+        if (!$sessionModel->isWithinLastOrderTime((int)$session['customer_id'])) {
+            $this->json([
+                'ok' => false,
+                'message' => 'ラストオーダーの時間を過ぎているため、ご注文を承れません。スタッフをお呼びください。',
+            ], 409);
         }
 
         return $session;
@@ -406,6 +473,20 @@ final class CustomerController
         return (int)$productId;
     }
 
+    private function validatedCartDetailId(): int
+    {
+        $cartDetailId = filter_input(INPUT_POST, 'cart_detail_id', FILTER_VALIDATE_INT);
+
+        if ($cartDetailId === false || $cartDetailId === null || $cartDetailId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => 'カート明細IDが正しくありません。',
+            ], 422);
+        }
+
+        return (int)$cartDetailId;
+    }
+
     private function validatedQuantity(): int
     {
         $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
@@ -415,6 +496,40 @@ final class CustomerController
         }
 
         return min(99, max(1, (int)$quantity));
+    }
+
+    /**
+     * フロントから届く選択済みoption_id配列を整数の重複なしリストへ正規化する。
+     * 商品への所属や必須条件は、改ざん対策としてModelでDBを参照して検証する。
+     */
+    private function validatedOptionIds(): array
+    {
+        $raw = $_POST['option_ids'] ?? '[]';
+        $decoded = is_array($raw) ? $raw : json_decode((string)$raw, true);
+
+        if (!is_array($decoded)) {
+            $this->json([
+                'ok' => false,
+                'message' => 'オプションの指定が正しくありません。',
+            ], 422);
+        }
+
+        $optionIds = [];
+
+        foreach ($decoded as $value) {
+            $optionId = filter_var($value, FILTER_VALIDATE_INT);
+
+            if ($optionId === false || $optionId < 1) {
+                $this->json([
+                    'ok' => false,
+                    'message' => 'オプションの指定が正しくありません。',
+                ], 422);
+            }
+
+            $optionIds[] = (int)$optionId;
+        }
+
+        return array_values(array_unique($optionIds));
     }
 
     /**

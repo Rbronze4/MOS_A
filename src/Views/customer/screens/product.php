@@ -18,6 +18,8 @@
         </div>
     </div>
 
+    <div id="productOptions" class="product-options" aria-live="polite"></div>
+
     <!--
         数量はキーボード入力不可（readonly）。下の −／＋ ボタンでのみ増減する。
         ※卓番号入力(#tableNumberInput)はキーボード入力可のまま。

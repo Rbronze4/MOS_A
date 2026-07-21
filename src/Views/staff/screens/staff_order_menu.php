@@ -53,6 +53,7 @@ $targetLabel = $tableNo !== ''
         </div>
     <?php endif; ?>
 
+    <div id="staffMenuBrowse">
     <nav class="staff-category-tabs">
         <?php foreach ($categories as $category): ?>
             <?php
@@ -93,6 +94,9 @@ $targetLabel = $tableNo !== ''
 
                     <div class="staff-menu-name">
                         <?= htmlspecialchars((string)$menu['name'], ENT_QUOTES, 'UTF-8') ?>
+                        <?php if (!empty($menu['has_options'])): ?>
+                            <span class="staff-menu-option-badge">オプションあり</span>
+                        <?php endif; ?>
                     </div>
 
                     <div class="staff-menu-price">
@@ -134,6 +138,48 @@ $targetLabel = $tableNo !== ''
             </button>
         </aside>
     </div>
+    </div>
+
+    <section id="staffProductSelection" class="staff-product-selection" hidden>
+        <div class="staff-product-selection-heading">
+            <button id="staffProductSelectionBack" class="staff-product-selection-back" type="button">← 商品一覧へ</button>
+            <h2>商品を選択</h2>
+        </div>
+
+        <div class="staff-product-selection-layout">
+            <article class="staff-product-summary">
+                <img id="staffSelectedProductImage" src="" alt="">
+                <div>
+                    <h3 id="staffSelectedProductName"></h3>
+                    <p id="staffSelectedProductBasePrice"></p>
+                </div>
+            </article>
+
+            <div class="staff-product-config">
+                <div id="staffProductOptions" class="staff-product-options"></div>
+                <p id="staffProductSelectionError" class="staff-product-selection-error" role="alert"></p>
+
+                <div class="staff-product-quantity-row">
+                    <span>数量</span>
+                    <div class="staff-product-quantity-control">
+                        <button id="staffProductQuantityMinus" type="button" aria-label="数量を減らす">−</button>
+                        <strong id="staffProductQuantity">1</strong>
+                        <button id="staffProductQuantityPlus" type="button" aria-label="数量を増やす">＋</button>
+                    </div>
+                </div>
+
+                <div class="staff-product-selection-total">
+                    <span>小計</span>
+                    <strong id="staffProductSelectionTotal">￥0</strong>
+                </div>
+
+                <div class="staff-product-selection-actions">
+                    <button id="staffProductSelectionCancel" type="button">キャンセル</button>
+                    <button id="staffProductAddToCart" type="button">注文かごに追加</button>
+                </div>
+            </div>
+        </div>
+    </section>
 </section>
 
 <?php require dirname(__DIR__) . '/parts/side_menu.php'; ?>
@@ -145,4 +191,5 @@ $targetLabel = $tableNo !== ''
         returnRef: <?= json_encode($returnRef, JSON_UNESCAPED_UNICODE) ?>,
         submitUrl: '/MOS_A/public/staff/order/submit'
     };
+    window.staffOrderMenus = <?= json_encode($filteredMenus, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>

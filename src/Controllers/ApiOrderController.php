@@ -78,6 +78,18 @@ final class ApiOrderController
             $this->respondError(400, $exception->errorCode(), $exception->getMessage());
         } catch (Throwable $exception) {
             // DB障害などの想定外エラー。契約のerrorCodeには該当しないため500で返す。
+            //
+            // レジ連携は無人で動くため、ログがないと本番で原因を追えない。
+            // レジへ返す本文は定型文のままにし、詳細はログにだけ残す。
+            error_log(sprintf(
+                '[api-orders] %s: %s at %s:%d (method=%s)',
+                get_class($exception),
+                $exception->getMessage(),
+                $exception->getFile(),
+                $exception->getLine(),
+                is_string($request['method'] ?? null) ? $request['method'] : 'unknown'
+            ));
+
             $this->respondError(500, 'INTERNAL_ERROR', 'サーバ内部でエラーが発生しました。');
         }
     }

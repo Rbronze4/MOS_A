@@ -65,9 +65,19 @@ $jsFile = $jsFile ?? '';
             peopleCount: <?= json_encode($peopleCount ?? 2, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             hasActiveCustomerPlan: <?= json_encode($hasActiveCustomerPlan ?? false, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             activeCustomerPlan: <?= json_encode($activeCustomerPlan ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
-            // 店舗別・制限時間別のプラン単価（DBのplans）。
+            // 店舗別・制限時間別のプラン単価（DBのplans・税抜）。
             // 形: { standard: { "120": 2200, "180": 3000 }, premium: { ... } }
-            planUnitPrices: <?= json_encode($planUnitPrices ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+            planUnitPrices: <?= json_encode($planUnitPrices ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            // プラン単価は税抜のため、客側の表示はこの税率で税込にする。
+            planTaxRate: <?= json_encode($planTaxRate ?? 10, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            // レジで会計を通した後（会計済み/未収金/会計中）はtrue。注文させず案内を出す。
+            billingClosed: <?= json_encode($billingClosed ?? false, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            // 飲み放題の残り時間の基準に使うDBの現在時刻。端末の時計ずれを補正する。
+            // 取得できなかった場合はnull。画面側は端末時計にフォールバックする。
+            // （PHPのdate()で代用しないこと。timezone設定がDBと違うと時刻がずれる）
+            serverNow: <?= json_encode($serverNow ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            // ラストオーダーはコース終了の何分前か。サーバー側の判定と同じ値を使う。
+            lastOrderBeforeMinutes: <?= json_encode(PlanModel::LAST_ORDER_BEFORE_MINUTES, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
         };
     </script>
 <?php endif; ?>
@@ -77,7 +87,8 @@ $jsFile = $jsFile ?? '';
         window.STAFF_DATA = {
             orders: <?= json_encode($orders, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
             products: <?= json_encode($products, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
-            productCategories: <?= json_encode($productCategories ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+            productCategories: <?= json_encode($productCategories ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+            productPlanTypes: <?= json_encode($productPlanTypes ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
         };
     </script>
 <?php endif; ?>

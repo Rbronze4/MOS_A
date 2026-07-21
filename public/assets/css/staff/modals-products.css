@@ -129,6 +129,51 @@
     font-size: 11px;
 }
 
+.product-plan-area {
+    width: 100%;
+    margin: 6px 0 18px;
+    padding: 12px;
+    border: 1px solid #777777;
+    box-sizing: border-box;
+}
+
+.product-plan-area legend {
+    padding: 0 6px;
+    font-size: 14px;
+}
+
+.product-plan-note,
+.product-plan-empty {
+    margin: 0 0 10px;
+    color: #555555;
+    font-size: 12px;
+}
+
+.product-plan-choices {
+    display: grid;
+    gap: 8px;
+}
+
+.product-form .product-plan-choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.product-form .product-plan-choice input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+}
+
+.product-form .product-plan-choice span {
+    display: inline;
+    margin: 0;
+    font-size: 14px;
+}
+
 .product-option-area {
     width: 100%;
     margin: 6px 0 18px;

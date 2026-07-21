@@ -11,6 +11,20 @@ require_once dirname(__DIR__) . '/Database/db.php';
  */
 final class StaffOrderModel
 {
+    /**
+     * 注文を受け付けてよい会計状態（1=受付中）。
+     * 2=会計済み / 4=未収金 / 8=会計中 は、レジを通した後なので注文を追加させない。
+     */
+    private const BILLING_STATUS_ACCEPTING = 1;
+
+    /**
+     * 商品IDごとの税率キャッシュ。
+     * 注文一覧では同じ商品が何度も現れるため、1リクエスト内で使い回してN+1を避ける。
+     *
+     * @var array<int, float>
+     */
+    private array $taxRateCache = [];
+
     public function activeSessionByTable(string $storeId, string $tableNumber, bool $forUpdate = false): ?array
     {
         $lockSql = $forUpdate ? 'FOR UPDATE' : '';
@@ -74,6 +88,32 @@ final class StaffOrderModel
         $session = $statement->fetch();
 
         return $session === false ? null : $session;
+    }
+
+    /**
+     * その顧客が今も注文を受け付けてよい状態か確認し、駄目なら例外を投げる。
+     *
+     * レジで会計済み(2)・未収金(4)・会計中(8)になった顧客に注文を追加すると、
+     * 請求できない注文が増える。また会計中に内容が変わるとレジ側の
+     * 同一性チェック（hash）が通らず、レジが会計できなくなる。
+     */
+    private function assertCustomerAcceptingOrders(int $customerId): void
+    {
+        $statement = db()->prepare(
+            'SELECT billing_status FROM customers WHERE customer_id = :customer_id LIMIT 1'
+        );
+        $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $customer = $statement->fetch();
+
+        if ($customer === false) {
+            throw new RuntimeException('顧客情報が見つかりません。');
+        }
+
+        if ((int)$customer['billing_status'] !== self::BILLING_STATUS_ACCEPTING) {
+            throw new RuntimeException('この顧客はお会計が完了しているため、注文できません。');
+        }
     }
 
     public function planTypeIdForSession(int $sessionId): ?int
@@ -142,8 +182,13 @@ final class StaffOrderModel
                 throw new RuntimeException('指定された卓番号または顧客番号の利用中セッションが見つかりません。先にQR読込または卓番号入力とプラン選択を行ってください。');
             }
 
+            // レジで会計を通した後もセッションはACTIVEのまま残るため、
+            // セッションの有無だけでは会計済みの顧客への追加注文を止められない。
+            // 請求できない注文が増えるのを防ぐため、会計状態を必ず確認する。
+            $this->assertCustomerAcceptingOrders((int)$session['customer_id']);
+
             $planTypeId = $this->planTypeIdForSession((int)$session['session_id']);
-            $productIds = array_column($items, 'product_id');
+            $productIds = array_values(array_unique(array_column($items, 'product_id')));
             $products = $this->onSaleProductsForStaffOrder($storeId, $productIds, $planTypeId);
 
             if (count($products) !== count($productIds)) {
@@ -159,8 +204,22 @@ final class StaffOrderModel
                 $quantity = (int)$item['quantity'];
                 $unitPrice = (int)$product['plan_applied_flag'] === 1 ? 0 : (int)$product['price'];
                 $planAppliedFlag = (int)$product['plan_applied_flag'];
+                $selectedOptions = $this->validatedStaffOrderOptions(
+                    (int)$product['product_id'],
+                    $item['option_ids']
+                );
+                $optionAdditionalPrice = array_sum(array_column($selectedOptions, 'additional_price'));
 
-                $this->insertStaffOrderDetail(
+                // オプションの追加料金は税抜で保存されているため、商品の税抜価格と合算して
+                // から税を掛ける。個別に税込化して足すと端数処理が2回入り、税抜合計へ
+                // 課税するレジ側の計算と1円ずれることがある。
+                // プラン対象商品は商品分が0円なので、オプション分だけに課税される。
+                $taxIncludedTotalUnitPrice = $this->taxIncludedPrice(
+                    $unitPrice + $optionAdditionalPrice,
+                    (float)$product['tax_rate']
+                );
+
+                $orderDetailId = $this->insertStaffOrderDetail(
                     $orderId,
                     (int)$product['product_id'],
                     (string)$product['product_name'],
@@ -168,9 +227,12 @@ final class StaffOrderModel
                     $unitPrice,
                     $planAppliedFlag
                 );
+                $this->insertStaffOrderOptions($orderDetailId, $selectedOptions);
 
                 $totalQuantity += $quantity;
-                $totalAmount += $unitPrice * $quantity;
+
+                // 税込単価（オプション込み）はすでに合算済みのため、ここで再度足さない。
+                $totalAmount += $taxIncludedTotalUnitPrice * $quantity;
             }
 
             $pdo->commit();
@@ -197,6 +259,11 @@ final class StaffOrderModel
      *
      * 店舗判定はsessions.store_idで行う。
      * 固定店舗IDは使わず、Controllerから渡されたログイン中のstore_idを必ずバインドする。
+     *
+     * 対象は「まだ会計が終わっていない顧客」の注文だけに絞る。
+     * 絞らないと過去の営業日の注文まで含まれ、日が経つほど取得件数が増え続ける。
+     * 注文一覧は今いる客への提供状況を見る画面なので、会計済みの注文は表示しない。
+     * （会計済み顧客の明細は顧客詳細画面から確認できる）
      */
     public function ordersForStore(string $storeId): array
     {
@@ -222,7 +289,11 @@ final class StaffOrderModel
                 ON o.order_id = od.order_id
             INNER JOIN sessions AS s
                 ON s.session_id = o.session_id
+            INNER JOIN customers AS c
+                ON c.customer_id = s.customer_id
             WHERE s.store_id = :store_id
+              -- billing_status 1:受付中 8:会計中 が営業中の顧客。2:会計済み 4:未収金 は除く
+              AND c.billing_status IN (1, 8)
             ORDER BY
                 o.ordered_at ASC,
                 od.order_detail_id ASC
@@ -794,6 +865,7 @@ final class StaffOrderModel
 
             $productId = filter_var($rawItem['product_id'] ?? $rawItem['id'] ?? null, FILTER_VALIDATE_INT);
             $quantity = filter_var($rawItem['quantity'] ?? $rawItem['qty'] ?? null, FILTER_VALIDATE_INT);
+            $rawOptionIds = $rawItem['option_ids'] ?? [];
 
             if ($productId === false || $productId === null || $productId < 1) {
                 throw new InvalidArgumentException('商品IDが正しくありません。');
@@ -803,17 +875,36 @@ final class StaffOrderModel
                 throw new InvalidArgumentException('数量は1以上の整数で入力してください。');
             }
 
-            if (!isset($items[(int)$productId])) {
-                $items[(int)$productId] = [
+            if (!is_array($rawOptionIds)) {
+                throw new InvalidArgumentException('オプションの指定が正しくありません。');
+            }
+
+            $optionIds = array_values(array_unique(array_filter(
+                array_map('intval', $rawOptionIds),
+                static fn (int $optionId): bool => $optionId > 0
+            )));
+            sort($optionIds);
+            $itemKey = (int)$productId . ':' . implode(',', $optionIds);
+
+            if (!isset($items[$itemKey])) {
+                $items[$itemKey] = [
                     'product_id' => (int)$productId,
                     'quantity' => 0,
+                    'option_ids' => $optionIds,
                 ];
             }
 
-            $items[(int)$productId]['quantity'] += (int)$quantity;
+            $items[$itemKey]['quantity'] += (int)$quantity;
         }
 
         return array_values($items);
+    }
+
+    private function taxIncludedPrice(int $price, float $taxRate): int
+    {
+        $taxRateBasisPoints = (int)round($taxRate * 100);
+
+        return intdiv($price * (10000 + $taxRateBasisPoints), 10000);
     }
 
     private function onSaleProductsForStaffOrder(string $storeId, array $productIds, ?int $planTypeId): array
@@ -841,15 +932,12 @@ final class StaffOrderModel
                     WHEN ptp.product_id IS NOT NULL THEN 1
                     ELSE 0
                 END AS plan_applied_flag
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON p.product_id = sp.product_id
+            FROM products AS p
             LEFT JOIN plan_type_products AS ptp
                 ON ptp.product_id = p.product_id
                AND ptp.plan_type_id = :plan_type_id
-            WHERE sp.store_id = :store_id
-              AND sp.product_id IN ($inSql)
-              AND sp.sale_status = 'ON_SALE'
+            WHERE p.store_id = :store_id
+              AND p.product_id IN ($inSql)
               AND p.sale_status = 'ON_SALE'
             FOR UPDATE
         SQL;
@@ -876,6 +964,77 @@ final class StaffOrderModel
         }
 
         return $products;
+    }
+
+    /**
+     * 選択オプションをDBの商品構成と照合し、必須・単一選択を検証する。
+     */
+    private function validatedStaffOrderOptions(int $productId, array $optionIds): array
+    {
+        $sql = <<<SQL
+            SELECT
+                og.option_group_id,
+                og.option_group_name,
+                og.selection_type,
+                og.is_required,
+                o.option_id,
+                o.option_name,
+                o.additional_price
+            FROM product_option_groups AS pog
+            INNER JOIN option_groups AS og
+                ON og.option_group_id = pog.option_group_id
+            LEFT JOIN options AS o
+                ON o.option_group_id = og.option_group_id
+            WHERE pog.product_id = :product_id
+            ORDER BY pog.display_order, og.option_group_id, o.display_order, o.option_id
+            FOR UPDATE
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->execute();
+        $groups = [];
+        $validOptions = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $groupId = (int)$row['option_group_id'];
+            $groups[$groupId] ??= [
+                'name' => (string)$row['option_group_name'],
+                'selection_type' => (string)$row['selection_type'],
+                'is_required' => (int)$row['is_required'],
+                'option_ids' => [],
+            ];
+
+            if ($row['option_id'] !== null) {
+                $optionId = (int)$row['option_id'];
+                $groups[$groupId]['option_ids'][] = $optionId;
+                $validOptions[$optionId] = [
+                    'option_id' => $optionId,
+                    'option_name' => (string)$row['option_name'],
+                    'additional_price' => (int)$row['additional_price'],
+                ];
+            }
+        }
+
+        foreach ($optionIds as $optionId) {
+            if (!isset($validOptions[$optionId])) {
+                throw new InvalidArgumentException('商品に存在しないオプションが選択されています。');
+            }
+        }
+
+        foreach ($groups as $group) {
+            $selectedCount = count(array_intersect($optionIds, $group['option_ids']));
+
+            if ($group['is_required'] === 1 && $selectedCount === 0) {
+                throw new InvalidArgumentException($group['name'] . 'を選択してください。');
+            }
+
+            if ($group['selection_type'] === 'SINGLE' && $selectedCount > 1) {
+                throw new InvalidArgumentException($group['name'] . 'は1つだけ選択してください。');
+            }
+        }
+
+        return array_values(array_intersect_key($validOptions, array_flip($optionIds)));
     }
 
     private function insertStaffOrder(int $sessionId): int
@@ -906,7 +1065,7 @@ final class StaffOrderModel
         int $quantity,
         int $unitPrice,
         int $planAppliedFlag
-    ): void {
+    ): int {
         $sql = <<<SQL
             INSERT INTO order_details (
                 order_id,
@@ -936,6 +1095,41 @@ final class StaffOrderModel
         $statement->bindValue(':ordered_unit_price', $unitPrice, PDO::PARAM_INT);
         $statement->bindValue(':plan_applied_flag', $planAppliedFlag, PDO::PARAM_INT);
         $statement->execute();
+
+        return (int)db()->lastInsertId();
+    }
+
+    /**
+     * 注文時点のオプション名と追加料金をスナップショット保存する。
+     */
+    private function insertStaffOrderOptions(int $orderDetailId, array $selectedOptions): void
+    {
+        if ($selectedOptions === []) {
+            return;
+        }
+
+        $sql = <<<SQL
+            INSERT INTO order_detail_options (
+                order_detail_id,
+                option_id,
+                ordered_option_name,
+                ordered_additional_price
+            ) VALUES (
+                :order_detail_id,
+                :option_id,
+                :ordered_option_name,
+                :ordered_additional_price
+            )
+        SQL;
+        $statement = db()->prepare($sql);
+
+        foreach ($selectedOptions as $option) {
+            $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+            $statement->bindValue(':option_id', (int)$option['option_id'], PDO::PARAM_INT);
+            $statement->bindValue(':ordered_option_name', (string)$option['option_name'], PDO::PARAM_STR);
+            $statement->bindValue(':ordered_additional_price', (int)$option['additional_price'], PDO::PARAM_INT);
+            $statement->execute();
+        }
     }
 
     private function findOrderDetailForUpdate(string $storeId, int $orderDetailId): ?array
@@ -1119,6 +1313,14 @@ final class StaffOrderModel
         $displayProvidedQuantity = $detailStatus === 'PROVIDED'
             ? max($providedQuantity, $quantity)
             : min($providedQuantity, $quantity);
+        $options = $this->orderOptions((int)$row['order_detail_id']);
+        $optionSummary = implode('、', array_column($options, 'name'));
+        $optionAdditionalPrice = array_sum(array_column($options, 'additional_price'));
+        $displayName = (string)$row['ordered_product_name'];
+
+        if ($optionSummary !== '') {
+            $displayName .= '（' . $optionSummary . '）';
+        }
 
         return [
             // 既存JSはorder.idを操作対象として使うため、注文ヘッダではなく明細IDを入れる。
@@ -1130,7 +1332,10 @@ final class StaffOrderModel
             'session_id' => (int)$row['session_id'],
             'store_id' => (string)$row['store_id'],
             'table_no' => (string)$row['table_number'] . '番',
-            'name' => (string)$row['ordered_product_name'],
+            'name' => $displayName,
+            'product_name' => (string)$row['ordered_product_name'],
+            'option_summary' => $optionSummary,
+            'options' => $options,
             'qty' => $quantity,
             'servedQty' => $displayProvidedQuantity,
             'time' => $this->formatTime($row['order_ordered_at'] ?? $row['ordered_at'] ?? null),
@@ -1138,9 +1343,64 @@ final class StaffOrderModel
             'status' => $this->displayStatus($detailStatus, $quantity, $displayProvidedQuantity),
             'status_label' => $this->statusLabel($detailStatus, $quantity, $displayProvidedQuantity),
             'detail_status' => $detailStatus,
-            'price' => (int)$row['ordered_unit_price'],
+            // オプションの追加料金も商品と同じく税抜で保存されているため、合算してから
+            // 税を掛ける。呼び出し元のSQLはproductsを結合していないので、税率はここで引く。
+            'price' => $this->taxIncludedPrice(
+                (int)$row['ordered_unit_price'] + $optionAdditionalPrice,
+                $this->taxRateForProduct((int)$row['product_id'])
+            ),
             'plan_applied_flag' => (int)$row['plan_applied_flag'],
         ];
+    }
+
+    /**
+     * 商品の税率を取得する。
+     *
+     * 注文一覧のSQLはproductsを結合していないため、表示価格の税込計算用にここで引く。
+     * 一覧では同じ商品が何度も現れるので、1リクエスト内はキャッシュしてN+1を避ける。
+     * 商品が削除されている場合は、店内飲食の標準税率10%で代替する。
+     */
+    private function taxRateForProduct(int $productId): float
+    {
+        if (array_key_exists($productId, $this->taxRateCache)) {
+            return $this->taxRateCache[$productId];
+        }
+
+        $statement = db()->prepare('SELECT tax_rate FROM products WHERE product_id = :product_id LIMIT 1');
+        $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $taxRate = $statement->fetchColumn();
+        $this->taxRateCache[$productId] = $taxRate === false ? 10.0 : (float)$taxRate;
+
+        return $this->taxRateCache[$productId];
+    }
+
+    /**
+     * 注文明細に保存されたオプションのスナップショットを表示用に取得する。
+     */
+    private function orderOptions(int $orderDetailId): array
+    {
+        $sql = <<<SQL
+            SELECT option_id, ordered_option_name, ordered_additional_price
+            FROM order_detail_options
+            WHERE order_detail_id = :order_detail_id
+            ORDER BY option_id
+        SQL;
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+        $statement->execute();
+        $options = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $options[] = [
+                'option_id' => (int)$row['option_id'],
+                'name' => (string)$row['ordered_option_name'],
+                'additional_price' => (int)$row['ordered_additional_price'],
+            ];
+        }
+
+        return $options;
     }
 
     private function displayStatus(string $detailStatus, int $quantity, int $providedQuantity): string

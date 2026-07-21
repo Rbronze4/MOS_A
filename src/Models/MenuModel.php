@@ -18,7 +18,7 @@ final class MenuModel
     /**
      * 指定店舗で販売中の商品が存在するカテゴリだけを取得する。
      *
-     * 店舗ごとの販売設定は store_products にあるため、必ず store_products を起点にする。
+     * 店舗所属と販売状態は products に集約されているため、products を起点にする。
      */
     public function categoriesForStore(string $storeId, bool $hasActivePlan = false): array
     {
@@ -26,13 +26,10 @@ final class MenuModel
             SELECT DISTINCT
                 c.category_id,
                 c.category_name
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON p.product_id = sp.product_id
+            FROM products AS p
             INNER JOIN product_categories AS c
                 ON c.category_id = p.category_id
-            WHERE sp.store_id = :store_id
-              AND sp.sale_status = 'ON_SALE'
+            WHERE p.store_id = :store_id
               AND p.sale_status = 'ON_SALE'
             ORDER BY
                 c.category_id ASC
@@ -75,28 +72,25 @@ final class MenuModel
                 p.product_id,
                 p.product_name,
                 p.price,
+                p.tax_rate,
                 p.image_path,
                 p.category_id,
                 c.category_name,
-                sp.display_order,
+                p.product_id AS display_order,
                 CASE
                     WHEN ptp.product_id IS NOT NULL THEN 1
                     ELSE 0
                 END AS plan_applied_flag
-            FROM store_products AS sp
-            INNER JOIN products AS p
-                ON p.product_id = sp.product_id
+            FROM products AS p
             INNER JOIN product_categories AS c
                 ON c.category_id = p.category_id
             LEFT JOIN plan_type_products AS ptp
                 ON ptp.product_id = p.product_id
                AND ptp.plan_type_id = :plan_type_id
-            WHERE sp.store_id = :store_id
-              AND sp.sale_status = 'ON_SALE'
+            WHERE p.store_id = :store_id
               AND p.sale_status = 'ON_SALE'
             ORDER BY
                 c.category_id ASC,
-                sp.display_order ASC,
                 p.product_id ASC
         SQL;
 
@@ -109,24 +103,112 @@ final class MenuModel
         }
         $statement->execute();
 
+        $rows = $statement->fetchAll();
+        $optionGroupsByProduct = $this->optionGroupsByProduct(array_column($rows, 'product_id'));
         $menus = [];
 
-        foreach ($statement->fetchAll() as $row) {
+        foreach ($rows as $row) {
             $planApplied = (int)$row['plan_applied_flag'] === 1;
+            $productId = (int)$row['product_id'];
+            $taxIncludedPrice = $this->taxIncludedPrice((int)$row['price'], (float)$row['tax_rate']);
 
             $menus[] = [
-                'id' => (int)$row['product_id'],
+                'id' => $productId,
                 'category_id' => (string)$row['category_id'],
                 'category' => (string)$row['category_name'],
                 'name' => (string)$row['product_name'],
                 'price' => (int)$row['price'],
-                'display_price' => $planApplied ? 0 : (int)$row['price'],
+                'tax_rate' => (float)$row['tax_rate'],
+                'tax_included_price' => $taxIncludedPrice,
+                'display_price' => $planApplied ? 0 : $taxIncludedPrice,
                 'plan_applied_flag' => $planApplied ? 1 : 0,
                 'image_path' => $this->imagePath($row['image_path'] ?? null),
+                'has_options' => isset($optionGroupsByProduct[$productId]),
+                'option_groups' => $optionGroupsByProduct[$productId] ?? [],
             ];
         }
 
         return $menus;
+    }
+
+    /**
+     * DBの税抜価格へ税率を適用し、税込価格の1円未満を切り捨てる。
+     */
+    private function taxIncludedPrice(int $price, float $taxRate): int
+    {
+        $taxRateBasisPoints = (int)round($taxRate * 100);
+
+        return intdiv($price * (10000 + $taxRateBasisPoints), 10000);
+    }
+
+    /**
+     * 商品詳細で使うオプショングループと選択肢を、DBの表示順で商品ごとにまとめる。
+     */
+    private function optionGroupsByProduct(array $productIds): array
+    {
+        $productIds = array_values(array_unique(array_map('intval', $productIds)));
+
+        if ($productIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+        $sql = <<<SQL
+            SELECT
+                pog.product_id,
+                og.option_group_id,
+                og.option_group_name,
+                og.selection_type,
+                og.is_required,
+                o.option_id,
+                o.option_name,
+                o.additional_price
+            FROM product_option_groups AS pog
+            INNER JOIN option_groups AS og
+                ON og.option_group_id = pog.option_group_id
+            LEFT JOIN options AS o
+                ON o.option_group_id = og.option_group_id
+            WHERE pog.product_id IN ($placeholders)
+            ORDER BY
+                pog.product_id,
+                pog.display_order,
+                og.option_group_id,
+                o.display_order,
+                o.option_id
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->execute($productIds);
+        $grouped = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $productId = (int)$row['product_id'];
+            $groupId = (int)$row['option_group_id'];
+
+            if (!isset($grouped[$productId][$groupId])) {
+                $grouped[$productId][$groupId] = [
+                    'option_group_id' => $groupId,
+                    'group_name' => (string)$row['option_group_name'],
+                    'selection_type' => (string)$row['selection_type'],
+                    'is_required' => (int)$row['is_required'],
+                    'options' => [],
+                ];
+            }
+
+            if ($row['option_id'] !== null) {
+                $grouped[$productId][$groupId]['options'][] = [
+                    'option_id' => (int)$row['option_id'],
+                    'option_name' => (string)$row['option_name'],
+                    'additional_price' => (int)$row['additional_price'],
+                ];
+            }
+        }
+
+        foreach ($grouped as $productId => $groups) {
+            $grouped[$productId] = array_values($groups);
+        }
+
+        return $grouped;
     }
 
     private function imagePath(?string $imagePath): string

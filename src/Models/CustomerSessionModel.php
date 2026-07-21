@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/Database/db.php';
+// ラストオーダーの判定に PlanModel::LAST_ORDER_BEFORE_MINUTES を使う。
+require_once __DIR__ . '/PlanModel.php';
 
 /**
  * 客側の利用セッションを作成または再利用するModel。
@@ -16,7 +18,23 @@ final class CustomerSessionModel
         'premium' => 2,
     ];
 
-    private const BILLING_STATUS_ACCEPTING = 1;
+    /** 注文を受け付けてよい会計状態（1=受付中）。2=会計済み / 4=未収金 / 8=会計中 では注文させない。 */
+    public const BILLING_STATUS_ACCEPTING = 1;
+
+    /**
+     * その顧客が今も注文してよいか（レジで会計を通していないか）を判定する。
+     *
+     * 会計済みの客のQRで追加注文されると請求できない注文が増えてしまう。
+     * また会計中に内容が変わるとレジ側の同一性チェック（hash）が通らなくなり、
+     * レジが会計できなくなるため、受付中以外はすべて注文を止める。
+     */
+    public function isAcceptingOrders(int $customerId): bool
+    {
+        $customer = $this->findCustomer($customerId);
+
+        return $customer !== null
+            && (int)$customer['billing_status'] === self::BILLING_STATUS_ACCEPTING;
+    }
 
     /**
      * customer_id + table_number単位でACTIVEセッションを作成または再利用する。
@@ -201,6 +219,62 @@ final class CustomerSessionModel
         $session = $statement->fetch();
 
         return $session === false ? null : $session;
+    }
+
+    /**
+     * ラストオーダーの時刻を過ぎていないか（＝客がまだ注文してよいか）を判定する。
+     *
+     * ラストオーダー = コース開始 + 制限時間 - LAST_ORDER_BEFORE_MINUTES。
+     * これを過ぎたら、飲み放題対象かどうかに関わらず客側の注文をすべて止める。
+     *
+     * 時刻の比較はすべてSQL内で行う。PHPのtimezone設定がDBとずれていると
+     * （例: PHPがEurope/Berlin、DBが日本時間）判定が何時間もずれるため、
+     * started_atと同じDBの時計だけで比較する。
+     *
+     * コースが無い顧客（単品）は時間制限の対象外なのでtrueを返す。
+     */
+    public function isWithinLastOrderTime(int $customerId): bool
+    {
+        $sql = <<<SQL
+            SELECT
+                NOW() < DATE_SUB(
+                    DATE_ADD(cp.started_at, INTERVAL p.time_limit_minutes MINUTE),
+                    INTERVAL :last_order_before MINUTE
+                ) AS within_time
+            FROM customer_plans AS cp
+            INNER JOIN plans AS p
+                ON p.plan_id = cp.plan_id
+            WHERE cp.customer_id = :customer_id
+              AND cp.ended_at IS NULL
+              AND p.time_limit_minutes > 0
+            LIMIT 1
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':last_order_before', PlanModel::LAST_ORDER_BEFORE_MINUTES, PDO::PARAM_INT);
+        $statement->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+        $statement->execute();
+
+        $row = $statement->fetch();
+
+        // 該当行なし＝時間制限のあるコースを取っていない（単品など）。
+        if ($row === false) {
+            return true;
+        }
+
+        return (int)$row['within_time'] === 1;
+    }
+
+    /**
+     * DBの現在時刻を返す。
+     *
+     * 残り時間の計算はcustomer_plans.started_at（DBの時計）と比べるため、
+     * 基準の「今」もDBから取る必要がある。PHPのtimezone設定がDBと違うと
+     * 時計が食い違い、残り時間が何時間もずれてしまう。
+     */
+    public function databaseNow(): string
+    {
+        return (string)db()->query("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')")->fetchColumn();
     }
 
     /**
@@ -455,8 +529,8 @@ final class CustomerSessionModel
                 'ACTIVE',
                 NOW(),
                 CASE
-                    WHEN :time_limit_minutes IS NULL THEN NULL
-                    ELSE DATE_ADD(NOW(), INTERVAL :time_limit_minutes MINUTE)
+                    WHEN :time_limit_minutes_for_null IS NULL THEN NULL
+                    ELSE DATE_ADD(NOW(), INTERVAL :time_limit_minutes_for_interval MINUTE)
                 END
             )
         SQL;
@@ -469,9 +543,11 @@ final class CustomerSessionModel
         $statement->bindValue(':table_number', $tableNumber, PDO::PARAM_STR);
 
         if ($minutes === null) {
-            $statement->bindValue(':time_limit_minutes', null, PDO::PARAM_NULL);
+            $statement->bindValue(':time_limit_minutes_for_null', null, PDO::PARAM_NULL);
+            $statement->bindValue(':time_limit_minutes_for_interval', null, PDO::PARAM_NULL);
         } else {
-            $statement->bindValue(':time_limit_minutes', $minutes, PDO::PARAM_INT);
+            $statement->bindValue(':time_limit_minutes_for_null', $minutes, PDO::PARAM_INT);
+            $statement->bindValue(':time_limit_minutes_for_interval', $minutes, PDO::PARAM_INT);
         }
 
         $statement->execute();

@@ -22,9 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasActiveCustomerPlan = window.MOS_DATA.hasActiveCustomerPlan === true;
     const activeCustomerPlan = window.MOS_DATA.activeCustomerPlan || null;
 
-    // 店舗別・制限時間別のプラン単価（DBのplans由来）。
+    // 店舗別・制限時間別のプラン単価（DBのplans由来・税抜）。
     // 形: { standard: { "120": 2200, "180": 3000 }, premium: { "120": 3200, "180": 4200 } }
     const planUnitPrices = window.MOS_DATA.planUnitPrices || {};
+
+    // プラン単価は税抜のため、表示時はこの税率で税込にする。
+    // レジもAPIのtaxRateで税を上乗せするため、客が見た額と請求額を一致させるのに必要。
+    const planTaxRate = Number(window.MOS_DATA.planTaxRate ?? 10);
 
     function categoryId(category) {
         return typeof category === 'object' && category !== null
@@ -149,6 +153,30 @@ document.addEventListener('DOMContentLoaded', () => {
         return Number(menu.display_price ?? menu.price ?? 0);
     }
 
+    /**
+     * 税抜価格へ税率を適用し、税込価格の1円未満を切り捨てる。
+     * サーバー側(MenuModel / OrderModel / CartModel)のtaxIncludedPriceと同じ計算にすること。
+     */
+    function taxIncludedPrice(price, taxRate) {
+        const basisPoints = Math.round(Number(taxRate || 0) * 100);
+
+        return Math.floor((Number(price || 0) * (10000 + basisPoints)) / 10000);
+    }
+
+    /**
+     * オプション込みの税込単価を求める。
+     *
+     * オプションの追加料金は税抜のため、商品の税抜価格と合算してから税を掛ける。
+     * 個別に税込化して足すと端数処理が2回入り、税抜合計へ課税するレジ側の計算と
+     * 1円ずれることがある。プラン対象商品は商品分が0円のため、オプション分だけに課税される。
+     */
+    function priceWithOptions(menu, additionalPrice) {
+        const planApplied = Number(menu.plan_applied_flag || 0) === 1;
+        const netUnitPrice = planApplied ? 0 : Number(menu.price ?? 0);
+
+        return taxIncludedPrice(netUnitPrice + Number(additionalPrice || 0), menu.tax_rate);
+    }
+
     async function postCartAction(url, values) {
         const body = new URLSearchParams();
 
@@ -181,30 +209,48 @@ document.addEventListener('DOMContentLoaded', () => {
         return payload;
     }
 
-    function addCartToServer(productId, quantity) {
+    /**
+     * ラストオーダーを過ぎていたら注文させない。
+     *
+     * 実際の遮断はサーバー側で行うが、通信する前に理由を伝えて操作を止める。
+     * 呼び出し元はcatchでerror.messageをトースト表示するため、例外で返す。
+     */
+    function assertWithinLastOrder() {
+        if (isLastOrderOver()) {
+            throw new Error('ラストオーダーの時間を過ぎています。スタッフをお呼びください。');
+        }
+    }
+
+    function addCartToServer(productId, quantity, optionIds) {
+        assertWithinLastOrder();
+
         return postCartAction('/MOS_A/public/customer/cart/add', {
             session_id: state.sessionId,
             product_id: productId,
-            quantity
+            quantity,
+            option_ids: JSON.stringify(optionIds)
         });
     }
 
-    function updateCartOnServer(productId, quantity) {
+    function updateCartOnServer(cartDetailId, quantity, optionIds) {
         return postCartAction('/MOS_A/public/customer/cart/update', {
             session_id: state.sessionId,
-            product_id: productId,
-            quantity
+            cart_detail_id: cartDetailId,
+            quantity,
+            option_ids: JSON.stringify(optionIds)
         });
     }
 
-    function deleteCartFromServer(productId) {
+    function deleteCartFromServer(cartDetailId) {
         return postCartAction('/MOS_A/public/customer/cart/delete', {
             session_id: state.sessionId,
-            product_id: productId
+            cart_detail_id: cartDetailId
         });
     }
 
     function submitOrderToServer() {
+        assertWithinLastOrder();
+
         // 注文内容はサーバー側でDBのcart_detailsから取得する。
         // フロントから商品名・価格・数量一覧は送らない。
         return postCartAction('/MOS_A/public/customer/order/submit', {
@@ -248,6 +294,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         rememberSessionInUrl(result);
         updateTableNoDisplay();
+        // QRを読み直してセッションを復元した場合も、残り時間を表示し直す。
+        syncDrinkTimer();
         cartHistoryModule.renderCart();
         updateCartButtonState();
         renderMenuAndShow();
@@ -302,11 +350,103 @@ document.addEventListener('DOMContentLoaded', () => {
         imageFrame.innerHTML = `<img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(menu.name)}" style="width: 100%; height: 100%; object-fit: cover;">`;
 
         document.getElementById('productName').textContent = menu.name;
-        document.getElementById('productPrice').textContent = formatYen(getDisplayPrice(menu));
         document.getElementById('quantityInput').value = String(quantity);
-        renderProductSubtotal();
 
         showScreen('productScreen');
+    }
+
+    function selectedProductOptionIds() {
+        return Array.from(document.querySelectorAll('#productOptions input:checked'))
+            .map(input => Number(input.value))
+            .filter(Number.isInteger);
+    }
+
+    function refreshProductPrice() {
+        const menu = state.selectedMenu;
+
+        if (!menu) return;
+
+        const selectedIds = new Set(selectedProductOptionIds());
+        const additionalPrice = (menu.option_groups || []).reduce((sum, group) => {
+            return sum + (group.options || []).reduce((groupSum, option) => {
+                return groupSum + (selectedIds.has(Number(option.option_id))
+                    ? Number(option.additional_price || 0)
+                    : 0);
+            }, 0);
+        }, 0);
+
+        document.getElementById('productPrice').textContent = formatYen(priceWithOptions(menu, additionalPrice));
+    }
+
+    function renderProductOptions(menu, selectedOptionIds = []) {
+        const container = document.getElementById('productOptions');
+        const groups = Array.isArray(menu.option_groups) ? menu.option_groups : [];
+        const selectedIds = new Set(selectedOptionIds.map(Number));
+
+        container.innerHTML = groups.map(group => {
+            const isMultiple = group.selection_type === 'MULTIPLE';
+            const isRequired = Number(group.is_required) === 1;
+            const inputType = isMultiple ? 'checkbox' : 'radio';
+            const instruction = isMultiple
+                ? (isRequired ? '1つ以上お選びください' : '複数選択できます')
+                : (isRequired ? '1つお選びください' : '必要な場合にお選びください');
+
+            return `
+                <fieldset class="product-option-group" data-option-group-id="${Number(group.option_group_id)}">
+                    <legend class="product-option-heading">
+                        ${escapeHtml(group.group_name)}${isRequired ? '<span class="product-option-required">（必須）</span>' : ''}
+                    </legend>
+                    <p class="product-option-rule">${instruction}</p>
+                    <div class="product-option-choices">
+                        ${(group.options || []).map(option => {
+                            // オプションの追加料金も税抜で保存されているため、
+                            // 商品と同じ税率で税込にしてから見せる。
+                            const additionalPrice = taxIncludedPrice(
+                                Number(option.additional_price || 0),
+                                menu.tax_rate
+                            );
+                            const optionId = Number(option.option_id);
+                            return `
+                                <label class="product-option-choice">
+                                    <input
+                                        type="${inputType}"
+                                        name="product_option_${Number(group.option_group_id)}${isMultiple ? '[]' : ''}"
+                                        value="${optionId}"
+                                        ${selectedIds.has(optionId) ? 'checked' : ''}
+                                    >
+                                    <span>${escapeHtml(option.option_name)}</span>
+                                    ${additionalPrice > 0 ? `<span class="product-option-price">+${formatYen(additionalPrice)}</span>` : ''}
+                                </label>
+                            `;
+                        }).join('')}
+                    </div>
+                </fieldset>
+            `;
+        }).join('');
+
+        container.querySelectorAll('input').forEach(input => {
+            input.addEventListener('change', refreshProductPrice);
+        });
+
+        refreshProductPrice();
+    }
+
+    function validateSelectedOptions(menu, selectedOptionIds) {
+        const selectedIds = new Set(selectedOptionIds.map(Number));
+
+        for (const group of (menu.option_groups || [])) {
+            const count = (group.options || []).filter(option => selectedIds.has(Number(option.option_id))).length;
+
+            if (Number(group.is_required) === 1 && count === 0) {
+                return `${group.group_name}を選択してください`;
+            }
+
+            if (group.selection_type === 'SINGLE' && count > 1) {
+                return `${group.group_name}は1つだけ選択してください`;
+            }
+        }
+
+        return null;
     }
 
     const menuModule = window.MOS.customer.createMenuModule({
@@ -320,23 +460,87 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ============================================================
-    // 飲み放題タイマー（フロントのみ・sessionStorageに終了予定時刻を保存）
-    //   - プラン確定時に開始（終了予定時刻 = 現在 + 制限時間）
+    // 飲み放題タイマー
+    //   - 終了予定時刻 = DBのコース開始時刻(customer_plans.started_at) + 制限時間
     //   - 注文画面 上部バー右に「ラストオーダー HH:MM（残り○分）」を表示（残りは分刻み）
-    //   - ラストオーダー = コース終了の30分前
+    //   - ラストオーダー = コース終了の30分前。過ぎたら「ラストオーダー終了」
     //   - 単品プランはタイマーなし（非表示）
-    //   ※サーバー時刻基準ではなく端末時刻基準。将来DB化で差し替え予定。
+    //   ※端末に保存せず毎回DBの開始時刻から計算する。そうしないとタブを閉じたり
+    //     別の端末でQRを読んだときに残り時間が出なくなるため。
+    //   ※端末の時計ずれはサーバー時刻との差で補正する。
     // ============================================================
-    const TIMER_STORAGE_KEY = 'mosDrinkTimer';
-    const LAST_ORDER_BEFORE_MS = 30 * 60 * 1000; // ラストオーダーはコース終了の30分前
+    // ラストオーダーはコース終了の何分前か。判定がずれないようサーバーの値を使う。
+    const LAST_ORDER_BEFORE_MS = Number(window.MOS_DATA.lastOrderBeforeMinutes ?? 30) * 60 * 1000;
     let timerIntervalId = null;
 
-    function loadTimer() {
-        try {
-            return JSON.parse(sessionStorage.getItem(TIMER_STORAGE_KEY));
-        } catch (error) {
+    /*
+        端末の時計とサーバー時刻の差（ミリ秒）。
+        コース開始時刻はサーバー（DB）の時刻なので、端末の時計がずれていると
+        残り時間まで狂う。読み込み時に差を求めておき、現在時刻を補正して使う。
+    */
+    const serverClockOffsetMs = (() => {
+        const serverNow = parseServerDateTime(window.MOS_DATA.serverNow);
+
+        return serverNow === null ? 0 : serverNow - Date.now();
+    })();
+
+    // サーバー時刻に合わせた「今」
+    function nowOnServerClock() {
+        return Date.now() + serverClockOffsetMs;
+    }
+
+    /**
+     * DBの日時文字列（"2026-07-07 05:13:23"）をタイムスタンプに変換する。
+     * 区切りが半角スペースのままだと解釈できない端末があるため、必ずTに置き換える。
+     */
+    function parseServerDateTime(value) {
+        if (!value) {
             return null;
         }
+
+        const timestamp = new Date(String(value).replace(' ', 'T')).getTime();
+
+        return Number.isFinite(timestamp) ? timestamp : null;
+    }
+
+    /**
+     * 現在有効なコースから、終了予定時刻を求める。
+     *
+     * 以前は「プラン確定時に sessionStorage へ保存した終了時刻」を見ていたため、
+     * タブを閉じたり別の端末でQRを読むと残り時間が出なかった。
+     * コース開始時刻はDBにあるので、そこから毎回計算すればどの端末でも同じ値になる。
+     */
+    function drinkTimerEndsAt() {
+        const plan = state.activeCustomerPlan;
+
+        if (!plan) {
+            return null;
+        }
+
+        const minutes = Number(plan.time_limit_minutes || 0);
+        const startedAt = parseServerDateTime(plan.started_at);
+
+        if (minutes <= 0 || startedAt === null) {
+            return null;
+        }
+
+        return startedAt + minutes * 60 * 1000;
+    }
+
+    /**
+     * ラストオーダーを過ぎているか。
+     *
+     * 過ぎていれば客側からは注文できない（実際の遮断はサーバー側で行う）。
+     * コースが無い場合（単品）は時間制限の対象外。
+     */
+    function isLastOrderOver() {
+        const endsAt = drinkTimerEndsAt();
+
+        if (endsAt === null) {
+            return false;
+        }
+
+        return endsAt - LAST_ORDER_BEFORE_MS - nowOnServerClock() <= 0;
     }
 
     // タイムスタンプを「HH:MM」（24時間制）に整形する
@@ -352,16 +556,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const el = document.getElementById('menuRemainTime');
         if (!el) return;
 
-        const timer = loadTimer();
-        if (!timer) {
+        const endsAt = drinkTimerEndsAt();
+        if (endsAt === null) {
             el.style.display = 'none';
             return;
         }
 
         el.style.display = '';
         // ラストオーダー時刻 = コース終了予定の30分前
-        const lastOrderAt = timer.endsAt - LAST_ORDER_BEFORE_MS;
-        const remainMs = lastOrderAt - Date.now();
+        const lastOrderAt = endsAt - LAST_ORDER_BEFORE_MS;
+        const remainMs = lastOrderAt - nowOnServerClock();
 
         if (remainMs <= 0) {
             el.textContent = 'ラストオーダー終了';
@@ -388,29 +592,27 @@ document.addEventListener('DOMContentLoaded', () => {
         timerIntervalId = setInterval(renderRemainTime, 1000);
     }
 
-    // 飲み放題プランのタイマーを開始し、終了予定時刻を保存する
-    function startDrinkTimer(minutes) {
-        const now = Date.now();
-        const timer = {
-            tableNo: state.tableNumber,
-            minutes,
-            startedAt: now,
-            endsAt: now + minutes * 60 * 1000
-        };
+    /**
+     * 残り時間の表示を、いまのコース状況に合わせ直す。
+     *
+     * 表示するかどうかは state.activeCustomerPlan だけで決まるため、
+     * プランを確定した直後でも、QRを読み直して復元した直後でも、
+     * この関数を呼べば同じ結果になる。
+     */
+    function syncDrinkTimer() {
+        if (drinkTimerEndsAt() === null) {
+            // 単品などコースが無い場合は表示しない
+            stopTimerInterval();
 
-        sessionStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timer));
-        startTimerInterval();
-    }
+            const el = document.getElementById('menuRemainTime');
+            if (el) {
+                el.style.display = 'none';
+            }
 
-    // タイマーを破棄（単品プランなど）
-    function clearDrinkTimer() {
-        sessionStorage.removeItem(TIMER_STORAGE_KEY);
-        stopTimerInterval();
-
-        const el = document.getElementById('menuRemainTime');
-        if (el) {
-            el.style.display = 'none';
+            return;
         }
+
+        startTimerInterval();
     }
 
     // 上部バー左の卓番号表示を更新する
@@ -425,16 +627,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function onPlanConfirmed(planId, minutes) {
         updateTableNoDisplay();
 
-        if (planId === 'single' || !minutes) {
-            clearDrinkTimer();
-        } else {
-            startDrinkTimer(minutes);
-        }
+        // 終了予定時刻はサーバーが返したコース情報から求めるので、
+        // ここで確定したプランや分数を渡す必要はない。
+        syncDrinkTimer();
     }
 
     const planModule = window.MOS.customer.createPlanModule({
         plans,
         planUnitPrices,
+        planTaxRate,
+        taxIncludedPrice,
         state,
         categories,
         formatYen,
@@ -452,6 +654,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     cartHistoryModule = window.MOS.customer.createCartHistoryModule({
         state,
+        planTaxRate,
+        taxIncludedPrice,
         formatYen,
         findMenu,
         findPlan,
@@ -554,6 +758,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         quantityValue = Math.min(99, Math.max(1, Math.floor(quantityValue)));
         quantityInput.value = String(quantityValue);
+        const optionIds = selectedProductOptionIds();
+        const optionError = validateSelectedOptions(state.selectedMenu, optionIds);
+
+        if (optionError) {
+            showToast(optionError);
+            return;
+        }
 
         if (!state.sessionId) {
             showToast('卓番号とプランを選択してください');
@@ -562,10 +773,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const isEditingExistingItem = state.editingItem !== null;
-            const result = isEditingExistingItem
-                ? await updateCartOnServer(state.selectedMenu.id, quantityValue)
-                : await addCartToServer(state.selectedMenu.id, quantityValue);
 
             state.editingItem = null;
             state.cart = result.cart_items || [];
@@ -593,9 +800,26 @@ document.addEventListener('DOMContentLoaded', () => {
     cartHistoryModule.renderHistory();
     updateCartButtonState();
 
+    // 途中からQRを読んだ場合（別端末・タブを開き直した場合を含む）でも、
+    // DBのコース開始時刻から残り時間を復元して表示する。
+    syncDrinkTimer();
+
     if (window.MOS_CART_FLASH?.message) {
         showToast(window.MOS_CART_FLASH.message);
         showScreen('menuScreen');
         requestAnimationFrame(menuModule.refreshCategoryScrollButtons);
+    }
+
+    // レジで会計を通した後のQRで開かれた場合、注文できない理由を画面上部に出す。
+    // 実際の遮断はサーバー側（会計状態チェック）で行うので、ここは案内のみ。
+    if (window.MOS_DATA.billingClosed === true) {
+        const banner = document.getElementById('planConflictBanner');
+        const message = document.getElementById('planConflictMessage');
+
+        if (banner && message) {
+            message.textContent = 'お会計が完了しているため、ご注文いただけません。スタッフをお呼びください。';
+            banner.classList.add('show');
+            banner.setAttribute('aria-hidden', 'false');
+        }
     }
 });

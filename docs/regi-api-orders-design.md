@@ -7,8 +7,14 @@
 
 ## 前提
 
-- MOS 側には **`/api/orders` のルートが存在しない**。レジからの入口がゼロなので、連携は現状まったく成立していない。
-- 一方で DB は既にレジ寄りに整備済み。`customers.billing_status` は `tinyint`（ビットマスク）、`customers.order_hash` `varchar(64)` の列も存在する（ただし現状は全件未使用）。
+> 以下は**着手前の状況**。現在はすべて解消済み（対応内容は各章に記載）。
+> 経緯を残すため消さずに置く。
+
+- 着手前、MOS 側には `/api/orders` のルートが存在せず、レジからの入口がゼロだった。
+  → **実装済み**（`src/Routes/web.php` / `ApiOrderController` / `ApiOrderModel`）。
+- 一方で DB は既にレジ寄りに整備済みだった。`customers.billing_status` は `tinyint`（ビットマスク）、
+  `customers.order_hash` `varchar(64)` の列も存在する。
+  → `order_hash` は着手前は全件未使用だったが、`updateStatus` 成功時に書き込むようになった（第 6 章）。
 - レジ側の契約は推測ではなく、レジ本体の実装と契約テストから確定させた（出典は第 0 章）。
 
 ---
@@ -71,16 +77,26 @@ c:\xampp\htdocs\
 
 ---
 
-## 1. 通信の前提（設定のみで直る問題）
+## 1. 通信の前提（レジ側の設定変更は不要）
 
-レジ側 `参照用/regi/src/Config/mos.php` の `base_url` が `http://localhost:8080` になっている。
-MOS は XAMPP の `/MOS_A/public` 配下で動作しており、レジは `base_url + "/api/orders"` を叩く。
+レジ側 `参照用/regi/src/Config/mos.php` の `base_url` は `http://localhost:8080`。
+レジは `base_url + "/api/orders"` を叩く。
 
-したがって **レジ側の設定を下記に変更する必要がある**。Apache 側の設定変更は不要で、既存ルータにそのまま届く。
+**結論: レジ側の設定変更は不要。** Apache が `Listen 80` と `Listen 8080` の両方を待ち受けており、
+`http://localhost:8080/api/orders` と `http://localhost/MOS_A/public/api/orders` は
+同一のレスポンスを返す（実測で確認済み）。レジはデフォルト設定のまま MOS に到達できる。
 
-```php
-'base_url' => 'http://localhost/MOS_A/public',
-```
+セットアップ手順は README を参照（README が環境構築の正）。
+
+> **経緯**
+>
+> 当初この章では「MOS は `/MOS_A/public` 配下にあるため `:8080` では届かない。
+> レジ側の `base_url` を `http://localhost/MOS_A/public` へ変更してもらう必要がある」と記載していた。
+>
+> その後、本番でレジが「MOS 専用のアドレス」を叩く構成（第 0 章）に寄せるため、
+> MOS を `:8080` でも配信する方針が採られ、**レジ側の変更は不要になった**。
+>
+> `base_url` を見て「宛先が違うのでは」と思ったら、まずこの章を読むこと。変更してはいけない。
 
 ---
 
@@ -157,6 +173,40 @@ customers c
 | `items[].offerQty` | `order_details.provided_quantity` | int |
 | `items[].categoryName` | `product_categories.category_name` | null 可 |
 
+### コース（飲み放題プラン）料金は `customer_plans` から合成して先頭に足す
+
+**上の表は `order_details` 由来の明細だけを示している。`items` にはもう 1 種類、
+DB の明細として存在しない「コース料金」の行が含まれる。**
+
+飲み放題プランの料金は `order_details` ではなく `customer_plans` にある。
+一方レジは **`items[]` に入っているものしか会計できない**ため、コース料金を
+**先頭の明細として合成**して返す。これをしないと、レジの請求額から
+コース代が丸ごと抜け落ちる。
+
+```
+customer_plans cp
+  INNER JOIN plans p ON p.plan_id = cp.plan_id
+  WHERE cp.ended_at IS NULL          ← 利用中のコースのみ
+```
+
+| レジの項目 | 値 | 備考 |
+| --- | --- | --- |
+| `orderTime` | `customer_plans.started_at` | null なら `customers.created_at`（来店時刻）で代替 |
+| `menuName` | `スタンダードプラン(120分)` のような文字列 | `plans.plan_type_id`（1=スタンダード / 2=プレミアム）＋ `time_limit_minutes` から生成。想定外の `plan_type_id` は「コース」表記 |
+| `unitPrice` | `customer_plans.unit_price` | **1 人あたり**の単価（プラン確定時のスナップショット） |
+| `taxRate` | `ApiOrderModel::COURSE_TAX_RATE`（現在 10） | `PlanModel::COURSE_TAX_RATE` と同じ値にすること |
+| `orderQty` | `customers.people_count` | 0 や未設定でも会計が壊れないよう最低 1 として扱う |
+| `offerQty` | `orderQty` と同値 | コースに「提供済み数」の概念がないため |
+| `categoryName` | `'コース'` | 固定値 |
+
+**注意点**
+
+- 単品プラン（`customer_plans` に有効な行が無い顧客）では、**この行は追加されない**。
+- コース代の合計は `unitPrice × orderQty`（＝単価 × 人数）としてレジ側で計算される。
+- 1 顧客につき有効なコースは 1 件の想定。万一複数あっても最初の 1 件を採用する。
+- **この合成明細もハッシュの計算対象に含まれる**（第 5 章）。`items` 全体が対象のため、
+  仕様書だけを見て `order_details` からハッシュを再現しようとすると必ず食い違う。
+
 ### taxRate の int 変換（必須）
 
 契約は `taxRate` が **int 必須**（`validators.py` の `assert isinstance(item["taxRate"], int)`）。
@@ -187,6 +237,10 @@ MOS の DB には **10 店舗**（深江橋・本町・今里・京橋・緑橋�
 
 `参照用/api_test_tool/mos_test/hash_util.py` に準拠する。対象は以下の 4 項目で、
 **`categoryName` はハッシュに含まれない**点に注意。
+
+> `items` は `getOrders` が返すものそのもの。つまり
+> **`customer_plans` から合成したコース明細（第 4 章）も対象に含まれる**。
+> `order_details` だけからハッシュを再現しようとすると値が合わない。
 
 ```
 {
@@ -282,7 +336,7 @@ MOS の DB には **10 店舗**（深江橋・本町・今里・京橋・緑橋�
 
 | # | 論点 |
 | --- | --- |
-| 5 | レジ側 `base_url` を `http://localhost/MOS_A/public` へ変更（第 1 章） |
+| ~~5~~ | ~~レジ側 `base_url` を変更~~ → **解消**。MOS を `:8080` でも配信するため変更不要（第 1 章） |
 | 6 | 全店舗を返す方針（第 8-2 章）をレジ側が受け入れるか |
 
 ### 認証について（将来の検討事項）
@@ -295,22 +349,44 @@ MOS の DB には **10 店舗**（深江橋・本町・今里・京橋・緑橋�
 
 ## 10. 検証方法と結果
 
-### pytest（未実施 — 環境に Python が無い）
+### pytest（実施済み — 18 件全通過）
 
-`参照用/api_test_tool` に pytest の契約テストがあるが、**この開発機に Python が入っていない**
-（`py` → "No installed Python found!"）ため実行できていない。Python を導入すれば下記で実行できる。
+`参照用/api_test_tool` の契約テストを実行し、**18 件すべて通過**した（2026-07-21）。
 
 ```
-MOS_BASE_URL=http://localhost/MOS_A/public pytest -m contract
+cd 参照用/api_test_tool
+MOS_BASE_URL=http://localhost/MOS_A/public python -m pytest -v
 ```
+
+| ファイル | 件数 | 内容 |
+| --- | --- | --- |
+| `tests/test_smoke.py` | 6 | `smoke_cases.json` のケース。エラーコード 5 種＋正常系 |
+| `tests/test_contract_updateStatus.py` | 2 | `updateStatus` の正常系（空ボディ）とハッシュ改ざん時 |
+| `tests/test_hash_property.py` | 10 | ハッシュ規則そのものの性質検証（MOS を呼ばずローカル計算のみ） |
+
+**実行時の注意**
+
+- 既定の `MOS_BASE_URL` は `http://localhost:8080`。MOS のパスに合わせて環境変数で上書きする
+  （`:8080` でも到達できるため、既定のままでも通る）。
+- `pytest` と `requests` が必要（`python -m pip install pytest requests`）。
+- **`test_update_status_success_body_empty_or_null_json` は DB を書き換える。**
+  一覧先頭の顧客の `billing_status` を 8、`order_hash` に値を入れる。
+  実行後は DB を再インポートして戻すこと。
+
+> **重要: `hash` を必須化してはいけない**
+>
+> このテストは `hash=None` で `updateStatus` が HTTP 200 を返すことを要求している。
+> 「ハッシュ省略で整合性チェックを回避できる」のは実装の抜けではなく**契約の仕様**。
+> 必須化すると契約テストが落ちる（第 6 章 / 第 11-4 章）。
 
 ### 実施済みの検証（実 DB ＋ 実エンドポイントに対して確認）
 
-`smoke_cases.json` および `test_contract_updateStatus.py` と同じケースを curl で再現し、全て期待どおりだった。
+pytest（上記）とは別に、curl でも同じケースを再現して確認した。
+件数はテストデータの増減で変わるため、下表の値は確認時点のもの。
 
 | ケース | 結果 |
 | --- | --- |
-| `getOrders`（全件） | HTTP 200・54 件返却。`validators.py` 相当の型チェックで違反ゼロ（`taxRate` は int の `10`） |
+| `getOrders`（全件） | HTTP 200・全件返却。`validators.py` 相当の型チェックで違反ゼロ（`taxRate` は int の `10`） |
 | 壊れた JSON `{` | HTTP 400 `INVALID_JSON_FORMAT` |
 | `{"method":"xxx"}` | HTTP 400 `INVALID_REQUEST` |
 | `getOrders` に `customerId: "ABC"` | HTTP 400 `INVALID_PARAMETER` |
@@ -331,8 +407,10 @@ MOS_BASE_URL=http://localhost/MOS_A/public pytest -m contract
 
 | # | 依頼内容 | 理由 |
 | --- | --- | --- |
-| 1 | `regi/src/Config/mos.php` の `base_url` を **`http://localhost/MOS_A/public`** へ変更 | 現在 `http://localhost:8080` を向いており、MOS に届かない（第 1 章） |
-| 2 | **全店舗の注文が返る**ことを前提に、レジ側で自店舗を仕分けてもらう | 契約に `storeId` パラメータが無いため。合意が取れない場合は MOS 側に「担当店舗 ID」設定を追加する必要がある（第 8-2 章） |
+| 1 | **全店舗の注文が返る**ことを前提に、レジ側で自店舗を仕分けてもらう | 契約に `storeId` パラメータが無いため。合意が取れない場合は MOS 側に「担当店舗 ID」設定を追加する必要がある（第 8-2 章） |
+
+> かつて「`base_url` を `http://localhost/MOS_A/public` へ変更してもらう」という依頼を挙げていたが、
+> MOS を `:8080` でも配信する方針になったため **不要になった**（第 1 章）。レジ側の設定は変更しない。
 
 ### 11-2. MOS チーム内で守ること
 
@@ -342,16 +420,17 @@ MOS_BASE_URL=http://localhost/MOS_A/public pytest -m contract
 | 2 | `/api/orders` で `session_start()` を呼ばない | レジは Cookie を持たないため、呼ぶとリクエストのたびにセッションファイルが増え続ける（第 8-3 章） |
 | 3 | MOS のコードから `参照用/regi/` を参照しない | 実運用でレジのソースは手元に無い。API 仕様だけで動くことを保証する（第 0-2 章） |
 
-### 11-3. 環境面の未整備
+### 11-3. 環境面
 
 | # | 内容 |
 | --- | --- |
-| 1 | **この開発機に Python が入っていない**ため、`参照用/api_test_tool` の pytest 契約テストが実行できていない。同等のケースは curl で確認済み（第 10 章）だが、正式なテストを回すには Python の導入が必要 |
+| 1 | pytest 契約テストは **実行可能**（Python 3.14.5 / pytest 9.1.1 で 18 件全通過。第 10 章）。初回は `python -m pip install pytest requests` が必要 |
+| 2 | 契約テストの一部は **DB を書き換える**。実行後は DB を再インポートすること（第 10 章） |
 
 ### 11-4. 将来の検討事項
 
 | # | 内容 |
 | --- | --- |
-| 1 | **API は無認証**。本番はホストが分かれるため、同一 LAN の第三者が全注文を読み、会計済みに更新できてしまう。必要になった時点で Apache の IP 制限（`Require ip`）を検討する（第 9 章） |
+| 1 | **API は無認証**。本番はホストが分かれるため、同一 LAN の第三者が全注文を読み、会計済みに更新できてしまう。必要になった時点で Apache の IP 制限（`Require ip`）を検討する（第 9 章）<br>なお **`hash` の必須化では塞げない**。契約上 `hash` は省略可（第 10 章）であり、仮に必須化しても `getOrders` が無認証な以上、ハッシュを取得してから `updateStatus` を投げれば通る。レジは認証情報を一切送らない（`Content-Type` と `Accept` のみ）ため、**MOS 側でヘッダ認証を要求する設計も取れない**。防衛線はネットワーク層に置くしかない |
 | 2 | 税率・カテゴリのマスタ変更リスクを根本的に外すなら、`order_details` に `tax_rate` / `category_name` のスナップショット列を追加する（第 8-1 章） |
 | 3 | `taxRate` は契約が int のため、`8.5%` のような小数税率は表現できない。扱う必要が出たらレジ側と契約の再調整が必要（第 4 章） |

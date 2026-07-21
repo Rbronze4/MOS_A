@@ -24,6 +24,9 @@ final class StaffCustomerModel
     // Controller・Viewからも既定値として参照するためpublicにする。
     public const DEFAULT_FILTER = self::FILTER_SEATED;
 
+    // 注文を受け付けてよい会計状態（1=受付中）。2:会計済み 4:未収金 8:会計中 では注文させない。
+    private const BILLING_STATUS_ACCEPTING = 1;
+
     // 絞り込み種別 → 対象のbilling_status。ALLはここに持たない（絞り込みなし）。
     private const BILLING_STATUSES_BY_FILTER = [
         self::FILTER_UNPAID => [1, 8],
@@ -219,6 +222,9 @@ final class StaffCustomerModel
             'table_numbers' => $this->tableNumberLabels($sessions),
             'has_active_session' => $sessions !== [],
             'billing_status_label' => $this->billingStatusLabel((int)$customer['billing_status']),
+            // 会計を通した顧客（2:会計済み 4:未収金 8:会計中）はスタッフ注文をさせない。
+            // 画面側でボタンを押せなくするために使う。
+            'can_staff_order' => (int)$customer['billing_status'] === self::BILLING_STATUS_ACCEPTING,
         ];
     }
 

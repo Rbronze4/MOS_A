@@ -138,6 +138,7 @@ final class StaffController
         $orders = $this->orders();
         $products = $this->products();
         $productCategories = $this->productCategories();
+        $productPlanTypes = $this->productPlanTypes();
 
         $view = dirname(__DIR__) . '/Views/staff/dashboard.php';
 
@@ -156,6 +157,9 @@ final class StaffController
         );
         $returnRef = trim((string)((($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? $_POST : $_GET)['ref'] ?? 'customerList'));
         $entryError = '';
+        // 会計済みなど「もうこの顧客には注文できない」状態。卓番号やコースを
+        // 入力させても必ず失敗するため、画面側で入力欄ごと使えなくする。
+        $entryBlocked = false;
         $plans = [];
         $oldTableNumber = trim((string)($_POST['table_number'] ?? ''));
         $oldPlanChoice = trim((string)($_POST['plan_choice'] ?? ''));
@@ -193,25 +197,20 @@ final class StaffController
                 $plans = $entryData['plans'];
 
                 /*
-                * 卓番号と有効なコース、または単品セッションが揃っていれば
-                * 卓・コース選択画面を省略する。
+                * 着席中（ACTIVEセッションあり）なら、単品・コースを問わず
+                * 卓・コース選択画面を省略する。着席後のコース変更は行わない。
                 */
-                if (
-                    $entryData['selection'] !== null
-                    && $entryData['selection']['customer_plan_id'] !== null
-                ) {
+                if ($entryData['selection'] !== null) {
                     $this->redirect(
                         '/MOS_A/public/staff/order-menu'
                         . '?customer_id=' . (int)$customerId
                         . '&ref=' . urlencode($returnRef)
                     );
                 }
-
-                // コースなし（期限切れを含む）の既存セッションでは、卓番号を
-                // 引き継いだうえでコース選択画面を表示する。
-                if ($entryData['selection'] !== null && $oldTableNumber === '') {
-                    $oldTableNumber = (string)$entryData['selection']['table_number'];
-                }
+            } catch (StaffOrderNotAcceptingException $exception) {
+                // 入力し直しても通らないエラーなので、フォーム自体を止める。
+                $entryBlocked = true;
+                $entryError = $exception->getMessage();
             } catch (InvalidArgumentException $exception) {
                 $entryError = $exception->getMessage();
             } catch (Throwable $exception) {
@@ -564,6 +563,55 @@ final class StaffController
         }
 
         $this->redirect($redirectPath);
+    }
+
+    /**
+     * 注文一覧の最新状態をJSONで返す（タブレットの定期取得用）。
+     *
+     * 客が注文しても画面はひとりでに変わらないため、スタッフ側から定期的に問い合わせる。
+     * 画面全体を再読み込みすると一括取消のチェックや編集中のモーダルが消えてしまうので、
+     * 一覧データだけを返してフロント側で反映の可否を判断させる。
+     */
+    public function latestOrders(): void
+    {
+        // これは画面ではなくJSからのAPI。セッション切れでログイン画面へリダイレクトすると、
+        // fetchがHTML(200)を受け取り、フロントはエラーに気づけないまま無駄な取得を続ける。
+        // そのため画面用のrequireStaffLoginは使わず、未ログインは401 JSONで明示する。
+        if (!$this->isLoggedIn()) {
+            $this->json([
+                'ok' => false,
+                'authenticated' => false,
+                'message' => 'ログインの有効期限が切れました。再度ログインしてください。',
+            ], 401);
+        }
+
+        // store_idが無いのはセッションが壊れた状態で、実質的に未ログインと同じ。
+        // フロントは401でポーリングを止めるため、ここも401に統一する（403にしない）。
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            $this->json([
+                'ok' => false,
+                'authenticated' => false,
+                'message' => 'ログインの有効期限が切れました。再度ログインしてください。',
+            ], 401);
+        }
+
+        try {
+            $model = new StaffOrderModel();
+
+            $this->json([
+                'ok' => true,
+                'orders' => $model->ordersForStore($storeId),
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[staff-orders-latest] ' . $exception->getMessage());
+
+            $this->json([
+                'ok' => false,
+                'message' => '注文一覧の取得に失敗しました。',
+            ], 500);
+        }
     }
 
     public function updateOrderProvision(): void
@@ -986,8 +1034,20 @@ final class StaffController
 
     private function isLoggedIn(): bool
     {
-        return isset($_SESSION['staff_id'], $_SESSION['store_id'], $_SESSION['store_name'], $_SESSION['role'])
-            && $_SESSION['role'] === self::ROLE_STAFF;
+        // キーの存在だけでなく中身が空でないことまで確認する。
+        // store_id等が空のままだと、ログイン画面はログイン済みとみなして
+        // スタッフ画面へ戻す一方、APIは無効セッション扱いになり、往復状態に陥る。
+        if (($_SESSION['role'] ?? '') !== self::ROLE_STAFF) {
+            return false;
+        }
+
+        foreach (['staff_id', 'store_id', 'store_name'] as $key) {
+            if (trim((string)($_SESSION[$key] ?? '')) === '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function redirect(string $path, int $statusCode = 302): void
@@ -1060,6 +1120,17 @@ final class StaffController
 
         // 再発行ボタン経由の場合は印刷物に「再発行」ラベルを表示する
         $isReissue = (string)($_GET['reissue'] ?? '') === '1';
+
+        // 同じ顧客が複数の卓に分かれる場合などに、同一QRを複数枚印刷できるようにする。
+        // 顧客番号は1つのままなので、同じQRを指定枚数ぶん並べるだけ。
+        $printCount = filter_input(INPUT_GET, 'count', FILTER_VALIDATE_INT);
+
+        if ($printCount === false || $printCount === null || $printCount < 1) {
+            $printCount = 1;
+        }
+
+        // 誤入力で大量のページが生成されないよう上限を設ける（入力欄と同じ99枚）
+        $printCount = min(99, $printCount);
 
         if ($storeId === '') {
             http_response_code(403);
@@ -1198,6 +1269,25 @@ final class StaffController
             return $model->categories();
         } catch (Throwable $exception) {
             error_log('[staff-product-categories] DB error: ' . $exception->getMessage());
+
+            return [];
+        }
+    }
+
+    private function productPlanTypes(): array
+    {
+        $storeId = trim((string)($_SESSION['store_id'] ?? ''));
+
+        if ($storeId === '') {
+            return [];
+        }
+
+        try {
+            $model = new StaffProductModel();
+
+            return $model->planTypesForStore($storeId);
+        } catch (Throwable $exception) {
+            error_log('[staff-product-plan-types] DB error: ' . $exception->getMessage());
 
             return [];
         }

@@ -40,8 +40,15 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
 
     // 指定した customer_id でQRコード表示モーダルを開く（表示専用）。
     // isReissue を true にすると、印刷ページに「再発行」ラベルが表示される。
-    function openQrCompleteModal(customerId, messagePrefix = 'QR発行が完了しました。', isReissue = false) {
+    // printCount は印刷する枚数。同じ顧客が複数の卓に分かれる場合に使う。
+    function openQrCompleteModal(
+        customerId,
+        messagePrefix = 'QR発行が完了しました。',
+        isReissue = false,
+        printCount = 1
+    ) {
         const orderUrl = buildOrderUrl(customerId);
+        const sheetCount = Math.min(99, Math.max(1, Number(printCount) || 1));
 
         openModal(`
             <h2>${messagePrefix}</h2>
@@ -56,14 +63,19 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
                 アクセスURL: ${orderUrl}
             </div>
 
-            <button class="white-button" id="printQrButton">印刷</button>
+            <button class="white-button" id="printQrButton">
+                ${sheetCount > 1 ? `印刷（${sheetCount}枚）` : '印刷'}
+            </button>
             <button class="white-button" id="closeModalButton">閉じる</button>
         `);
 
         // 印刷ページ（伝票風レイアウト）を別タブで開く。印刷自体はページ側のボタンで行う。
+        // ブラウザの印刷ダイアログの「部数」はページ側から変更できないため、
+        // 枚数ぶんのページを生成する方式にしている（countパラメータ）。
         document.getElementById('printQrButton').addEventListener('click', function () {
             const printUrl = `/MOS_A/public/staff/qr/print?customer_id=${encodeURIComponent(customerId)}`
-                + (isReissue ? '&reissue=1' : '');
+                + (isReissue ? '&reissue=1' : '')
+                + (sheetCount > 1 ? `&count=${sheetCount}` : '');
             window.open(printUrl, '_blank');
         });
 
@@ -83,7 +95,8 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
     }
 
     // 新規顧客を連番でDB発行し、返ってきた customer_id でQRを表示する。
-    async function issueCustomer(peopleCount, messagePrefix = 'QR発行が完了しました。') {
+    // printCount は印刷枚数。顧客は1件だけ作り、同じQRを指定枚数ぶん印刷する。
+    async function issueCustomer(peopleCount, messagePrefix = 'QR発行が完了しました。', printCount = 1) {
         try {
             const response = await fetch('/MOS_A/public/staff/qr/issue', {
                 method: 'POST',
@@ -105,7 +118,7 @@ window.MOS.staffDashboard.createQrModule = function createQrModule(context) {
                 return;
             }
 
-            openQrCompleteModal(data.customer_id, messagePrefix);
+            openQrCompleteModal(data.customer_id, messagePrefix, false, printCount);
         } catch (error) {
             openModal(`
                 <h2>通信に失敗しました。もう一度お試しください。</h2>

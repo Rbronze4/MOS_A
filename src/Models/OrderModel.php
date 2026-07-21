@@ -58,9 +58,19 @@ final class OrderModel
             foreach ($cartItems as $item) {
                 $quantity = (int)$item['quantity'];
                 $unitPrice = (int)$item['display_unit_price'];
+                $optionAdditionalPrice = (int)$item['option_additional_price'];
                 $planAppliedFlag = $unitPrice === 0 ? 1 : 0;
 
-                $this->insertOrderDetail(
+                // オプションの追加料金は税抜で保存されているため、商品の税抜価格と合算して
+                // から税を掛ける。個別に税込化して足すと端数処理が2回入り、税抜合計へ
+                // 課税するレジ側の計算と1円ずれることがある。
+                // プラン対象商品は商品分が0円なので、オプション分だけに課税される。
+                $taxIncludedTotalUnitPrice = $this->taxIncludedPrice(
+                    ($planAppliedFlag === 1 ? 0 : $unitPrice) + $optionAdditionalPrice,
+                    (float)$item['tax_rate']
+                );
+
+                $orderDetailId = $this->insertOrderDetail(
                     $orderId,
                     (int)$item['product_id'],
                     (string)$item['product_name'],
@@ -68,9 +78,12 @@ final class OrderModel
                     $unitPrice,
                     $planAppliedFlag
                 );
+                $this->copyCartOptionsToOrder((int)$item['cart_detail_id'], $orderDetailId);
 
                 $totalQuantity += $quantity;
-                $totalAmount += $unitPrice * $quantity;
+
+                // 税込単価（オプション込み）はすでに合算済みのため、ここで再度足さない。
+                $totalAmount += $taxIncludedTotalUnitPrice * $quantity;
             }
 
             $this->deleteCartDetails($cartId);
@@ -110,6 +123,17 @@ final class OrderModel
                 od.ordered_product_name,
                 od.quantity,
                 od.ordered_unit_price,
+                p.tax_rate,
+                COALESCE((
+                    SELECT SUM(odo.ordered_additional_price)
+                    FROM order_detail_options AS odo
+                    WHERE odo.order_detail_id = od.order_detail_id
+                ), 0) AS option_additional_price,
+                (
+                    SELECT GROUP_CONCAT(odo.ordered_option_name ORDER BY odo.option_id SEPARATOR '、')
+                    FROM order_detail_options AS odo
+                    WHERE odo.order_detail_id = od.order_detail_id
+                ) AS option_summary,
                 od.detail_status,
                 od.ordered_at
             FROM orders AS o
@@ -117,6 +141,8 @@ final class OrderModel
                 ON s.session_id = o.session_id
             INNER JOIN order_details AS od
                 ON od.order_id = o.order_id
+            INNER JOIN products AS p
+                ON p.product_id = od.product_id
             WHERE s.customer_id = :customer_id
               AND od.detail_status <> 'CANCELLED'
             ORDER BY
@@ -136,14 +162,31 @@ final class OrderModel
                 'order_detail_id' => (int)$row['order_detail_id'],
                 'order_id' => (int)$row['order_id'],
                 'name' => (string)$row['ordered_product_name'],
-                'price' => (int)$row['ordered_unit_price'],
+                // オプションの追加料金は税抜で保存されているため、商品の税抜価格と合算して
+                // から税を掛ける。個別に税込化して足すと端数処理が2回入り、税抜合計へ
+                // 課税するレジ側の計算と1円ずれることがある。
+                'price' => $this->taxIncludedPrice(
+                    (int)$row['ordered_unit_price'] + (int)$row['option_additional_price'],
+                    (float)$row['tax_rate']
+                ),
                 'quantity' => (int)$row['quantity'],
+                'option_summary' => $row['option_summary'] === null ? '' : (string)$row['option_summary'],
                 'status' => (string)$row['detail_status'],
                 'ordered_at' => (string)$row['ordered_at'],
             ];
         }
 
         return $items;
+    }
+
+    /**
+     * 注文履歴など顧客向け表示用の税込価格を、税抜価格と税率から算出する。
+     */
+    private function taxIncludedPrice(int $price, float $taxRate): int
+    {
+        $taxRateBasisPoints = (int)round($taxRate * 100);
+
+        return intdiv($price * (10000 + $taxRateBasisPoints), 10000);
     }
 
     /**
@@ -219,7 +262,7 @@ final class OrderModel
      * 注文登録に使う商品情報をDBから取得する。
      *
      * POST値は信用せず、商品名と単価は products / cart_details から取得する。
-     * store_products と products の販売状態もここで確認する。
+     * products の店舗所属と販売状態もここで確認する。
      */
     private function cartItemsForOrder(int $cartId, string $storeId): array
     {
@@ -229,18 +272,39 @@ final class OrderModel
                 cd.cart_id,
                 cd.product_id,
                 cd.quantity,
-                cd.display_unit_price,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM customer_plans AS cp
+                        INNER JOIN plans AS pl
+                            ON pl.plan_id = cp.plan_id
+                        INNER JOIN plan_type_products AS ptp
+                            ON ptp.plan_type_id = pl.plan_type_id
+                           AND ptp.product_id = p.product_id
+                        WHERE cp.customer_id = s.customer_id
+                          AND cp.started_at <= NOW()
+                          AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
+                          AND pl.is_active = 1
+                    ) THEN 0
+                    ELSE p.price
+                END AS display_unit_price,
+                COALESCE((
+                    SELECT SUM(cdo.selected_additional_price)
+                    FROM cart_detail_options AS cdo
+                    WHERE cdo.cart_detail_id = cd.cart_detail_id
+                ), 0) AS option_additional_price,
                 p.product_name,
                 p.price,
                 p.tax_rate
             FROM cart_details AS cd
+            INNER JOIN carts AS c
+                ON c.cart_id = cd.cart_id
+            INNER JOIN sessions AS s
+                ON s.session_id = c.session_id
             INNER JOIN products AS p
                 ON p.product_id = cd.product_id
-            INNER JOIN store_products AS sp
-                ON sp.product_id = cd.product_id
             WHERE cd.cart_id = :cart_id
-              AND sp.store_id = :store_id
-              AND sp.sale_status = 'ON_SALE'
+              AND p.store_id = :store_id
               AND p.sale_status = 'ON_SALE'
             ORDER BY cd.cart_detail_id ASC
             FOR UPDATE
@@ -291,7 +355,7 @@ final class OrderModel
         int $quantity,
         int $unitPrice,
         int $planAppliedFlag
-    ): void {
+    ): int {
         $sql = <<<SQL
             INSERT INTO order_details (
                 order_id,
@@ -318,6 +382,35 @@ final class OrderModel
         $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
         $statement->bindValue(':ordered_unit_price', $unitPrice, PDO::PARAM_INT);
         $statement->bindValue(':plan_applied_flag', $planAppliedFlag, PDO::PARAM_INT);
+        $statement->execute();
+
+        return (int)db()->lastInsertId();
+    }
+
+    /**
+     * カートで確定した名称・追加料金を注文オプションへスナップショットとして引き継ぐ。
+     */
+    private function copyCartOptionsToOrder(int $cartDetailId, int $orderDetailId): void
+    {
+        $sql = <<<SQL
+            INSERT INTO order_detail_options (
+                order_detail_id,
+                option_id,
+                ordered_option_name,
+                ordered_additional_price
+            )
+            SELECT
+                :order_detail_id,
+                option_id,
+                selected_option_name,
+                selected_additional_price
+            FROM cart_detail_options
+            WHERE cart_detail_id = :cart_detail_id
+        SQL;
+
+        $statement = db()->prepare($sql);
+        $statement->bindValue(':order_detail_id', $orderDetailId, PDO::PARAM_INT);
+        $statement->bindValue(':cart_detail_id', $cartDetailId, PDO::PARAM_INT);
         $statement->execute();
     }
 

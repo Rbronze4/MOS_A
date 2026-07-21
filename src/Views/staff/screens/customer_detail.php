@@ -60,10 +60,20 @@ $tableNumbers = is_array($customerDetail['table_numbers'] ?? null)
                         type="button"
                         onclick="location.href='/MOS_A/public/staff/customer/orders?customer_id=<?= h($customerId) ?>'"
                     >注文詳細</button>
+                    <?php
+                    // 会計を通した顧客はスタッフ注文できないため、そもそも押せなくする。
+                    // 押せてしまうと画面に入った先でエラーになり、操作が無駄になる。
+                    $canStaffOrder = ($customerDetail['can_staff_order'] ?? true) === true;
+                    ?>
                     <button
                         class="white-button"
                         type="button"
-                        onclick="location.href='<?= h($staffOrderHref) ?>'"
+                        <?= $canStaffOrder ? '' : 'disabled' ?>
+                        <?php if ($canStaffOrder): ?>
+                            onclick="location.href='<?= h($staffOrderHref) ?>'"
+                        <?php else: ?>
+                            title="お会計が完了しているため、スタッフ注文はご利用いただけません。"
+                        <?php endif; ?>
                     >スタッフ注文</button>
                 </div>
             </div>

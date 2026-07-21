@@ -14,6 +14,8 @@ window.MOS.customer = window.MOS.customer || {};
 window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(context) {
     const {
         state,
+        planTaxRate,
+        taxIncludedPrice,
         formatYen,
         findMenu,
         findPlan,
@@ -57,23 +59,27 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         // 単価はDBのcustomer_plans（プラン確定時に登録された実際の単価）だけを使う。
         // 画面用のプラン定義は価格を持たない（店舗・制限時間で価格が変わるため）。
+        // この単価は税抜のため、表示・合計では必ず税込にする。
         const dbPlan = state.activeCustomerPlan || null;
-        const unitPrice = Number(dbPlan?.unit_price ?? dbPlan?.price ?? 0);
+        const netUnitPrice = Number(dbPlan?.unit_price ?? dbPlan?.price ?? 0);
 
-        if (unitPrice <= 0) {
+        if (netUnitPrice <= 0) {
             return null;
         }
 
         return {
             ...plan,
-            price: unitPrice
+            netPrice: netUnitPrice,
+            price: taxIncludedPrice(netUnitPrice, planTaxRate)
         };
     }
 
-    // コース料金の合計（プラン料金 × 人数）。コースなしは0。
+    // コース料金の合計（税込）。コースなしは0。
+    // 「税抜合計×税率」で求める。単価を税込にしてから人数を掛けると端数処理が先に入り、
+    // 税抜合計へ課税するレジ側の計算とずれることがある。
     function courseTotal() {
         const plan = selectedCoursePlan();
-        return plan ? plan.price * headcount() : 0;
+        return plan ? taxIncludedPrice(plan.netPrice * headcount(), planTaxRate) : 0;
     }
 
     function historyTotal() {
@@ -115,15 +121,20 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         cartList.innerHTML = state.cart.map(item => `
             <div class="cart-row">
-                <span>${escapeHtml(item.name)}</span>
+                <span class="cart-item-main">
+                    ${escapeHtml(item.name)}
+                    ${(item.options || []).length > 0
+                        ? `<small class="cart-item-options">${escapeHtml(item.options.map(option => option.name).join('、'))}</small>`
+                        : ''}
+                </span>
                 <span>${escapeHtml(item.quantity)}</span>
                 <span>${formatYen(item.price)}</span>
 
-                <button class="pill-button change-button" data-action="change" data-menu-id="${escapeHtml(item.id)}">
+                <button class="pill-button change-button" data-action="change" data-cart-detail-id="${escapeHtml(item.cart_detail_id)}">
                     変更
                 </button>
 
-                <button class="pill-button delete-button" data-action="delete" data-menu-id="${escapeHtml(item.id)}">
+                <button class="pill-button delete-button" data-action="delete" data-cart-detail-id="${escapeHtml(item.cart_detail_id)}">
                     削除
                 </button>
             </div>
@@ -131,9 +142,9 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         cartList.querySelectorAll('.pill-button').forEach(button => {
             button.addEventListener('click', async () => {
-                const menuId = button.dataset.menuId;
+                const cartDetailId = button.dataset.cartDetailId;
                 const action = button.dataset.action;
-                const cartItem = state.cart.find(item => String(item.id) === String(menuId));
+                const cartItem = state.cart.find(item => String(item.cart_detail_id) === String(cartDetailId));
 
                 if (!cartItem) return;
 
@@ -144,7 +155,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                     }
 
                     try {
-                        const result = await deleteCartFromServer(menuId);
+                        const result = await deleteCartFromServer(cartDetailId);
 
                         state.cart = result.cart_items || [];
                         renderCart();
@@ -158,7 +169,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                 }
 
                 if (action === 'change') {
-                    const menu = findMenu(menuId);
+                    const menu = findMenu(cartItem.id);
                     if (!menu) return;
 
                     state.editingItem = cartItem;
@@ -177,7 +188,12 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         document.getElementById('modalOrderTotal').textContent = formatYen(cartTotal());
         document.getElementById('modalOrderList').innerHTML = state.cart.map(item => `
             <div class="modal-order-row">
-                <span>${item.name}</span>
+                <span>
+                    ${escapeHtml(item.name)}
+                    ${(item.options || []).length > 0
+                        ? `<small class="cart-item-options">${escapeHtml(item.options.map(option => option.name).join('、'))}</small>`
+                        : ''}
+                </span>
                 <span>${item.quantity}</span>
                 <span>${formatYen(item.price)}</span>
             </div>
@@ -215,7 +231,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                     <span class="history-status">[コース]</span>
                     <span>${escapeHtml(coursePlan.name)}</span>
                     <span>${headcount()}名</span>
-                    <span>${formatYen(coursePlan.price * headcount())}</span>
+                    <span>${formatYen(courseTotal())}</span>
                 </div>
             `);
         }
@@ -224,7 +240,10 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
             rows.push(`
                 <div class="history-row">
                     <span class="history-status">[注文済み]</span>
-                    <span>${escapeHtml(item.name)}</span>
+                    <span>
+                        ${escapeHtml(item.name)}
+                        ${item.option_summary ? `<small class="cart-item-options">${escapeHtml(item.option_summary)}</small>` : ''}
+                    </span>
                     <span>${escapeHtml(item.quantity)}</span>
                     <span>${formatYen(item.price)}</span>
 

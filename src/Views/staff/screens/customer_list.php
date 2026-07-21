@@ -35,6 +35,18 @@ $customerEmptyMessages = [
     </div>
 
     <div class="customer-list-top">
+        <!--
+            顧客一覧はPHPが静的に出力しているため、注文一覧のような自動更新ができない。
+            QR発行や会計で顧客の状況が変わったときに、スタッフが手動で読み直せるようにする。
+            フィルタタブと同じくページ再読込方式にし、選択中の絞り込みは維持する。
+            注文一覧の更新ボタンと同じく、タブとは反対側（左）に置いて誤タップを避ける。
+        -->
+        <a
+            id="customerRefreshButton"
+            class="customer-refresh-button"
+            href="/MOS_A/public/staff?ref=customerList&status=<?= h($customerFilter) ?>"
+        >最新の顧客を読み込む</a>
+
         <nav class="customer-filter-tabs">
             <?php foreach ($customerFilterTabs as $filterKey => $filterLabel): ?>
                 <a
