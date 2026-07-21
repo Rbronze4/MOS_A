@@ -55,6 +55,70 @@
     letter-spacing: 2px;
 }
 
+/* ============================================================
+   エラー・警告メッセージ
+   スタイル未定義だと本文に埋もれて気づかれないため、明確に見せる。
+   ============================================================ */
+.staff-order-message {
+    width: min(90%, 520px);
+    box-sizing: border-box;
+    margin: 0 0 clamp(24px, 4vw, 32px);
+    padding: 16px 20px;
+    border-radius: 8px;
+    font-size: clamp(15px, 2.4vw, 18px);
+    font-weight: 700;
+    line-height: 1.6;
+    text-align: center;
+}
+
+.staff-order-message-error {
+    border: 2px solid #b00020;
+    background: var(--mos-panel-bg);
+    color: #b00020;
+}
+
+/*
+    会計済みなど「もう注文できない」状態は、入力しても必ず失敗する。
+    見落とすと操作が無駄になるため、他のエラーより強く目立たせる。
+*/
+.staff-order-message-blocked {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+    border-width: 3px;
+    background: #b00020;
+    color: var(--mos-panel-bg);
+    font-size: clamp(16px, 2.8vw, 20px);
+    text-align: left;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/*
+    文言が長くても枠内で折り返す。
+    アイコンも span のため、要素セレクタ（> span）ではなく専用クラスを対象にする。
+    要素セレクタにするとアイコンにも flex:1 が効き、丸が横長に潰れてしまう。
+*/
+.staff-order-message-text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.staff-order-message-icon {
+    /* 伸び縮みさせない。ここが崩れると丸が楕円になる */
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--mos-panel-bg);
+    color: #b00020;
+    font-size: 22px;
+    line-height: 1;
+}
+
 .staff-order-entry-form {
     width: min(90%, 520px);
     display: flex;
@@ -133,6 +197,37 @@
 
 .staff-order-decision-button:hover {
     opacity: 0.92;
+}
+
+/* ============================================================
+   会計済みで入力できない状態の見た目
+   押せないことが見て分かるようにする（実際の遮断はサーバー側）。
+   ============================================================ */
+.staff-table-row input[type="number"]:disabled {
+    background: #d5d5d5;
+    color: #8a8a8a;
+    cursor: not-allowed;
+}
+
+.staff-plan-row input[type="radio"]:disabled {
+    cursor: not-allowed;
+}
+
+/* ラジオが押せないことがラベル側からも分かるようにする */
+.staff-plan-row label:has(input[type="radio"]:disabled) {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.staff-order-decision-button:disabled {
+    border-color: #999999;
+    background: #cccccc;
+    color: #7a7a7a;
+    cursor: not-allowed;
+}
+
+.staff-order-decision-button:disabled:hover {
+    opacity: 1;
 }
 
 @media (min-width: 1024px) {
