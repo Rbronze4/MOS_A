@@ -227,16 +227,16 @@ final class CustomerController
         }
 
         $session = $this->validatedActiveSession();
-        $productId = $this->validatedProductId();
+        $cartDetailId = $this->validatedCartDetailId();
         $quantity = $this->validatedQuantity();
         $optionIds = $this->validatedOptionIds();
 
         try {
             $cartModel = new CartModel();
-            $result = $cartModel->updateProductQuantity(
+            $result = $cartModel->updateCartDetail(
                 (int)$session['session_id'],
                 (string)$session['store_id'],
-                $productId,
+                $cartDetailId,
                 $quantity,
                 $optionIds
             );
@@ -266,11 +266,11 @@ final class CustomerController
         }
 
         $session = $this->validatedActiveSession();
-        $productId = $this->validatedProductId();
+        $cartDetailId = $this->validatedCartDetailId();
 
         try {
             $cartModel = new CartModel();
-            $result = $cartModel->deleteProduct((int)$session['session_id'], $productId);
+            $result = $cartModel->deleteCartDetail((int)$session['session_id'], $cartDetailId);
 
             $this->json([
                 'ok' => true,
@@ -423,6 +423,20 @@ final class CustomerController
         }
 
         return (int)$productId;
+    }
+
+    private function validatedCartDetailId(): int
+    {
+        $cartDetailId = filter_input(INPUT_POST, 'cart_detail_id', FILTER_VALIDATE_INT);
+
+        if ($cartDetailId === false || $cartDetailId === null || $cartDetailId < 1) {
+            $this->json([
+                'ok' => false,
+                'message' => 'カート明細IDが正しくありません。',
+            ], 422);
+        }
+
+        return (int)$cartDetailId;
     }
 
     private function validatedQuantity(): int

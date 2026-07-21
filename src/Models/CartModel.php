@@ -14,7 +14,7 @@ final class CartModel
     /**
      * 指定された商品を、既存のテスト用カートに追加する。
      *
-     * 同じ商品がすでに cart_details にある場合は、新規行を作らず数量だけ増やす。
+     * 同じ商品・同じオプション構成がすでにある場合は、新規行を作らず数量だけ増やす。
      */
     public function addProduct(
         int $sessionId,
@@ -45,6 +45,7 @@ final class CartModel
         try {
             $pdo->beginTransaction();
             $selectedOptions = $this->validatedOptionsForProduct($productId, $optionIds);
+            $optionSignature = $this->optionSignature($selectedOptions);
 
             // 今回は carts の新規作成は行わず、DBにあるテスト用カートを使う。
             $cartId = $this->findExistingCartId($sessionId);
@@ -53,16 +54,15 @@ final class CartModel
                 throw new RuntimeException('指定されたsession_idに紐づくカートが見つかりません。');
             }
 
-            $cartDetail = $this->findCartDetail($cartId, $productId);
+            $cartDetail = $this->findCartDetailByConfiguration($cartId, $productId, $optionSignature);
 
             if ($cartDetail !== null) {
                 $cartDetailId = (int)$cartDetail['cart_detail_id'];
                 $this->incrementCartDetailQuantity($cartDetailId, $quantity);
             } else {
-                $cartDetailId = $this->insertCartDetail($cartId, $productId, $quantity);
+                $cartDetailId = $this->insertCartDetail($cartId, $productId, $optionSignature, $quantity);
+                $this->replaceCartDetailOptions($cartDetailId, $selectedOptions);
             }
-
-            $this->replaceCartDetailOptions($cartDetailId, $selectedOptions);
 
             $pdo->commit();
 
@@ -83,10 +83,10 @@ final class CartModel
     /**
      * 既存のカート明細の数量を、指定された数量へ変更する。
      */
-    public function updateProductQuantity(
+    public function updateCartDetail(
         int $sessionId,
         string $storeId,
-        int $productId,
+        int $cartDetailId,
         int $quantity,
         array $optionIds = []
     ): array
@@ -97,30 +97,38 @@ final class CartModel
 
         $pdo = db();
         $this->assertActiveSession($sessionId);
-        $planTypeId = $this->currentPlanTypeIdForSession($sessionId);
-
-        if ($this->findOnSaleProduct($storeId, $productId, $planTypeId) === null) {
-            throw new RuntimeException('この店舗で販売中の商品ではありません。');
-        }
-
         try {
             $pdo->beginTransaction();
-            $selectedOptions = $this->validatedOptionsForProduct($productId, $optionIds);
-
             $cartId = $this->findExistingCartId($sessionId);
 
             if ($cartId === null) {
                 throw new RuntimeException('指定されたsession_idに紐づくカートが見つかりません。');
             }
 
-            $cartDetail = $this->findCartDetail($cartId, $productId);
+            $cartDetail = $this->findCartDetailById($cartId, $cartDetailId);
 
             if ($cartDetail === null) {
                 throw new RuntimeException('変更対象の商品がカートに見つかりません。');
             }
 
-            $this->setCartDetailQuantity((int)$cartDetail['cart_detail_id'], $quantity);
-            $this->replaceCartDetailOptions((int)$cartDetail['cart_detail_id'], $selectedOptions);
+            $productId = (int)$cartDetail['product_id'];
+            $planTypeId = $this->currentPlanTypeIdForSession($sessionId);
+
+            if ($this->findOnSaleProduct($storeId, $productId, $planTypeId) === null) {
+                throw new RuntimeException('この店舗で販売中の商品ではありません。');
+            }
+
+            $selectedOptions = $this->validatedOptionsForProduct($productId, $optionIds);
+            $optionSignature = $this->optionSignature($selectedOptions);
+            $sameConfiguration = $this->findCartDetailByConfiguration($cartId, $productId, $optionSignature);
+
+            if ($sameConfiguration !== null && (int)$sameConfiguration['cart_detail_id'] !== $cartDetailId) {
+                $this->incrementCartDetailQuantity((int)$sameConfiguration['cart_detail_id'], $quantity);
+                $this->deleteCartDetailRow($cartDetailId, $cartId);
+            } else {
+                $this->updateCartDetailValues($cartDetailId, $cartId, $quantity, $optionSignature);
+                $this->replaceCartDetailOptions($cartDetailId, $selectedOptions);
+            }
 
             $pdo->commit();
 
@@ -140,7 +148,7 @@ final class CartModel
     /**
      * 既存のカート明細を削除する。
      */
-    public function deleteProduct(int $sessionId, int $productId): array
+    public function deleteCartDetail(int $sessionId, int $cartDetailId): array
     {
         $pdo = db();
         $this->assertActiveSession($sessionId);
@@ -154,13 +162,13 @@ final class CartModel
                 throw new RuntimeException('指定されたsession_idに紐づくカートが見つかりません。');
             }
 
-            $cartDetail = $this->findCartDetail($cartId, $productId);
+            $cartDetail = $this->findCartDetailById($cartId, $cartDetailId);
 
             if ($cartDetail === null) {
                 throw new RuntimeException('削除対象の商品がカートに見つかりません。');
             }
 
-            $this->deleteCartDetail((int)$cartDetail['cart_detail_id']);
+            $this->deleteCartDetailRow($cartDetailId, $cartId);
 
             $pdo->commit();
 
@@ -260,6 +268,7 @@ final class CartModel
             $netUnitPrice = $planApplied ? 0 : (int)$row['net_unit_price'];
 
             $items[] = [
+                'cart_detail_id' => $cartDetailId,
                 'id' => (int)$row['product_id'],
                 'name' => (string)$row['product_name'],
                 'price' => $this->taxIncludedPrice($netUnitPrice + $additionalPrice, $taxRate),
@@ -438,9 +447,9 @@ final class CartModel
     }
 
     /**
-     * すでに同じ商品がかごに入っているか確認する。
+     * 同じ商品・オプション構成の明細がすでにあるか確認する。
      */
-    private function findCartDetail(int $cartId, int $productId): ?array
+    private function findCartDetailByConfiguration(int $cartId, int $productId, string $optionSignature): ?array
     {
         $sql = <<<SQL
             SELECT
@@ -449,6 +458,7 @@ final class CartModel
             FROM cart_details
             WHERE cart_id = :cart_id
               AND product_id = :product_id
+              AND option_signature = :option_signature
             LIMIT 1
             FOR UPDATE
         SQL;
@@ -456,8 +466,28 @@ final class CartModel
         $statement = db()->prepare($sql);
         $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
         $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->bindValue(':option_signature', $optionSignature, PDO::PARAM_STR);
         $statement->execute();
 
+        $cartDetail = $statement->fetch();
+
+        return $cartDetail === false ? null : $cartDetail;
+    }
+
+    /** 対象明細が現在のカートに属することを確認しながらロックする。 */
+    private function findCartDetailById(int $cartId, int $cartDetailId): ?array
+    {
+        $statement = db()->prepare(<<<SQL
+            SELECT cart_detail_id, product_id, quantity, option_signature
+            FROM cart_details
+            WHERE cart_id = :cart_id
+              AND cart_detail_id = :cart_detail_id
+            LIMIT 1
+            FOR UPDATE
+        SQL);
+        $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
+        $statement->bindValue(':cart_detail_id', $cartDetailId, PDO::PARAM_INT);
+        $statement->execute();
         $cartDetail = $statement->fetch();
 
         return $cartDetail === false ? null : $cartDetail;
@@ -483,49 +513,67 @@ final class CartModel
     /**
      * 変更画面で指定された数量へ上書きする。
      */
-    private function setCartDetailQuantity(int $cartDetailId, int $quantity): void
+    private function updateCartDetailValues(
+        int $cartDetailId,
+        int $cartId,
+        int $quantity,
+        string $optionSignature
+    ): void
     {
         $sql = <<<SQL
             UPDATE cart_details
-            SET quantity = :quantity
+            SET quantity = :quantity,
+                option_signature = :option_signature
             WHERE cart_detail_id = :cart_detail_id
+              AND cart_id = :cart_id
         SQL;
 
         $statement = db()->prepare($sql);
         $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
+        $statement->bindValue(':option_signature', $optionSignature, PDO::PARAM_STR);
         $statement->bindValue(':cart_detail_id', $cartDetailId, PDO::PARAM_INT);
+        $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
         $statement->execute();
     }
 
     /**
      * カート画面の削除ボタンから、対象明細をDB上でも削除する。
      */
-    private function deleteCartDetail(int $cartDetailId): void
+    private function deleteCartDetailRow(int $cartDetailId, int $cartId): void
     {
         $sql = <<<SQL
             DELETE FROM cart_details
             WHERE cart_detail_id = :cart_detail_id
+              AND cart_id = :cart_id
         SQL;
 
         $statement = db()->prepare($sql);
         $statement->bindValue(':cart_detail_id', $cartDetailId, PDO::PARAM_INT);
+        $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
         $statement->execute();
     }
 
     /**
-     * まだ同じ商品がない場合は、新しい cart_details 行を作成する。
+     * 同じ商品・オプション構成がない場合は、新しい cart_details 行を作成する。
      */
-    private function insertCartDetail(int $cartId, int $productId, int $quantity): int
+    private function insertCartDetail(
+        int $cartId,
+        int $productId,
+        string $optionSignature,
+        int $quantity
+    ): int
     {
         $sql = <<<SQL
             INSERT INTO cart_details (
                 cart_id,
                 product_id,
+                option_signature,
                 quantity
             )
             VALUES (
                 :cart_id,
                 :product_id,
+                :option_signature,
                 :quantity
             )
         SQL;
@@ -533,10 +581,20 @@ final class CartModel
         $statement = db()->prepare($sql);
         $statement->bindValue(':cart_id', $cartId, PDO::PARAM_INT);
         $statement->bindValue(':product_id', $productId, PDO::PARAM_INT);
+        $statement->bindValue(':option_signature', $optionSignature, PDO::PARAM_STR);
         $statement->bindValue(':quantity', $quantity, PDO::PARAM_INT);
         $statement->execute();
 
         return (int)db()->lastInsertId();
+    }
+
+    /** 検証済みオプションIDを昇順で連結し、同一構成判定用の値を作る。 */
+    private function optionSignature(array $selectedOptions): string
+    {
+        $optionIds = array_map('intval', array_column($selectedOptions, 'option_id'));
+        sort($optionIds, SORT_NUMERIC);
+
+        return implode(',', $optionIds);
     }
 
     /**
@@ -618,7 +676,7 @@ final class CartModel
     }
 
     /**
-     * 同一商品を編集・再追加した場合は、DB制約に合わせて選択内容を今回の値へ置き換える。
+     * 編集時の選択内容を、対象カート明細へ保存し直す。
      */
     private function replaceCartDetailOptions(int $cartDetailId, array $selectedOptions): void
     {

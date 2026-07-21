@@ -198,19 +198,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateCartOnServer(productId, quantity, optionIds) {
+    function updateCartOnServer(cartDetailId, quantity, optionIds) {
         return postCartAction('/MOS_A/public/customer/cart/update', {
             session_id: state.sessionId,
-            product_id: productId,
+            cart_detail_id: cartDetailId,
             quantity,
             option_ids: JSON.stringify(optionIds)
         });
     }
 
-    function deleteCartFromServer(productId) {
+    function deleteCartFromServer(cartDetailId) {
         return postCartAction('/MOS_A/public/customer/cart/delete', {
             session_id: state.sessionId,
-            product_id: productId
+            cart_detail_id: cartDetailId
         });
     }
 
@@ -658,7 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const result = state.editingItem
-                ? await updateCartOnServer(state.selectedMenu.id, quantityValue, optionIds)
+                ? await updateCartOnServer(state.editingItem.cart_detail_id, quantityValue, optionIds)
                 : await addCartToServer(state.selectedMenu.id, quantityValue, optionIds);
 
             state.editingItem = null;

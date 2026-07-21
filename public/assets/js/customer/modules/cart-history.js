@@ -129,11 +129,11 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                 <span>${escapeHtml(item.quantity)}</span>
                 <span>${formatYen(item.price)}</span>
 
-                <button class="pill-button change-button" data-action="change" data-menu-id="${escapeHtml(item.id)}">
+                <button class="pill-button change-button" data-action="change" data-cart-detail-id="${escapeHtml(item.cart_detail_id)}">
                     変更
                 </button>
 
-                <button class="pill-button delete-button" data-action="delete" data-menu-id="${escapeHtml(item.id)}">
+                <button class="pill-button delete-button" data-action="delete" data-cart-detail-id="${escapeHtml(item.cart_detail_id)}">
                     削除
                 </button>
             </div>
@@ -141,9 +141,9 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
         cartList.querySelectorAll('.pill-button').forEach(button => {
             button.addEventListener('click', async () => {
-                const menuId = button.dataset.menuId;
+                const cartDetailId = button.dataset.cartDetailId;
                 const action = button.dataset.action;
-                const cartItem = state.cart.find(item => String(item.id) === String(menuId));
+                const cartItem = state.cart.find(item => String(item.cart_detail_id) === String(cartDetailId));
 
                 if (!cartItem) return;
 
@@ -154,7 +154,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                     }
 
                     try {
-                        const result = await deleteCartFromServer(menuId);
+                        const result = await deleteCartFromServer(cartDetailId);
 
                         state.cart = result.cart_items || [];
                         renderCart();
@@ -167,7 +167,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                 }
 
                 if (action === 'change') {
-                    const menu = findMenu(menuId);
+                    const menu = findMenu(cartItem.id);
                     if (!menu) return;
 
                     state.editingItem = cartItem;
