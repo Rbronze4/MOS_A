@@ -25,7 +25,8 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
         openProduct,
         refreshCategoryScrollButtons,
         deleteCartFromServer,
-        submitOrderToServer
+        submitOrderToServer,
+        updateCartButtonState
     } = context;
 
     // 商品名はスタッフが商品管理画面から自由に登録でき、そのままDB経由で
@@ -158,6 +159,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
 
                         state.cart = result.cart_items || [];
                         renderCart();
+                        updateCartButtonState?.();
                         showToast(result.message || `${cartItem.name}を削除しました`);
                     } catch (error) {
                         showToast(error.message || '削除に失敗しました');
@@ -320,6 +322,7 @@ window.MOS.customer.createCartHistoryModule = function createCartHistoryModule(c
                 state.history = result.history_items || [];
                 state.cart = result.cart_items || [];
 
+                updateCartButtonState?.();
                 closeOrderModal();
                 renderCart();
                 renderHistory();

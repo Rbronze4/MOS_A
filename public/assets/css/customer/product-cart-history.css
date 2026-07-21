@@ -48,83 +48,6 @@
     font-size: 16px;
 }
 
-.product-options {
-    width: min(320px, calc(100% - 40px));
-    margin: 0 auto 18px;
-}
-
-.product-option-group {
-    margin-bottom: 12px;
-    padding: 14px;
-    background: #c56f4c;
-    border-radius: 4px;
-}
-
-.product-option-heading {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 5px;
-    font-size: 15px;
-    font-weight: bold;
-}
-
-.product-option-required {
-    font-size: 12px;
-    font-weight: normal;
-}
-
-.product-option-rule {
-    margin: 0 0 10px;
-    font-size: 11px;
-}
-
-.product-option-choices {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.product-option-choice {
-    position: relative;
-    display: grid;
-    place-items: center;
-    min-height: 42px;
-    padding: 5px;
-    background: #f1f1f1;
-    border: 2px solid transparent;
-    font-size: 12px;
-    text-align: center;
-    cursor: pointer;
-}
-
-.product-option-choice:has(input:checked) {
-    border-color: #000000;
-    background: #ffffff;
-}
-
-.product-option-choice input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.product-option-price {
-    display: block;
-    margin-top: 2px;
-    font-size: 10px;
-}
-
-.cart-item-main {
-    min-width: 0;
-}
-
-.cart-item-options {
-    display: block;
-    margin-top: 3px;
-    color: #5f4b2a;
-    font-size: 11px;
-}
 
 .quantity-buttons {
     width: 290px;
@@ -209,9 +132,24 @@
     font-weight: bold;
 }
 
+/* カート・注文履歴は一覧部分のみ縦スクロールさせる */
+#cartScreen.active,
+#historyScreen.active {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+}
+
 .cart-list {
     width: 78%;
     margin: 0 auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-bottom: 96px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .cart-row {
@@ -242,10 +180,15 @@
 }
 
 .bottom-action {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 26px;
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+    width: 100%;
+    max-width: 430px;
+    z-index: 5;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--mos-soft-bg) 72%, rgba(238, 238, 238, 0));
 }
 
 /* =========================
@@ -254,11 +197,18 @@
 
 .history-list {
     margin-top: 8px;
+    width: 84%;
+    margin-left: auto;
+    margin-right: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .history-row {
-    width: 84%;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
     display: grid;
     grid-template-columns: 78px 1fr 28px 58px 54px;
     gap: 6px;
