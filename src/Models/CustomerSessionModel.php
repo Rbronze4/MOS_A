@@ -325,6 +325,7 @@ final class CustomerSessionModel
             WHERE cp.customer_id = :customer_id
               AND cp.started_at <= NOW()
               AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
+                            AND DATE_ADD(cp.started_at, INTERVAL p.time_limit_minutes MINUTE) > NOW()
             ORDER BY cp.started_at DESC, cp.customer_plan_id DESC
             LIMIT 1
         SQL;
@@ -457,17 +458,20 @@ final class CustomerSessionModel
     {
         $sql = <<<SQL
             SELECT
-                customer_plan_id,
-                customer_id,
-                plan_id,
-                started_at,
-                ended_at,
-                unit_price
-            FROM customer_plans
-            WHERE customer_id = :customer_id
-              AND started_at <= NOW()
-              AND (ended_at IS NULL OR ended_at > NOW())
-            ORDER BY started_at DESC, customer_plan_id DESC
+                                cp.customer_plan_id,
+                                cp.customer_id,
+                                cp.plan_id,
+                                cp.started_at,
+                                cp.ended_at,
+                                cp.unit_price
+                        FROM customer_plans AS cp
+                        INNER JOIN plans AS p
+                                ON p.plan_id = cp.plan_id
+                        WHERE cp.customer_id = :customer_id
+                            AND cp.started_at <= NOW()
+                            AND (cp.ended_at IS NULL OR cp.ended_at > NOW())
+                            AND DATE_ADD(cp.started_at, INTERVAL p.time_limit_minutes MINUTE) > NOW()
+                        ORDER BY cp.started_at DESC, cp.customer_plan_id DESC
             LIMIT 1
             FOR UPDATE
         SQL;
