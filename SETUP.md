@@ -26,7 +26,7 @@
 
 ```
 STEP 1  XAMPP を入れる          … Webサーバー(Apache)とデータベース(MariaDB)を用意する
-STEP 2  MOS のファイルを置く     … GitHubから取得して htdocs に配置する
+STEP 2  MOS のファイルを置く     … zipを解凍して htdocs に配置する
 STEP 3  データベースを作る       … 空のDBを作り、SQLファイルを取り込む
 STEP 4  PHPの設定を直す          … 時刻の設定（これを忘れると時間表示が狂います）
 STEP 5  動作確認                … 画面が開けばゴール
@@ -77,17 +77,33 @@ C:\xampp\htdocs\MOS_A\     ← ここに置く
 └── docs\                  ← その他の資料
 ```
 
-### 取得する
+### 2-1. zip を解凍する
 
-コマンドプロンプトを開いて、以下を実行します。
+配布された **`MOS_A.zip`** をダウンロードし、解凍します。
 
-```bash
-cd C:\xampp\htdocs
-git clone https://github.com/Rbronze4/MOS_A.git
+1. zipファイルを右クリック →**「すべて展開」**を選ぶ
+2. 展開先はどこでもかまいません（デスクトップなど）
+
+### 2-2. htdocs へ移動する
+
+解凍してできたフォルダを、**`XAMPPフォルダ\htdocs`** の中へ移動します。
+
+> ⚠️ **フォルダ名は必ず `MOS_A` にしてください。**
+> 解凍ソフトによっては `MOS_A` の中にもう1つ `MOS_A` ができる（二重フォルダ）ことがあります。
+> その場合は**内側のフォルダを取り出して**、`htdocs` の直下に置いてください。
+
+正しく置けていれば、次のパスにファイルが存在します。
+
+```
+C:\xampp\htdocs\MOS_A\SETUP.md      ← このファイル
+C:\xampp\htdocs\MOS_A\public\index.php
 ```
 
-> Git を持っていない場合は、GitHubのページから「Download ZIP」でダウンロードし、
-> 解凍したフォルダを `MOS_A` という名前にして `htdocs` に置いてください。
+**確認方法**: エクスプローラーのアドレス欄に `C:\xampp\htdocs\MOS_A` と入力して開き、
+`public` `src` `DB` フォルダが並んでいればOKです。
+
+> 二重フォルダになっていると `C:\xampp\htdocs\MOS_A\MOS_A\public` のようになります。
+> この状態では画面が開かず **404 Not Found** になります。
 
 ---
 
@@ -256,9 +272,10 @@ curl -X POST http://localhost:8080/api/orders -H "Content-Type: application/json
 
 注文データのJSONが返ればOKです。
 
-> レジ本体（`regi`）は他社のシステムのため、このリポジトリには含まれていません。
-> 必要な場合はチームメンバーから受け取ってください。
-> 仕様の詳細は `docs/regi-api-orders-design.md` にあります。
+> レジ本体（`regi`）は他社のシステムのため、この配布物には含まれていません。
+> **MOS単体でもこのSTEP 6まで含めて動作確認できます**（上のcurlで確認できます）。
+> レジと繋いだ状態で動かすには、レジ側の配布物を別途入手して
+> `htdocs\regi` に置いてください。仕様の詳細は `docs/regi-api-orders-design.md` にあります。
 
 ---
 
@@ -270,7 +287,7 @@ curl -X POST http://localhost:8080/api/orders -H "Content-Type: application/json
 | 「商品がありません」と出る | STEP 3 のインポートができていない。phpMyAdmin でテーブルが19個あるか確認する |
 | カートに追加できない | 取り込んだSQLファイルが古い。`DB/developing` の**一番新しい**ファイルで取り込み直す |
 | 残り時間が数時間ずれる | STEP 4 をやっていない。php.ini を直して **Apacheを再起動** する |
-| 404 Not Found | 置き場所が違う。`htdocs\MOS_A` になっているか確認する |
+| 404 Not Found | 置き場所が違う。`C:\xampp\htdocs\MOS_A\public\index.php` が存在するか確認する。`MOS_A\MOS_A\...` と二重になっていたら、内側のフォルダを取り出して置き直す（STEP 2-2） |
 | ログインできない | パスワードは `password`。DBを入れ直した場合は元に戻っている。変更したい場合は「補足：パスワードを変更する」を参照 |
 | 画面の見た目が崩れる | ブラウザが古いCSSを覚えている。**Ctrl + Shift + R** で強制再読み込みする |
 | Apache が起動しない | ポート80が使われている。他のソフトを終了するか、XAMPPのポートを変更する |
